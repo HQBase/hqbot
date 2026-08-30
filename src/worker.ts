@@ -205,7 +205,12 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (request.method === "POST" && url.pathname === "/api/bots") {
     const body = await readJson(request)
     const brief = cleanString(body, "brief", 2_000)
-    const definition = await defineBot(env.AI, env.HQBOT_MODEL_ID, brief)
+    const definition = await defineBot(
+      env.AI,
+      env.HQBOT_MODEL_ID,
+      env.HQBOT_FALLBACK_MODEL_ID,
+      brief,
+    )
     const teammate = await agent.createBot(crypto.randomUUID(), definition, brief)
     return json({ teammate }, 201)
   }
@@ -257,7 +262,7 @@ export default {
           configured: Boolean(env.HQBOT_OWNER_TOKEN && env.HQBOT_CONNECTION_KEY),
         })
       }
-      if (url.pathname.startsWith("/api/")) return handleApi(request, env)
+      if (url.pathname.startsWith("/api/")) return await handleApi(request, env)
       return env.ASSETS.fetch(request)
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "HQBot request failed" }, 500)

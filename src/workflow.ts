@@ -76,7 +76,13 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
       const plan = await step.do<ResearchPlan>(
         "plan research",
         { retries: { limit: 3, delay: "5 seconds", backoff: "exponential" }, timeout: "2 minutes" },
-        async () => planResearch(this.env.AI, this.env.HQBOT_MODEL_ID, prompt),
+        async () =>
+          planResearch(
+            this.env.AI,
+            this.env.HQBOT_MODEL_ID,
+            this.env.HQBOT_FALLBACK_MODEL_ID,
+            prompt,
+          ),
       )
 
       await step.do("show browser work", async () => {
@@ -108,7 +114,14 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
       const result = await step.do(
         "write answer",
         { retries: { limit: 3, delay: "5 seconds", backoff: "exponential" }, timeout: "2 minutes" },
-        async () => writeResult(this.env.AI, this.env.HQBOT_MODEL_ID, prompt, research.sources),
+        async () =>
+          writeResult(
+            this.env.AI,
+            this.env.HQBOT_MODEL_ID,
+            this.env.HQBOT_FALLBACK_MODEL_ID,
+            prompt,
+            research.sources,
+          ),
       )
 
       let replyMessageId: string | null = null
