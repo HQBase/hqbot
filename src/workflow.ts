@@ -6,7 +6,7 @@ import { needsReplyApproval } from "./domain/approval"
 import type { ResearchPlan, ResearchResult, WorkflowInput } from "./domain/types"
 import { planResearch, writeResult, writeSpecialistNote } from "./services/ai"
 import { researchWithBrowser } from "./services/browser"
-import { decryptConnectionToken } from "./services/crypto"
+import { decryptConnectionToken, decryptSecret } from "./services/crypto"
 import {
   existingReply,
   getMessage,
@@ -67,9 +67,15 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
       const memories = await step.do("load teammate memory", async () =>
         agent.listMemories(input.botId),
       )
-      const prompt = memories.length
+      const skill = input.skillId
+        ? await step.do("load skill", async () => agent.getSkill(input.skillId ?? "", input.botId))
+        : null
+      const rememberedPrompt = memories.length
         ? `${rawPrompt}\n\nTeammate memory:\n${memories.map((memory) => `- ${memory.content}`).join("\n")}`
         : rawPrompt
+      const prompt = skill
+        ? `${rememberedPrompt}\n\nSelected skill: ${skill.name}\n${skill.instructions}`
+        : rememberedPrompt
 
       await step.do("start task", async () => {
         await agent.setStatus(input.taskId, "working")
@@ -106,7 +112,24 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
       const research = await step.do<ResearchResult>(
         "research public web",
         { retries: { limit: 2, delay: "10 seconds", backoff: "linear" }, timeout: "3 minutes" },
-        async () => researchWithBrowser(this.env.BROWSER, this.env.ARTIFACTS, input.taskId, plan),
+        async () => {
+          const computer = await agent.getComputerState()
+          const cookies =
+            computer.cookiesCiphertext && computer.cookiesIv
+              ? await decryptSecret(
+                  this.env.HQBOT_CONNECTION_KEY,
+                  computer.cookiesCiphertext,
+                  computer.cookiesIv,
+                )
+              : undefined
+          return researchWithBrowser(
+            this.env.BROWSER,
+            this.env.ARTIFACTS,
+            input.taskId,
+            plan,
+            cookies,
+          )
+        },
       )
 
       await step.do("save browser evidence", async () => {

@@ -1,4 +1,4 @@
-import puppeteer, { type BrowserWorker } from "@cloudflare/puppeteer"
+import puppeteer, { type BrowserWorker, type CookieParam } from "@cloudflare/puppeteer"
 
 import { safeResearchUrl } from "../domain/research"
 import type { ResearchPlan, ResearchResult, ResearchSource } from "../domain/types"
@@ -42,6 +42,7 @@ export async function researchWithBrowser(
   artifacts: R2Bucket,
   taskId: string,
   plan: ResearchPlan,
+  cookiesJson?: string,
 ): Promise<ResearchResult> {
   const browser = await puppeteer.launch(browserBinding)
   const page = await browser.newPage()
@@ -49,6 +50,14 @@ export async function researchWithBrowser(
   let screenshotKey: string | null = null
   let browserUrl: string | null = null
   try {
+    if (cookiesJson) {
+      try {
+        const cookies = JSON.parse(cookiesJson) as CookieParam[]
+        if (cookies.length > 0) await page.setCookie(...cookies)
+      } catch {
+        // Expired browser connection state must not stop public research.
+      }
+    }
     await page.setRequestInterception(true)
     page.on("request", async (request) => {
       if (safeResearchUrl(request.url())) {

@@ -68,6 +68,30 @@ export interface BotFile {
   createdAt: string
 }
 
+export interface BotSkill {
+  id: string
+  botId: string
+  name: string
+  description: string
+  instructions: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ComputerState {
+  active: boolean
+  url: string | null
+  screenshotKey: string | null
+  expiresAt: string | null
+  updatedAt: string | null
+}
+
+export interface StoredComputerState extends ComputerState {
+  sessionId: string | null
+  cookiesCiphertext: string | null
+  cookiesIv: string | null
+}
+
 export interface BotTask {
   id: string
   botId: string
@@ -106,6 +130,8 @@ export interface WorkspaceSnapshot {
   memories: BotMemory[]
   routines: BotRoutine[]
   files: BotFile[]
+  skills: BotSkill[]
+  computer: ComputerState
 }
 
 export interface ResearchPlan {
@@ -134,6 +160,7 @@ export interface WorkflowInput {
   messageId?: string
   prompt?: string
   collaboratorIds?: string[]
+  skillId?: string
 }
 
 export interface BotDefinition {

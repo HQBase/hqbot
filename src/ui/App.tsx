@@ -31,6 +31,7 @@ import {
 import {
   type ChangeEvent,
   type FormEvent,
+  type MouseEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -38,7 +39,15 @@ import {
   useState,
 } from "react"
 
-import type { BotFile, BotRoutine, BotTask, BotTeammate, WorkspaceSnapshot } from "../domain/types"
+import { skillCommand } from "../domain/skills"
+import type {
+  BotFile,
+  BotRoutine,
+  BotSkill,
+  BotTask,
+  BotTeammate,
+  WorkspaceSnapshot,
+} from "../domain/types"
 
 const tokenKey = "hqbot-owner-token"
 const newAgentId = "__new_agent__"
@@ -164,11 +173,15 @@ export function App() {
   const [connectOpen, setConnectOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [routineOpen, setRoutineOpen] = useState(false)
+  const [skillOpen, setSkillOpen] = useState(false)
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
   const [memoryInput, setMemoryInput] = useState("")
   const [savingMemory, setSavingMemory] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<BotFile[]>([])
   const [uploadingFile, setUploadingFile] = useState(false)
+  const [computerUrl, setComputerUrl] = useState("https://x.com")
+  const [computerText, setComputerText] = useState("")
+  const [computerBusy, setComputerBusy] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const load = useCallback(
@@ -215,8 +228,11 @@ export function App() {
     let active = true
     let objectUrl: string | null = null
     setScreenshotUrl(null)
-    if (!token || !selectedTask?.screenshotKey) return
-    void fetch(`/api/artifacts/${encodeURIComponent(selectedTask.screenshotKey)}`, {
+    const key = snapshot?.computer.active
+      ? snapshot.computer.screenshotKey
+      : selectedTask?.screenshotKey
+    if (!token || !key) return
+    void fetch(`/api/artifacts/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((response) => {
@@ -233,7 +249,7 @@ export function App() {
       active = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [selectedTask?.screenshotKey, token])
+  }, [selectedTask?.screenshotKey, snapshot?.computer, token])
 
   async function submitMessage(event: FormEvent) {
     event.preventDefault()
@@ -375,6 +391,54 @@ export function App() {
     await api(`/api/bots/${selectedBot.id}/files/${file.id}`, token, { method: "DELETE" })
     setAttachedFiles((current) => current.filter((candidate) => candidate.id !== file.id))
     await load(selectedBot.id)
+  }
+
+  async function computerAction(action: Record<string, unknown>) {
+    setComputerBusy(true)
+    setError("")
+    try {
+      await api("/api/computer/action", token, {
+        method: "POST",
+        body: JSON.stringify(action),
+      })
+      await load(selectedBot?.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The computer action failed")
+    } finally {
+      setComputerBusy(false)
+    }
+  }
+
+  async function stopSharedComputer() {
+    setComputerBusy(true)
+    try {
+      await api("/api/computer/stop", token, { method: "POST" })
+      await load(selectedBot?.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The computer could not stop")
+    } finally {
+      setComputerBusy(false)
+    }
+  }
+
+  function clickComputer(event: MouseEvent<HTMLButtonElement>) {
+    if (!snapshot?.computer.active || computerBusy) return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    void computerAction({
+      type: "click",
+      x: ((event.clientX - bounds.left) / bounds.width) * 1_280,
+      y: ((event.clientY - bounds.top) / bounds.height) * 800,
+    })
+  }
+
+  async function deleteSkill(skill: BotSkill) {
+    if (!selectedBot) return
+    try {
+      await api(`/api/bots/${selectedBot.id}/skills/${skill.id}`, token, { method: "DELETE" })
+      await load(selectedBot.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The skill could not be deleted")
+    }
   }
 
   function lockWorkspace() {
@@ -758,9 +822,11 @@ export function App() {
           <header>
             <div>
               <Monitor size={16} />
-              <span>{selectedBot ? `${selectedBot.name}'s computer` : "Teammate computer"}</span>
+              <span>Shared computer</span>
             </div>
-            <span className="cloud-label">YOUR CLOUDFLARE</span>
+            <span className="cloud-label">
+              {snapshot.computer.active ? "TAKEOVER" : "YOUR CLOUDFLARE"}
+            </span>
           </header>
           <div className="browser-chrome">
             <div className="browser-top">
@@ -770,12 +836,26 @@ export function App() {
                 <i />
               </span>
               <span className="address-bar">
-                {selectedTask?.browserUrl || "Browser Run — ready"}
+                {snapshot.computer.active
+                  ? snapshot.computer.url
+                  : selectedTask?.browserUrl || "Browser Run — ready"}
               </span>
             </div>
             <div className="computer-view">
               {screenshotUrl ? (
-                <img src={screenshotUrl} alt="The final page from this teammate's browser work" />
+                snapshot.computer.active ? (
+                  <button
+                    className="computer-click"
+                    type="button"
+                    onClick={clickComputer}
+                    disabled={computerBusy}
+                    aria-label="Click this point in the live shared computer"
+                  >
+                    <img src={screenshotUrl} alt="The live shared computer" />
+                  </button>
+                ) : (
+                  <img src={screenshotUrl} alt="The final page from this teammate's browser work" />
+                )
               ) : (
                 <div className="computer-idle">
                   <div className="radar">
@@ -783,16 +863,76 @@ export function App() {
                   </div>
                   <Globe2 size={28} />
                   <strong>{working ? "Computer is working" : "Computer ready"}</strong>
-                  <p>Each teammate works in a cloud browser in your account.</p>
+                  <p>Open a two-minute takeover session or let a teammate research.</p>
                 </div>
               )}
             </div>
           </div>
+          <div className="computer-controls">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                void computerAction({ type: "navigate", url: computerUrl })
+              }}
+            >
+              <input
+                type="url"
+                value={computerUrl}
+                onChange={(event) => setComputerUrl(event.target.value)}
+                aria-label="Computer URL"
+                required
+              />
+              <button type="submit" disabled={computerBusy}>
+                {computerBusy ? <LoaderCircle className="spin" size={12} /> : "Go"}
+              </button>
+            </form>
+            {snapshot.computer.active ? (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!computerText) return
+                  void computerAction({ type: "type", text: computerText })
+                  setComputerText("")
+                }}
+              >
+                <input
+                  value={computerText}
+                  onChange={(event) => setComputerText(event.target.value)}
+                  placeholder="Type into the selected field"
+                  aria-label="Computer keyboard text"
+                  autoComplete="off"
+                />
+                <button type="submit" disabled={computerBusy || !computerText}>
+                  Type
+                </button>
+                <button
+                  type="button"
+                  disabled={computerBusy}
+                  onClick={() => void computerAction({ type: "key", key: "Enter" })}
+                >
+                  Enter
+                </button>
+              </form>
+            ) : null}
+          </div>
           <footer>
             <span>
-              <i className={working ? "active" : ""} /> {working ? "Working" : "Idle"}
+              <i className={working || snapshot.computer.active ? "active" : ""} />{" "}
+              {snapshot.computer.active
+                ? "Takeover · 2 min idle limit"
+                : working
+                  ? "Working"
+                  : "Idle"}
             </span>
-            {selectedTask?.browserUrl ? (
+            {snapshot.computer.active ? (
+              <button
+                type="button"
+                disabled={computerBusy}
+                onClick={() => void stopSharedComputer()}
+              >
+                Stop
+              </button>
+            ) : selectedTask?.browserUrl ? (
               <a href={selectedTask.browserUrl} target="_blank" rel="noreferrer">
                 Open source <ChevronRight size={13} />
               </a>
@@ -865,6 +1005,41 @@ export function App() {
               ) : null}
             </div>
           )}
+        </section>
+
+        <section className="capability-card">
+          <div className="section-title">
+            <div>
+              <Sparkles size={15} />
+              <span>Skills</span>
+            </div>
+            {selectedBot ? (
+              <button type="button" onClick={() => setSkillOpen(true)} aria-label="New skill">
+                <Plus size={14} />
+              </button>
+            ) : null}
+          </div>
+          <div className="compact-list">
+            {snapshot.skills.length === 0 ? (
+              <p className="empty-copy">Save repeatable instructions, then invoke them with /.</p>
+            ) : (
+              snapshot.skills.map((skill) => (
+                <div className="skill-row" key={skill.id}>
+                  <button type="button" onClick={() => setPrompt(`/${skillCommand(skill.name)} `)}>
+                    <strong>/{skillCommand(skill.name)}</strong>
+                    <small>{skill.description}</small>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteSkill(skill)}
+                    aria-label={`Delete ${skill.name}`}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </section>
 
         <section className="capability-card">
@@ -1030,6 +1205,17 @@ export function App() {
           onClose={() => setRoutineOpen(false)}
           onSaved={async () => {
             setRoutineOpen(false)
+            await load(selectedBot.id)
+          }}
+        />
+      ) : null}
+      {skillOpen && selectedBot ? (
+        <SkillDialog
+          bot={selectedBot}
+          token={token}
+          onClose={() => setSkillOpen(false)}
+          onSaved={async () => {
+            setSkillOpen(false)
             await load(selectedBot.id)
           }}
         />
@@ -1313,6 +1499,110 @@ function RoutineDialog({
           >
             {saving ? <LoaderCircle className="spin" size={15} /> : <CalendarClock size={15} />}
             Create routine
+          </button>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+function SkillDialog({
+  bot,
+  token,
+  onClose,
+  onSaved,
+}: {
+  bot: BotTeammate
+  token: string
+  onClose: () => void
+  onSaved: () => Promise<void>
+}) {
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [instructions, setInstructions] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError("")
+    try {
+      await api(`/api/bots/${bot.id}/skills`, token, {
+        method: "POST",
+        body: JSON.stringify({ name, description, instructions }),
+      })
+      await onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The skill could not be saved")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="connection-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="skill-title"
+      >
+        <header>
+          <div>
+            <span className="connection-logo">
+              <Sparkles size={20} />
+            </span>
+            <div>
+              <p className="eyebrow">Reusable work for {bot.name}</p>
+              <h2 id="skill-title">New skill</h2>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close skill dialog">
+            <X size={17} />
+          </button>
+        </header>
+        <p className="dialog-copy">
+          A skill adds trusted instructions when a message starts with its slash command.
+        </p>
+        <form onSubmit={save}>
+          <label htmlFor="skill-name">Name</label>
+          <input
+            id="skill-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Competitor brief"
+            maxLength={80}
+            required
+          />
+          {name ? <p className="field-help">Command: /{skillCommand(name)}</p> : null}
+          <label htmlFor="skill-description">Description</label>
+          <input
+            id="skill-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Compare one product with its closest alternatives"
+            maxLength={300}
+            required
+          />
+          <label htmlFor="skill-instructions">Instructions</label>
+          <textarea
+            id="skill-instructions"
+            value={instructions}
+            onChange={(event) => setInstructions(event.target.value)}
+            placeholder="Use official sources. Return a compact table…"
+            rows={5}
+            maxLength={4000}
+            required
+          />
+          {error ? <p className="form-error">{error}</p> : null}
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={saving || !name.trim() || !description.trim() || !instructions.trim()}
+          >
+            {saving ? <LoaderCircle className="spin" size={15} /> : <Sparkles size={15} />}
+            Create skill
           </button>
         </form>
       </section>

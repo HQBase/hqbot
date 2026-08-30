@@ -4,7 +4,15 @@ import { HQBotAgent } from "./agent"
 import { defineBot } from "./domain/ai"
 import { mentionedTeammates } from "./domain/collaboration"
 import { contentTypeForUpload } from "./domain/files"
-import type { BotFile, BotRoutine, StoredBotConnection, WorkflowInput } from "./domain/types"
+import { invokedSkill } from "./domain/skills"
+import type {
+  BotFile,
+  BotRoutine,
+  StoredBotConnection,
+  StoredComputerState,
+  WorkflowInput,
+} from "./domain/types"
+import { type ComputerAction, operateComputer, stopComputer } from "./services/computer"
 import { decryptConnectionToken, encryptConnectionToken } from "./services/crypto"
 import {
   isNewInboundMessage,
@@ -24,6 +32,16 @@ const jsonHeaders = {
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status, headers: jsonHeaders })
+}
+
+function publicComputer(state: StoredComputerState) {
+  return {
+    active: state.active,
+    url: state.url,
+    screenshotKey: state.screenshotKey,
+    expiresAt: state.expiresAt,
+    updatedAt: state.updatedAt,
+  }
 }
 
 function equalTokens(left: string, right: string): boolean {
@@ -283,6 +301,49 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     return json(await agent.getSnapshot(url.searchParams.get("botId") ?? undefined))
   }
   if (request.method === "POST" && url.pathname === "/api/poll") return json(await pollInbox(env))
+  if (request.method === "POST" && url.pathname === "/api/computer/action") {
+    const body = await readJson(request)
+    const type = body.type
+    let action: ComputerAction
+    if (type === "navigate") {
+      action = { type, url: cleanString(body, "url", 2_000) }
+    } else if (type === "click") {
+      const x = Number(body.x)
+      const y = Number(body.y)
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return json({ error: "click requires numeric x and y coordinates" }, 400)
+      }
+      action = { type, x, y }
+    } else if (type === "type") {
+      action = { type, text: cleanString(body, "text", 2_000) }
+    } else if (
+      type === "key" &&
+      ["Enter", "Tab", "Escape", "Backspace", "ArrowUp", "ArrowDown"].includes(String(body.key))
+    ) {
+      action = {
+        type,
+        key: String(body.key) as "Enter" | "Tab" | "Escape" | "Backspace" | "ArrowUp" | "ArrowDown",
+      }
+    } else if (type === "refresh") {
+      action = { type }
+    } else {
+      return json({ error: "Unsupported computer action" }, 400)
+    }
+    const state = await operateComputer(
+      env.BROWSER,
+      env.ARTIFACTS,
+      env.HQBOT_CONNECTION_KEY,
+      await agent.getComputerState(),
+      action,
+    )
+    await agent.saveComputerState(state)
+    return json({ computer: publicComputer(await agent.getComputerState()) })
+  }
+  if (request.method === "POST" && url.pathname === "/api/computer/stop") {
+    const state = await stopComputer(env.BROWSER, await agent.getComputerState())
+    await agent.saveComputerState(state)
+    return json({ computer: publicComputer(await agent.getComputerState()) })
+  }
   if (request.method === "POST" && url.pathname === "/api/bots") {
     const body = await readJson(request)
     const brief = cleanString(body, "brief", 2_000)
@@ -334,6 +395,34 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
       cleanString(body, "content", 500),
     )
     return json({ memory }, 201)
+  }
+
+  const skillCollectionMatch = /^\/api\/bots\/([^/]+)\/skills$/u.exec(url.pathname)
+  if (request.method === "POST" && skillCollectionMatch?.[1]) {
+    const botId = decodeURIComponent(skillCollectionMatch[1])
+    if (!(await agent.hasBot(botId))) return json({ error: "Teammate not found" }, 404)
+    const body = await readJson(request)
+    try {
+      const skill = await agent.createSkill({
+        id: crypto.randomUUID(),
+        botId,
+        name: cleanString(body, "name", 80),
+        description: cleanString(body, "description", 300),
+        instructions: cleanString(body, "instructions", 4_000),
+      })
+      return json({ skill }, 201)
+    } catch {
+      return json({ error: "A skill with this name already exists" }, 409)
+    }
+  }
+
+  const skillMatch = /^\/api\/bots\/([^/]+)\/skills\/([^/]+)$/u.exec(url.pathname)
+  if (request.method === "DELETE" && skillMatch?.[1] && skillMatch[2]) {
+    const deleted = await agent.deleteSkill(
+      decodeURIComponent(skillMatch[2]),
+      decodeURIComponent(skillMatch[1]),
+    )
+    return deleted ? json({ deleted: true }) : json({ error: "Skill not found" }, 404)
   }
 
   const memoryMatch = /^\/api\/bots\/([^/]+)\/memories\/([^/]+)$/u.exec(url.pathname)
@@ -455,12 +544,14 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     const attachedFiles = await agent.attachFiles(botId, taskId, fileIds(body))
     const workflowPrompt = await promptWithFiles(env, prompt, attachedFiles)
     const collaborators = mentionedTeammates(prompt, botId, await agent.listBots())
+    const skill = invokedSkill(prompt, await agent.listSkills(botId))
     const workflowId = await dispatch(env, {
       taskId,
       botId,
       source: "chat",
       prompt: workflowPrompt,
       collaboratorIds: collaborators.map((candidate) => candidate.id),
+      skillId: skill?.id,
     })
     return json({ taskId, workflowId }, 202)
   }
@@ -473,7 +564,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
       return json({ error: "Invalid artifact path" }, 400)
     }
     if (
-      (!key.startsWith("tasks/") && !key.startsWith("files/")) ||
+      (!key.startsWith("tasks/") && !key.startsWith("files/") && !key.startsWith("computer/")) ||
       key.includes("..") ||
       key.includes("\\")
     ) {

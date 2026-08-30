@@ -114,6 +114,33 @@ export const schemaMigrations: readonly SchemaMigration[] = [
       "CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)",
     ],
   },
+  {
+    version: 4,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS skills (
+        id TEXT PRIMARY KEY,
+        bot_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        instructions TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(bot_id, name),
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+      )`,
+      "CREATE INDEX IF NOT EXISTS skills_bot_created ON skills(bot_id, created_at)",
+      `CREATE TABLE IF NOT EXISTS computer_state (
+        id TEXT PRIMARY KEY CHECK (id = 'shared'),
+        session_id TEXT,
+        url TEXT,
+        screenshot_key TEXT,
+        expires_at TEXT,
+        cookies_ciphertext TEXT,
+        cookies_iv TEXT,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ]
 
 export function pendingMigrations(appliedVersions: readonly number[]): readonly SchemaMigration[] {

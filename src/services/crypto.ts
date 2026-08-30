@@ -31,16 +31,31 @@ export async function encryptConnectionToken(
   keyValue: string,
   token: string,
 ): Promise<{ ciphertext: string; iv: string }> {
+  return encryptSecret(keyValue, token)
+}
+
+export async function encryptSecret(
+  keyValue: string,
+  value: string,
+): Promise<{ ciphertext: string; iv: string }> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const encrypted = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     await connectionKey(keyValue),
-    new TextEncoder().encode(token),
+    new TextEncoder().encode(value),
   )
   return { ciphertext: base64url(new Uint8Array(encrypted)), iv: base64url(iv) }
 }
 
 export async function decryptConnectionToken(
+  keyValue: string,
+  ciphertext: string,
+  iv: string,
+): Promise<string> {
+  return decryptSecret(keyValue, ciphertext, iv)
+}
+
+export async function decryptSecret(
   keyValue: string,
   ciphertext: string,
   iv: string,

@@ -7,9 +7,11 @@ import type {
   BotFile,
   BotMemory,
   BotRoutine,
+  BotSkill,
   BotTask,
   BotTeammate,
   StoredBotConnection,
+  StoredComputerState,
   TaskSource,
   TaskStatus,
   WorkspaceSnapshot,
@@ -143,6 +145,32 @@ function fileFromRow(row: Row): BotFile {
   }
 }
 
+function skillFromRow(row: Row): BotSkill {
+  return {
+    id: text(row, "id"),
+    botId: text(row, "bot_id"),
+    name: text(row, "name"),
+    description: text(row, "description"),
+    instructions: text(row, "instructions"),
+    createdAt: text(row, "created_at"),
+    updatedAt: text(row, "updated_at"),
+  }
+}
+
+function computerFromRow(row?: Row): StoredComputerState {
+  const expiresAt = row ? nullableText(row, "expires_at") : null
+  return {
+    active: Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now()),
+    sessionId: row ? nullableText(row, "session_id") : null,
+    url: row ? nullableText(row, "url") : null,
+    screenshotKey: row ? nullableText(row, "screenshot_key") : null,
+    expiresAt,
+    cookiesCiphertext: row ? nullableText(row, "cookies_ciphertext") : null,
+    cookiesIv: row ? nullableText(row, "cookies_iv") : null,
+    updatedAt: row ? text(row, "updated_at") : null,
+  }
+}
+
 export class HQBotAgent extends Agent<Env, Record<string, never>> {
   async onStart(): Promise<void> {
     this.sql`CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -240,23 +268,23 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     const version3 = this.sql<{
       version: number
     }>`SELECT version FROM schema_migrations WHERE version = 3`
-    if (version3.length > 0) return
-    const botColumns = this.sql<{ name: string }>`PRAGMA table_info(bots)`
-    if (!botColumns.some((column) => column.name === "pinned")) {
-      this.sql`ALTER TABLE bots ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`
-    }
-    if (!botColumns.some((column) => column.name === "hidden")) {
-      this.sql`ALTER TABLE bots ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`
-    }
-    this.sql`CREATE TABLE IF NOT EXISTS memories (
+    if (version3.length === 0) {
+      const botColumns = this.sql<{ name: string }>`PRAGMA table_info(bots)`
+      if (!botColumns.some((column) => column.name === "pinned")) {
+        this.sql`ALTER TABLE bots ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`
+      }
+      if (!botColumns.some((column) => column.name === "hidden")) {
+        this.sql`ALTER TABLE bots ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`
+      }
+      this.sql`CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
       bot_id TEXT NOT NULL,
       content TEXT NOT NULL,
       created_at TEXT NOT NULL,
       FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     )`
-    this.sql`CREATE INDEX IF NOT EXISTS memories_bot_created ON memories(bot_id, created_at)`
-    this.sql`CREATE TABLE IF NOT EXISTS routines (
+      this.sql`CREATE INDEX IF NOT EXISTS memories_bot_created ON memories(bot_id, created_at)`
+      this.sql`CREATE TABLE IF NOT EXISTS routines (
       id TEXT PRIMARY KEY,
       bot_id TEXT NOT NULL,
       name TEXT NOT NULL,
@@ -268,8 +296,8 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       updated_at TEXT NOT NULL,
       FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     )`
-    this.sql`CREATE INDEX IF NOT EXISTS routines_due ON routines(active, next_run_at)`
-    this.sql`CREATE TABLE IF NOT EXISTS files (
+      this.sql`CREATE INDEX IF NOT EXISTS routines_due ON routines(active, next_run_at)`
+      this.sql`CREATE TABLE IF NOT EXISTS files (
       id TEXT PRIMARY KEY,
       bot_id TEXT NOT NULL,
       task_id TEXT,
@@ -281,8 +309,37 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
     )`
-    this.sql`CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)`
-    this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (3, ${now()})`
+      this.sql`CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)`
+      this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (3, ${now()})`
+    }
+
+    const version4 = this.sql<{
+      version: number
+    }>`SELECT version FROM schema_migrations WHERE version = 4`
+    if (version4.length > 0) return
+    this.sql`CREATE TABLE IF NOT EXISTS skills (
+      id TEXT PRIMARY KEY,
+      bot_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      instructions TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(bot_id, name),
+      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    )`
+    this.sql`CREATE INDEX IF NOT EXISTS skills_bot_created ON skills(bot_id, created_at)`
+    this.sql`CREATE TABLE IF NOT EXISTS computer_state (
+      id TEXT PRIMARY KEY CHECK (id = 'shared'),
+      session_id TEXT,
+      url TEXT,
+      screenshot_key TEXT,
+      expires_at TEXT,
+      cookies_ciphertext TEXT,
+      cookies_iv TEXT,
+      updated_at TEXT NOT NULL
+    )`
+    this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (4, ${now()})`
   }
 
   createBot(id: string, definition: BotDefinition, brief: string): BotTeammate {
@@ -450,6 +507,60 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     const rows = this.sql<Row>`DELETE FROM files WHERE id = ${id} AND bot_id = ${botId}
       RETURNING *`
     return rows[0] ? fileFromRow(rows[0]) : null
+  }
+
+  createSkill(input: {
+    id: string
+    botId: string
+    name: string
+    description: string
+    instructions: string
+  }): BotSkill {
+    const timestamp = now()
+    this.sql`INSERT INTO skills (
+      id, bot_id, name, description, instructions, created_at, updated_at
+    ) VALUES (
+      ${input.id}, ${input.botId}, ${input.name}, ${input.description}, ${input.instructions},
+      ${timestamp}, ${timestamp}
+    )`
+    return { ...input, createdAt: timestamp, updatedAt: timestamp }
+  }
+
+  listSkills(botId: string): BotSkill[] {
+    return this.sql<Row>`SELECT * FROM skills WHERE bot_id = ${botId}
+      ORDER BY created_at ASC`.map(skillFromRow)
+  }
+
+  getSkill(id: string, botId: string): BotSkill | null {
+    const rows = this.sql<Row>`SELECT * FROM skills WHERE id = ${id} AND bot_id = ${botId}`
+    return rows[0] ? skillFromRow(rows[0]) : null
+  }
+
+  deleteSkill(id: string, botId: string): boolean {
+    return (
+      this.sql<{ id: string }>`DELETE FROM skills WHERE id = ${id} AND bot_id = ${botId}
+        RETURNING id`.length > 0
+    )
+  }
+
+  getComputerState(): StoredComputerState {
+    return computerFromRow(this.sql<Row>`SELECT * FROM computer_state WHERE id = 'shared'`[0])
+  }
+
+  saveComputerState(input: Omit<StoredComputerState, "active" | "updatedAt">): void {
+    this.sql`INSERT INTO computer_state (
+      id, session_id, url, screenshot_key, expires_at, cookies_ciphertext, cookies_iv, updated_at
+    ) VALUES (
+      'shared', ${input.sessionId}, ${input.url}, ${input.screenshotKey}, ${input.expiresAt},
+      ${input.cookiesCiphertext}, ${input.cookiesIv}, ${now()}
+    ) ON CONFLICT(id) DO UPDATE SET
+      session_id = excluded.session_id,
+      url = excluded.url,
+      screenshot_key = excluded.screenshot_key,
+      expires_at = excluded.expires_at,
+      cookies_ciphertext = excluded.cookies_ciphertext,
+      cookies_iv = excluded.cookies_iv,
+      updated_at = excluded.updated_at`
   }
 
   connectHQBase(input: {
@@ -621,6 +732,26 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       ? this.sql<Row>`SELECT * FROM files WHERE bot_id = ${selectedBot.id}
           ORDER BY created_at DESC LIMIT 30`.map(fileFromRow)
       : []
-    return { bots, selectedBot, tasks, activeTask, activity, memories, routines, files }
+    const skills = selectedBot ? this.listSkills(selectedBot.id) : []
+    const storedComputer = this.getComputerState()
+    const computer = {
+      active: storedComputer.active,
+      url: storedComputer.url,
+      screenshotKey: storedComputer.screenshotKey,
+      expiresAt: storedComputer.expiresAt,
+      updatedAt: storedComputer.updatedAt,
+    }
+    return {
+      bots,
+      selectedBot,
+      tasks,
+      activeTask,
+      activity,
+      memories,
+      routines,
+      files,
+      skills,
+      computer,
+    }
   }
 }
