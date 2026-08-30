@@ -3,7 +3,6 @@ import {
   type ChatResponseResult,
   type StepContext,
   Think,
-  type ThinkScheduledTasks,
   type ToolCallResultContext,
   type TurnConfig,
   type TurnContext,
@@ -19,16 +18,20 @@ import {
   resolveReplyApprovalLifecycle
 } from "./runtime/approval";
 import {
+  type BrowserSessionLease,
+  closeBrowserSession,
   createTeammateBrowserRuntime,
-  estimateBrowserMicroUsd,
-  type MeteredBrowserRuntime
+  keepBrowserLiveViewAlive,
+  type MeteredBrowserRuntime,
+  openBrowserLiveView,
+  scheduleBrowserLeases,
+  settleBrowserLease
 } from "./runtime/browser";
-import type { BrowserSessionLease } from "./runtime/browser-meter";
 import { executeDelegatedTask } from "./runtime/collaboration";
 import { estimateModelUsage, identifyModel } from "./runtime/costs";
 import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
 import { routeTurn } from "./runtime/routing";
-import { intervalSchedule } from "./runtime/schedules";
+import { teammateScheduledTasks } from "./runtime/schedules";
 import { createTeammateActions, REPLY_PERMISSION } from "./runtime/teammate-actions";
 import {
   createSubmittedTaskMessage,
@@ -41,7 +44,6 @@ import {
   type DelegatedTaskResult,
   GLM_PRIMARY_MODEL_ID,
   type HQBotModelId,
-  type LiveViewDto,
   type TeammateTaskSubmission,
   type WorkspaceAgentRpc
 } from "./runtime/types";
@@ -74,20 +76,8 @@ export class HQBotTeammate extends Think<Env> {
       this.env.BROWSER,
       this.env.LOADER,
       this.name,
-      () => {
-        const taskId = this.activeTurnMetadata?.taskId;
-        return typeof taskId === "string" ? taskId : null;
-      },
-      async (sample) => {
-        await this.workspaceAgent.recordResourceUsage({
-          eventId: sample.eventId,
-          botId: this.name,
-          taskId: sample.taskId,
-          service: "browser",
-          units: sample.milliseconds,
-          estimatedCostMicroUsd: estimateBrowserMicroUsd(sample.milliseconds)
-        });
-      }
+      () => this.activeTurnMetadata?.taskId,
+      this.workspaceAgent
     );
     return this.browser;
   }
@@ -105,7 +95,6 @@ export class HQBotTeammate extends Think<Env> {
   getTools(): ToolSet {
     return this.browserRuntime.tools;
   }
-
   getActions() {
     return createTeammateActions({
       botId: this.name,
@@ -183,26 +172,11 @@ export class HQBotTeammate extends Think<Env> {
     });
   }
 
-  async getScheduledTasks(): Promise<ThinkScheduledTasks> {
-    const routines = await this.workspaceAgent.listRoutines(this.name);
-    const tasks: ThinkScheduledTasks = {
-      "system:browser-sweep": {
-        schedule: "every 1 hour",
-        handler: async () => {
-          await this.browserRuntime.connector.sweep();
-          await this.browserRuntime.meter.flush();
-        }
-      }
-    };
-    for (const routine of routines) {
-      if (!routine.active) continue;
-      tasks[`routine:${routine.id}`] = {
-        schedule: intervalSchedule(routine.intervalMinutes),
-        prompt: `[hqbot:routine]\n${routine.name}\n\n${routine.prompt}`,
-        metadata: { routineId: routine.id, source: "routine" }
-      };
-    }
-    return tasks;
+  async getScheduledTasks() {
+    return teammateScheduledTasks(await this.workspaceAgent.listRoutines(this.name), async () => {
+      await this.browserRuntime.connector.sweep();
+      await this.browserRuntime.meter.flush();
+    });
   }
 
   async runDelegatedTask(input: DelegatedTaskInput): Promise<DelegatedTaskResult> {
@@ -262,31 +236,23 @@ export class HQBotTeammate extends Think<Env> {
   }
 
   @callable()
-  async getLiveView(mode: "tab" | "devtools" = "tab"): Promise<LiveViewDto | null> {
-    const view = (await this.browserRuntime.connector.liveView({ mode })) ?? null;
-    await this.browserRuntime.meter.flush();
-    if (view)
-      await this.armBrowserLeases(await this.browserRuntime.meter.touch(null, view.sessionId));
-    return view;
+  async getLiveView(mode: "tab" | "devtools" = "tab") {
+    return openBrowserLiveView(this.browserRuntime, mode, (leases) =>
+      this.armBrowserLeases(leases)
+    );
   }
 
   @callable()
   async keepLiveViewAlive(sessionId: string, taskId?: string): Promise<boolean> {
-    const info = await this.browserRuntime.connector.sessionInfo();
-    await this.browserRuntime.meter.flush();
-    if (!info || info.sessionId !== sessionId) return false;
-    const leases = await this.browserRuntime.meter.touch(taskId ?? null, sessionId);
-    await this.armBrowserLeases(leases);
-    return leases.length > 0;
-  }
-
-  @callable()
-  async closeLiveView(): Promise<void> {
-    await this.browserRuntime.meter.closeSession(() =>
-      this.browserRuntime.connector.closeSession()
+    return keepBrowserLiveViewAlive(this.browserRuntime, sessionId, taskId ?? null, (leases) =>
+      this.armBrowserLeases(leases)
     );
   }
 
+  @callable()
+  closeLiveView(): Promise<void> {
+    return closeBrowserSession(this.browserRuntime);
+  }
   @callable()
   async cancelTask(taskId: string): Promise<void> {
     const safeId = safeTaskId(taskId);
@@ -296,31 +262,13 @@ export class HQBotTeammate extends Think<Env> {
       pending: this.pendingApprovals(),
       reject: (executionId) => super.rejectExecution(executionId, "The owner stopped this task")
     });
-    await this.browserRuntime.meter.closeSession(() =>
-      this.browserRuntime.connector.closeSession()
-    );
+    await closeBrowserSession(this.browserRuntime);
     this.resetTurnState();
   }
 
-  async settleBrowserSession(payload: BrowserSessionLease): Promise<void> {
-    const lease = (await this.browserRuntime.meter.leases(payload.sessionId))[0];
-    if (!lease) return;
-    if (lease.deadline > Date.now()) {
-      await this.armBrowserLeases([lease]);
-      return;
-    }
-
-    const info = await this.browserRuntime.connector.sessionInfo();
-    await this.browserRuntime.meter.flush();
-    if (!info || info.sessionId !== payload.sessionId) return;
-    const current = (await this.browserRuntime.meter.leases(payload.sessionId))[0];
-    if (!current) return;
-    if (current.deadline > Date.now()) {
-      await this.armBrowserLeases([current]);
-      return;
-    }
-    await this.browserRuntime.meter.closeSession(() =>
-      this.browserRuntime.connector.closeSession()
+  settleBrowserSession(payload: BrowserSessionLease): Promise<void> {
+    return settleBrowserLease(this.browserRuntime, payload, (leases) =>
+      this.armBrowserLeases(leases)
     );
   }
 
@@ -343,10 +291,9 @@ export class HQBotTeammate extends Think<Env> {
     });
   }
 
-  private async armBrowserLeases(leases: BrowserSessionLease[]): Promise<void> {
-    for (const lease of leases) {
-      const when = new Date(Math.max(Date.now() + 1_000, lease.deadline));
-      await this.schedule(when, "settleBrowserSession", lease, { idempotent: true });
-    }
+  private armBrowserLeases(leases: BrowserSessionLease[]): Promise<void> {
+    return scheduleBrowserLeases(leases, (when, lease) =>
+      this.schedule(when, "settleBrowserSession", lease, { idempotent: true })
+    );
   }
 }
