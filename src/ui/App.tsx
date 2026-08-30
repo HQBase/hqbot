@@ -224,16 +224,22 @@ export function App() {
       snapshot?.tasks.find((task) => task.id === selectedTaskId) ?? snapshot?.activeTask ?? null,
     [selectedTaskId, snapshot],
   )
+  const screenshotKey = snapshot?.computer.active
+    ? snapshot.computer.screenshotKey
+    : selectedTask?.screenshotKey
+  const screenshotRevision = snapshot?.computer.active
+    ? snapshot.computer.updatedAt
+    : selectedTask?.screenshotKey
 
   useEffect(() => {
     let active = true
     let objectUrl: string | null = null
-    setScreenshotUrl(null)
-    const key = snapshot?.computer.active
-      ? snapshot.computer.screenshotKey
-      : selectedTask?.screenshotKey
-    if (!token || !key) return
-    void fetch(`/api/artifacts/${encodeURIComponent(key)}`, {
+    if (!token || !screenshotKey) {
+      setScreenshotUrl(null)
+      return
+    }
+    const revision = screenshotRevision ? `?v=${encodeURIComponent(screenshotRevision)}` : ""
+    void fetch(`/api/artifacts/${encodeURIComponent(screenshotKey)}${revision}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((response) => {
@@ -250,7 +256,7 @@ export function App() {
       active = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [selectedTask?.screenshotKey, snapshot?.computer, token])
+  }, [screenshotKey, screenshotRevision, token])
 
   async function submitMessage(event: FormEvent) {
     event.preventDefault()
