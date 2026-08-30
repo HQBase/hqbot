@@ -348,6 +348,11 @@ a:focus-visible {
   color: #e5e5e5;
 }
 
+.section-actions {
+  display: flex;
+  gap: 5px;
+}
+
 .cloudflare-badge {
   min-width: 0;
   display: flex;

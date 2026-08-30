@@ -51,7 +51,7 @@ import type {
 
 const tokenKey = "hqbot-owner-token"
 const newAgentId = "__new_agent__"
-const terminalStatuses = new Set(["completed", "failed"])
+const terminalStatuses = new Set(["completed", "failed", "cancelled"])
 
 async function api<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
@@ -101,6 +101,7 @@ function statusLabel(task: BotTask | null): string {
       researching: "Researching",
       awaiting_approval: "Needs approval",
       replying: "Replying",
+      cancelled: "Stopped",
       completed: "Complete",
       failed: "Needs attention",
     }[task.status] ?? task.status
@@ -441,6 +442,33 @@ export function App() {
     }
   }
 
+  async function stopCurrentTask() {
+    if (!selectedTask) return
+    try {
+      await api(`/api/tasks/${selectedTask.id}/stop`, token, { method: "POST" })
+      await load(selectedBot?.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The task could not be stopped")
+    }
+  }
+
+  async function disconnectHQBase() {
+    if (!selectedBot?.connection) return
+    if (
+      !window.confirm(
+        `Disconnect ${selectedBot.connection.mailboxAddress} from ${selectedBot.name}?`,
+      )
+    ) {
+      return
+    }
+    try {
+      await api(`/api/bots/${selectedBot.id}/connections/hqbase`, token, { method: "DELETE" })
+      await load(selectedBot.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "HQBase could not disconnect")
+    }
+  }
+
   function lockWorkspace() {
     sessionStorage.removeItem(tokenKey)
     setToken("")
@@ -574,6 +602,11 @@ export function App() {
                 )}
                 {statusLabel(selectedTask)}
               </div>
+              {working ? (
+                <button type="button" onClick={() => void stopCurrentTask()} aria-label="Stop task">
+                  <X size={14} />
+                </button>
+              ) : null}
               <button type="button" onClick={() => setProfileOpen(true)} aria-label="Edit teammate">
                 <Pencil size={14} />
               </button>
@@ -947,14 +980,23 @@ export function App() {
               <span>Connections</span>
             </div>
             {selectedBot?.connection ? (
-              <button
-                onClick={() => void pollNow()}
-                disabled={polling}
-                aria-label="Check connected HQBase inbox"
-                type="button"
-              >
-                {polling ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}
-              </button>
+              <div className="section-actions">
+                <button
+                  onClick={() => void pollNow()}
+                  disabled={polling}
+                  aria-label="Check connected HQBase inbox"
+                  type="button"
+                >
+                  {polling ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}
+                </button>
+                <button
+                  onClick={() => void disconnectHQBase()}
+                  aria-label="Disconnect HQBase"
+                  type="button"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ) : null}
           </div>
           {selectedBot?.connection ? (

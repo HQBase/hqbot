@@ -93,6 +93,22 @@ function nextRun(intervalMinutes: number, from = new Date()): string {
   return new Date(from.getTime() + intervalMinutes * 60_000).toISOString()
 }
 
+function dailyTaskLimit(env: Env): number {
+  const value = Number(env.HQBOT_DAILY_TASK_LIMIT)
+  return Number.isInteger(value) && value > 0 && value <= 1_000 ? value : 50
+}
+
+function startOfUtcDay(): string {
+  const date = new Date()
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  ).toISOString()
+}
+
+async function hasTaskCapacity(env: Env): Promise<boolean> {
+  return (await (await bot(env)).countTasksSince(startOfUtcDay())) < dailyTaskLimit(env)
+}
+
 async function dispatchRoutine(env: Env, routine: BotRoutine): Promise<string> {
   const agent = await bot(env)
   const taskId = crypto.randomUUID()
@@ -110,6 +126,7 @@ async function dispatchDueRoutines(env: Env): Promise<number> {
   const agent = await bot(env)
   const routines = await agent.listDueRoutines(new Date().toISOString())
   for (const routine of routines) {
+    if (!(await hasTaskCapacity(env))) break
     await agent.advanceRoutine(routine.id, nextRun(routine.intervalMinutes))
     await dispatchRoutine(env, routine)
   }
@@ -143,6 +160,10 @@ async function pollInbox(env: Env): Promise<{ accepted: number; ignored: number;
     try {
       for (const message of await listInbox(await mailConfig(env, connection))) {
         if (!isNewInboundMessage(message, connection.createdAt)) {
+          ignored += 1
+          continue
+        }
+        if (!(await hasTaskCapacity(env))) {
           ignored += 1
           continue
         }
@@ -528,15 +549,36 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     return json({ accepted: true })
   }
 
+  const stopMatch = /^\/api\/tasks\/([^/]+)\/stop$/u.exec(url.pathname)
+  if (request.method === "POST" && stopMatch?.[1]) {
+    const taskId = decodeURIComponent(stopMatch[1])
+    const task = await agent.getTask(taskId)
+    if (!task) return json({ error: "Task not found" }, 404)
+    if (["completed", "failed", "cancelled"].includes(task.status)) {
+      return json({ error: "This task already stopped" }, 409)
+    }
+    if (task.workflowId) await (await env.HQBOT_WORKFLOW.get(task.workflowId)).terminate()
+    await agent.cancelTask(taskId)
+    return json({ stopped: true })
+  }
+
   const connectionMatch = /^\/api\/bots\/([^/]+)\/connections\/hqbase$/u.exec(url.pathname)
   if (request.method === "POST" && connectionMatch?.[1]) {
     return connectHQBase(request, env, decodeURIComponent(connectionMatch[1]))
+  }
+  if (request.method === "DELETE" && connectionMatch?.[1]) {
+    return (await agent.disconnectHQBase(decodeURIComponent(connectionMatch[1])))
+      ? json({ disconnected: true })
+      : json({ error: "HQBase connection not found" }, 404)
   }
 
   const taskMatch = /^\/api\/bots\/([^/]+)\/tasks$/u.exec(url.pathname)
   if (request.method === "POST" && taskMatch?.[1]) {
     const botId = decodeURIComponent(taskMatch[1])
     if (!(await agent.hasBot(botId))) return json({ error: "Teammate not found" }, 404)
+    if (!(await hasTaskCapacity(env))) {
+      return json({ error: "The daily task limit has been reached" }, 429)
+    }
     const body = await readJson(request)
     const prompt = cleanString(body, "prompt", 20_000)
     const taskId = crypto.randomUUID()

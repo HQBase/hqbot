@@ -20,17 +20,23 @@ copies no proprietary code or assets.
 
 ## What works
 
-- Many durable teammates that you create and shape in natural chat.
-- A real Browser Run session that reads up to three public sources per task.
-- Workers AI planning and evidence-based writing.
-- Durable Workflows with bounded retries for research and replies.
-- A per-teammate HQBase connection with an autonomous inbox routine.
+- Durable teammates with editable profiles, pin, archive, and duplicate controls.
+- Direct chat, file context, durable memory, reusable slash-command skills, and scheduled routines.
+- Explicit `@Name` collaboration with separate specialist passes and one final answer.
+- A real shared Browser Run computer with screenshot takeover, click, type, key, and URL controls.
+- Encrypted browser cookies that teammates can reuse for research after the short live session stops.
+- Workers AI planning and evidence-based writing with GLM 5.3 Flash first and DeepSeek V4 Flash as
+  the fallback.
+- Durable Workflows with bounded retries, owner stop controls, and review-first email replies.
+- A per-teammate HQBase connection that checks an inbox and uses only existing HQBase APIs.
 - Reply deduplication before the non-idempotent HQBase send.
-- R2 browser screenshots that the owner can review in the app.
-- A responsive three-panel interface for the bot, conversation, computer, and routine.
+- R2 files and browser screenshots that the owner can review in the app.
+- A responsive HQBase-aligned interface for teammates, conversation, computer, connections, memory,
+  skills, routines, and files.
 
-This first release optimizes for the full teammate loop. It does not include group chats,
-arbitrary app control, payments, or a skill marketplace.
+HQBot does not expose a general terminal or let the AI make arbitrary browser write actions. The
+owner controls the shared computer. Autonomous browser work is read-only. Purchases, sends, and
+other external write actions are outside the current boundary, except for an approved HQBase reply.
 
 ## Cloudflare architecture
 
@@ -43,6 +49,7 @@ arbitrary app control, payments, or a skill marketplace.
 | Public web research | Browser Run |
 | Review screenshots | R2 |
 | Inbox routine | Cron Trigger |
+| Cost limit | Durable Object daily task count |
 
 HQBase stays the only mail system. A teammate can connect a mailbox-scoped HQBase agent credential.
 HQBot validates and encrypts the credential, then uses the existing message, thread, and reply APIs.
@@ -72,7 +79,7 @@ to set the owner and connection encryption keys.
 For later code updates, run `pnpm deploy`. The installer refuses to rotate an existing connection
 encryption key.
 
-Inside HQBot, select **New agent** and describe the teammate in chat. Use **Connect** in that chat to
+Inside HQBot, select **New teammate** and describe the job in chat. Use **Connect** in that chat to
 add HQBase. Paste the HTTPS URL of your HQBase workspace and a mailbox-scoped agent credential with
 **Handle mail** access. The connection belongs to that teammate.
 
@@ -96,7 +103,12 @@ pnpm check
 
 HQBot only researches public HTTP and HTTPS pages. It rejects common private and loopback hosts,
 bounds response sizes, treats webpage text as untrusted evidence, and does not expose its API
-without an owner token. The first release has no browser write actions.
+without an owner token. Autonomous browser actions are read-only. Direct shared-computer actions
+come from the owner.
+
+The default daily limit is 50 tasks. Routines cannot run more often than every 15 minutes. The live
+computer has a two-minute idle limit and can be stopped at once. Change these controls only when you
+understand your Cloudflare plan and expected usage.
 
 Read [SECURITY.md](SECURITY.md) before you expose a deployment to the internet.
 

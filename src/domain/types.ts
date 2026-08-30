@@ -5,6 +5,7 @@ export type TaskStatus =
   | "researching"
   | "awaiting_approval"
   | "replying"
+  | "cancelled"
   | "completed"
   | "failed"
 

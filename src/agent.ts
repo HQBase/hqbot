@@ -605,6 +605,15 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     )
   }
 
+  disconnectHQBase(botId: string): boolean {
+    return (
+      this.sql<{
+        id: string
+      }>`DELETE FROM connections WHERE bot_id = ${botId} AND provider = 'hqbase'
+        RETURNING id`.length > 0
+    )
+  }
+
   createEmailTask(input: {
     id: string
     botId: string
@@ -638,6 +647,13 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       id, bot_id, source, status, prompt, created_at, updated_at
     ) VALUES (${id}, ${botId}, 'chat', 'queued', ${prompt}, ${timestamp}, ${timestamp})`
     this.addActivity(id, "queued", "Task queued", "Your teammate is preparing the work.")
+  }
+
+  countTasksSince(timestamp: string): number {
+    return (
+      this.sql<{ count: number }>`SELECT COUNT(*) AS count FROM tasks
+      WHERE created_at >= ${timestamp}`[0]?.count ?? 0
+    )
   }
 
   setWorkflow(taskId: string, workflowId: string): void {
@@ -713,6 +729,12 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     this.addActivity(taskId, "failed", "Task stopped", message)
   }
 
+  cancelTask(taskId: string): void {
+    this.sql`UPDATE tasks SET status = 'cancelled', error = NULL, updated_at = ${now()}
+      WHERE id = ${taskId}`
+    this.addActivity(taskId, "cancelled", "Task stopped", "The owner stopped this work.")
+  }
+
   getSnapshot(botId?: string): WorkspaceSnapshot {
     const bots = this.listBots()
     const selectedBot = bots.find((candidate) => candidate.id === botId) ?? bots[0] ?? null
@@ -721,7 +743,9 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
           ORDER BY created_at DESC LIMIT 30`.map(taskFromRow)
       : []
     const activeTask =
-      tasks.find((task) => !["completed", "failed"].includes(task.status)) ?? tasks[0] ?? null
+      tasks.find((task) => !["completed", "failed", "cancelled"].includes(task.status)) ??
+      tasks[0] ??
+      null
     const activity = activeTask
       ? this.sql<Row>`SELECT * FROM activity WHERE task_id = ${activeTask.id}
           ORDER BY created_at ASC`.map(activityFromRow)
