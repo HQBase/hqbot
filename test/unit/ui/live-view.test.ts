@@ -45,10 +45,11 @@ describe("LiveView", () => {
     );
 
     expect(liveAgents["bot-1"].getLiveView).not.toHaveBeenCalled();
-    const openButton = [...view.container.querySelectorAll("button")].find((button) =>
-      button.textContent?.includes("Open Live View")
+    const openButton = view.container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open Live View"]'
     );
     expect(openButton).toBeDefined();
+    expect(openButton?.textContent).toContain("Live");
 
     await interact(() => openButton?.click());
     expect(liveAgents["bot-1"].getLiveView).toHaveBeenCalledOnce();
@@ -108,8 +109,8 @@ describe("LiveView", () => {
         task: null
       })
     );
-    const openButton = [...view.container.querySelectorAll("button")].find((button) =>
-      button.textContent?.includes("Open Live View")
+    const openButton = view.container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open Live View"]'
     );
     await interact(() => openButton?.click());
     await interact(() => {

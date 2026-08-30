@@ -13,7 +13,7 @@ The shared computer is a real Browser Run tab. Live View lets the owner watch an
 It is not a screenshot that refreshes each second.
 
 HQBot opens browser tools only when a task needs web research. Live View opens only when the owner
-selects **Open Live View**. The **Stop** action closes the browser session, which stops more Browser
+selects **Live**. The **Stop** action closes the browser session, which stops more Browser
 Run time from this session.
 
 The current browser tools are for research and page control. Keep sensitive accounts signed out

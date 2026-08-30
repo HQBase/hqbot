@@ -131,13 +131,14 @@ export function LiveView({
             </Button>
           ) : (
             <Button
+              aria-label="Open Live View"
               disabled={opening}
               size="sm"
               type="button"
               variant="outline"
               onClick={() => void openLiveView()}
             >
-              <PiMonitor data-icon="inline-start" /> {opening ? "Opening…" : "Open Live View"}
+              <PiMonitor data-icon="inline-start" /> {opening ? "Opening…" : "Live"}
             </Button>
           )}
           {task?.browserUrl ? (
