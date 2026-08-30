@@ -1,6 +1,16 @@
 import { Agent } from "agents"
 
-import type { BotActivity, BotSnapshot, BotTask, TaskSource, TaskStatus } from "./domain/types"
+import type {
+  BotActivity,
+  BotConnection,
+  BotDefinition,
+  BotTask,
+  BotTeammate,
+  StoredBotConnection,
+  TaskSource,
+  TaskStatus,
+  WorkspaceSnapshot,
+} from "./domain/types"
 
 type SqlValue = string | number | boolean | null
 type Row = Record<string, SqlValue>
@@ -23,6 +33,8 @@ function nullableText(row: Row, key: string): string | null {
 function taskFromRow(row: Row): BotTask {
   return {
     id: text(row, "id"),
+    botId: nullableText(row, "bot_id") ?? "legacy",
+    connectionId: nullableText(row, "connection_id"),
     source: text(row, "source") as TaskSource,
     status: text(row, "status") as TaskStatus,
     prompt: text(row, "prompt"),
@@ -51,48 +63,200 @@ function activityFromRow(row: Row): BotActivity {
   }
 }
 
+function publicConnection(row: Row): BotConnection {
+  return {
+    id: text(row, "id"),
+    provider: "hqbase",
+    origin: text(row, "origin"),
+    mailboxId: text(row, "mailbox_id"),
+    mailboxAddress: text(row, "mailbox_address"),
+    mailboxName: text(row, "mailbox_name"),
+    active: row.active === 1,
+    createdAt: text(row, "created_at"),
+  }
+}
+
+function storedConnection(row: Row): StoredBotConnection {
+  return {
+    ...publicConnection(row),
+    botId: text(row, "bot_id"),
+    tokenCiphertext: text(row, "token_ciphertext"),
+    tokenIv: text(row, "token_iv"),
+  }
+}
+
+function botFromRow(row: Row, connection: BotConnection | null): BotTeammate {
+  return {
+    id: text(row, "id"),
+    name: text(row, "name"),
+    title: text(row, "title"),
+    description: text(row, "description"),
+    brief: text(row, "brief"),
+    createdAt: text(row, "created_at"),
+    updatedAt: text(row, "updated_at"),
+    connection,
+  }
+}
+
 export class HQBotAgent extends Agent<Env, Record<string, never>> {
   async onStart(): Promise<void> {
     this.sql`CREATE TABLE IF NOT EXISTS schema_migrations (
       version INTEGER PRIMARY KEY,
       applied_at TEXT NOT NULL
     )`
-    const applied = this.sql<{
+    const version1 = this.sql<{
       version: number
     }>`SELECT version FROM schema_migrations WHERE version = 1`
-    if (applied.length > 0) return
-    this.sql`CREATE TABLE IF NOT EXISTS tasks (
+    if (version1.length === 0) {
+      this.sql`CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL CHECK (source IN ('chat', 'email')),
+        status TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        subject TEXT,
+        sender TEXT,
+        source_message_id TEXT UNIQUE,
+        workflow_id TEXT,
+        result TEXT,
+        reply_message_id TEXT,
+        screenshot_key TEXT,
+        browser_url TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+      this.sql`CREATE TABLE IF NOT EXISTS activity (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        phase TEXT NOT NULL,
+        title TEXT NOT NULL,
+        detail TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      )`
+      this.sql`CREATE INDEX IF NOT EXISTS activity_task_created ON activity(task_id, created_at)`
+      this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (1, ${now()})`
+    }
+
+    const version2 = this.sql<{
+      version: number
+    }>`SELECT version FROM schema_migrations WHERE version = 2`
+    if (version2.length > 0) return
+    this.sql`CREATE TABLE IF NOT EXISTS bots (
       id TEXT PRIMARY KEY,
-      source TEXT NOT NULL CHECK (source IN ('chat', 'email')),
-      status TEXT NOT NULL,
-      prompt TEXT NOT NULL,
-      subject TEXT,
-      sender TEXT,
-      source_message_id TEXT UNIQUE,
-      workflow_id TEXT,
-      result TEXT,
-      reply_message_id TEXT,
-      screenshot_key TEXT,
-      browser_url TEXT,
-      error TEXT,
+      name TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      brief TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )`
-    this.sql`CREATE TABLE IF NOT EXISTS activity (
+    this.sql`CREATE TABLE IF NOT EXISTS connections (
       id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL,
-      phase TEXT NOT NULL,
-      title TEXT NOT NULL,
-      detail TEXT,
+      bot_id TEXT NOT NULL,
+      provider TEXT NOT NULL CHECK (provider = 'hqbase'),
+      origin TEXT NOT NULL,
+      mailbox_id TEXT NOT NULL,
+      mailbox_address TEXT NOT NULL,
+      mailbox_name TEXT NOT NULL,
+      token_ciphertext TEXT NOT NULL,
+      token_iv TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
-      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      UNIQUE(bot_id, provider),
+      UNIQUE(provider, origin, mailbox_id),
+      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     )`
-    this.sql`CREATE INDEX IF NOT EXISTS activity_task_created ON activity(task_id, created_at)`
-    this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (1, ${now()})`
+    const columns = this.sql<{ name: string }>`PRAGMA table_info(tasks)`
+    if (!columns.some((column) => column.name === "bot_id")) {
+      this.sql`ALTER TABLE tasks ADD COLUMN bot_id TEXT`
+    }
+    if (!columns.some((column) => column.name === "connection_id")) {
+      this.sql`ALTER TABLE tasks ADD COLUMN connection_id TEXT`
+    }
+    this.sql`CREATE INDEX IF NOT EXISTS tasks_bot_created ON tasks(bot_id, created_at)`
+    const legacyTasks = this.sql<{
+      count: number
+    }>`SELECT COUNT(*) AS count FROM tasks WHERE bot_id IS NULL`
+    if ((legacyTasks[0]?.count ?? 0) > 0) {
+      const timestamp = now()
+      this.sql`INSERT OR IGNORE INTO bots (
+        id, name, title, description, brief, created_at, updated_at
+      ) VALUES (
+        'legacy', 'HQBot', 'Research teammate',
+        'I research the public web and return evidence-backed work.',
+        'Legacy HQBot teammate', ${timestamp}, ${timestamp}
+      )`
+      this.sql`UPDATE tasks SET bot_id = 'legacy' WHERE bot_id IS NULL`
+    }
+    this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (2, ${now()})`
+  }
+
+  createBot(id: string, definition: BotDefinition, brief: string): BotTeammate {
+    const timestamp = now()
+    this.sql`INSERT INTO bots (id, name, title, description, brief, created_at, updated_at)
+      VALUES (${id}, ${definition.name}, ${definition.title}, ${definition.description}, ${brief},
+        ${timestamp}, ${timestamp})`
+    return {
+      id,
+      ...definition,
+      brief,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      connection: null,
+    }
+  }
+
+  hasBot(id: string): boolean {
+    return this.sql<{ id: string }>`SELECT id FROM bots WHERE id = ${id}`.length > 0
+  }
+
+  connectHQBase(input: {
+    id: string
+    botId: string
+    origin: string
+    mailboxId: string
+    mailboxAddress: string
+    mailboxName: string
+    tokenCiphertext: string
+    tokenIv: string
+  }): BotConnection {
+    const timestamp = now()
+    this.sql`INSERT INTO connections (
+      id, bot_id, provider, origin, mailbox_id, mailbox_address, mailbox_name,
+      token_ciphertext, token_iv, active, created_at
+    ) VALUES (
+      ${input.id}, ${input.botId}, 'hqbase', ${input.origin}, ${input.mailboxId},
+      ${input.mailboxAddress}, ${input.mailboxName}, ${input.tokenCiphertext}, ${input.tokenIv},
+      1, ${timestamp}
+    )`
+    return {
+      id: input.id,
+      provider: "hqbase",
+      origin: input.origin,
+      mailboxId: input.mailboxId,
+      mailboxAddress: input.mailboxAddress,
+      mailboxName: input.mailboxName,
+      active: true,
+      createdAt: timestamp,
+    }
+  }
+
+  getBotConnection(connectionId: string): StoredBotConnection | null {
+    const rows = this.sql<Row>`SELECT * FROM connections WHERE id = ${connectionId}`
+    return rows[0] ? storedConnection(rows[0]) : null
+  }
+
+  listActiveConnections(): StoredBotConnection[] {
+    return this.sql<Row>`SELECT * FROM connections WHERE active = 1 ORDER BY created_at ASC`.map(
+      storedConnection,
+    )
   }
 
   createEmailTask(input: {
     id: string
+    botId: string
+    connectionId: string
     messageId: string
     sender: string
     subject: string
@@ -100,22 +264,28 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
   }): boolean {
     const timestamp = now()
     const rows = this.sql<{ id: string }>`INSERT OR IGNORE INTO tasks (
-      id, source, status, prompt, subject, sender, source_message_id, created_at, updated_at
+      id, bot_id, connection_id, source, status, prompt, subject, sender, source_message_id,
+      created_at, updated_at
     ) VALUES (
-      ${input.id}, 'email', 'queued', ${input.prompt}, ${input.subject}, ${input.sender},
-      ${input.messageId}, ${timestamp}, ${timestamp}
+      ${input.id}, ${input.botId}, ${input.connectionId}, 'email', 'queued', ${input.prompt},
+      ${input.subject}, ${input.sender}, ${input.messageId}, ${timestamp}, ${timestamp}
     ) RETURNING id`
     if (rows.length === 0) return false
-    this.addActivity(input.id, "queued", "Email received", "Inbox routine accepted this request.")
+    this.addActivity(
+      input.id,
+      "queued",
+      "Email received",
+      "The connected HQBase inbox sent this task.",
+    )
     return true
   }
 
-  createChatTask(id: string, prompt: string): void {
+  createChatTask(id: string, botId: string, prompt: string): void {
     const timestamp = now()
     this.sql`INSERT INTO tasks (
-      id, source, status, prompt, created_at, updated_at
-    ) VALUES (${id}, 'chat', 'queued', ${prompt}, ${timestamp}, ${timestamp})`
-    this.addActivity(id, "queued", "Task queued", "The Bot is preparing the work.")
+      id, bot_id, source, status, prompt, created_at, updated_at
+    ) VALUES (${id}, ${botId}, 'chat', 'queued', ${prompt}, ${timestamp}, ${timestamp})`
+    this.addActivity(id, "queued", "Task queued", "Your teammate is preparing the work.")
   }
 
   setWorkflow(taskId: string, workflowId: string): void {
@@ -154,8 +324,8 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     this.addActivity(
       taskId,
       "completed",
-      replyMessageId ? "Research sent" : "Research completed",
-      replyMessageId ? "HQBase accepted the reply." : "The result is ready in this conversation.",
+      replyMessageId ? "Work sent" : "Work completed",
+      replyMessageId ? "HQBase accepted the reply." : "The result is ready in this chat.",
     )
   }
 
@@ -166,44 +336,25 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     this.addActivity(taskId, "failed", "Task stopped", message)
   }
 
-  getTask(taskId: string): BotTask | null {
-    const rows = this.sql<Row>`SELECT * FROM tasks WHERE id = ${taskId}`
-    return rows[0] ? taskFromRow(rows[0]) : null
-  }
-
-  getSnapshot(): BotSnapshot {
-    const tasks = this.sql<Row>`SELECT * FROM tasks ORDER BY created_at DESC LIMIT 20`.map(
-      taskFromRow,
+  getSnapshot(botId?: string): WorkspaceSnapshot {
+    const connectionRows = this.sql<Row>`SELECT * FROM connections ORDER BY created_at ASC`
+    const connections = new Map(
+      connectionRows.map((row) => [text(row, "bot_id"), publicConnection(row)]),
     )
+    const bots = this.sql<Row>`SELECT * FROM bots ORDER BY created_at ASC`.map((row) =>
+      botFromRow(row, connections.get(text(row, "id")) ?? null),
+    )
+    const selectedBot = bots.find((candidate) => candidate.id === botId) ?? bots[0] ?? null
+    const tasks = selectedBot
+      ? this.sql<Row>`SELECT * FROM tasks WHERE bot_id = ${selectedBot.id}
+          ORDER BY created_at DESC LIMIT 30`.map(taskFromRow)
+      : []
     const activeTask =
       tasks.find((task) => !["completed", "failed"].includes(task.status)) ?? tasks[0] ?? null
     const activity = activeTask
-      ? this
-          .sql<Row>`SELECT * FROM activity WHERE task_id = ${activeTask.id} ORDER BY created_at ASC`.map(
-          activityFromRow,
-        )
+      ? this.sql<Row>`SELECT * FROM activity WHERE task_id = ${activeTask.id}
+          ORDER BY created_at ASC`.map(activityFromRow)
       : []
-    return {
-      profile: {
-        id: this.env.HQBOT_ID,
-        name: "HQBot",
-        title: "Research and inbox teammate",
-        description:
-          "Reads requests from its HQBase mailbox, researches the public web with its cloud browser, and sends evidence-backed replies.",
-      },
-      routine: {
-        name: "HQBase inbox",
-        schedule: "Every minute",
-        mailboxAddress: this.env.HQBASE_MAILBOX_ADDRESS ?? null,
-        allowedSenders: (this.env.HQBOT_ALLOWED_SENDERS ?? "")
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-        autoReply: this.env.HQBOT_AUTO_REPLY === "true",
-      },
-      tasks,
-      activeTask,
-      activity,
-    }
+    return { bots, selectedBot, tasks, activeTask, activity }
   }
 }

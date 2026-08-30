@@ -161,6 +161,10 @@ textarea:focus-visible {
   align-items: center;
   cursor: pointer;
 }
+.bot-list {
+  display: grid;
+  gap: 4px;
+}
 .bot-row {
   gap: 10px;
   padding: 10px;
@@ -238,6 +242,22 @@ textarea:focus-visible {
 .sidebar-foot {
   border-top: 1px solid var(--line-soft);
   padding: 14px 4px 0;
+}
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer-actions > button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #171a14;
+  color: #747a6d;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
 }
 .cloudflare-badge {
   display: flex;
@@ -378,6 +398,9 @@ textarea:focus-visible {
   color: #62675d;
   font-size: 10px;
 }
+.task-exchange {
+  margin-top: 34px;
+}
 .date-rule::before,
 .date-rule::after {
   content: "";
@@ -426,6 +449,26 @@ textarea:focus-visible {
   background: #171a14;
   border: 1px solid #2d3229;
   border-bottom-left-radius: 4px;
+}
+.intro-message {
+  margin-top: 4px;
+}
+.setup-message {
+  margin-top: 12px;
+}
+.inline-connect {
+  margin-top: 13px;
+  border: 1px solid #465238;
+  border-radius: 9px;
+  background: #252d1d;
+  color: var(--acid);
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
 }
 .mini-avatar {
   width: 22px;
@@ -540,6 +583,20 @@ textarea:focus-visible {
   gap: 6px;
   color: #72786c;
   font-size: 10px;
+}
+.add-context {
+  border: 0;
+  background: transparent;
+  color: #838a7b;
+  padding: 3px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 10px;
+}
+.add-context:hover {
+  color: var(--acid);
 }
 .composer-actions > span svg:nth-child(3) {
   margin-left: 5px;
@@ -829,6 +886,139 @@ textarea:focus-visible {
 .routine-note svg {
   color: var(--acid);
   flex: 0 0 auto;
+}
+.empty-connection {
+  padding: 24px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.empty-connection > span {
+  width: 39px;
+  height: 39px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #4a523f;
+  border-radius: 11px;
+  color: var(--acid);
+  background: #1d2218;
+  margin-bottom: 10px;
+}
+.empty-connection strong {
+  font-size: 12px;
+}
+.empty-connection p {
+  margin: 6px 0 14px;
+  color: #747a6d;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.empty-connection button {
+  border: 1px solid #414a35;
+  border-radius: 8px;
+  background: #252d1d;
+  color: var(--acid);
+  padding: 8px 11px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(5, 6, 4, 0.72);
+  backdrop-filter: blur(9px);
+}
+.connection-dialog {
+  width: min(470px, 100%);
+  border: 1px solid #3b4433;
+  border-radius: 18px;
+  background: #171a14;
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.65);
+  padding: 22px;
+  animation: rise 0.25s ease both;
+}
+.connection-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.connection-dialog > header > div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.connection-dialog h2 {
+  margin: 0;
+  font:
+    500 25px / 1 "Iowan Old Style",
+    Georgia,
+    serif;
+}
+.connection-dialog > header > button {
+  width: 31px;
+  height: 31px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #1e211a;
+  color: #8d9287;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.connection-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--acid);
+  color: #11150c;
+}
+.dialog-copy {
+  margin: 18px 0;
+  color: #92988b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.connection-dialog form {
+  display: grid;
+  gap: 8px;
+}
+.connection-dialog label {
+  color: #b4b8ae;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 5px;
+}
+.connection-dialog input {
+  width: 100%;
+  border: 1px solid #383e32;
+  border-radius: 9px;
+  background: #10120e;
+  color: var(--ink);
+  padding: 11px 12px;
+}
+.field-help {
+  margin: 1px 0 6px;
+  color: #6e7467;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.dialog-trust {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #70776a;
+  font-size: 9px;
 }
 
 .access-shell {

@@ -5,6 +5,7 @@ import type { HQBotAgent } from "./agent"
 import type { ResearchPlan, ResearchResult, WorkflowInput } from "./domain/types"
 import { planResearch, writeResult } from "./services/ai"
 import { researchWithBrowser } from "./services/browser"
+import { decryptConnectionToken } from "./services/crypto"
 import {
   existingReply,
   getMessage,
@@ -17,15 +18,6 @@ function required(value: string | undefined, name: string): string {
   const clean = value?.trim()
   if (!clean) throw new Error(`${name} is not configured`)
   return clean
-}
-
-function mailConfig(env: Env): MailConfig {
-  return {
-    origin: required(env.HQBASE_ORIGIN, "HQBASE_ORIGIN"),
-    mailboxId: required(env.HQBASE_MAILBOX_ID, "HQBASE_MAILBOX_ID"),
-    mailboxAddress: required(env.HQBASE_MAILBOX_ADDRESS, "HQBASE_MAILBOX_ADDRESS"),
-    token: required(env.HQBASE_AGENT_TOKEN, "HQBASE_AGENT_TOKEN"),
-  }
 }
 
 function errorMessage(error: unknown): string {
@@ -41,10 +33,29 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
     const input = event.payload
     const agent = await bot(this.env)
     try {
+      let config: MailConfig | null = null
+      if (input.connectionId) {
+        const connection = await agent.getBotConnection(input.connectionId)
+        if (!connection || connection.botId !== input.botId) {
+          throw new Error("The HQBase connection is not available")
+        }
+        config = {
+          origin: connection.origin,
+          mailboxId: connection.mailboxId,
+          mailboxAddress: connection.mailboxAddress,
+          token: await decryptConnectionToken(
+            this.env.HQBOT_CONNECTION_KEY,
+            connection.tokenCiphertext,
+            connection.tokenIv,
+          ),
+        }
+      }
+
       const prompt = await step.do("read request", async () => {
         if (input.source === "chat") return required(input.prompt, "prompt")
         const messageId = required(input.messageId, "messageId")
-        const message = await getMessage(mailConfig(this.env), messageId)
+        if (!config) throw new Error("The email task has no HQBase connection")
+        const message = await getMessage(config, messageId)
         const request = [`Subject: ${message.subject}`, message.textBody || message.snippet]
           .filter(Boolean)
           .join("\n\n")
@@ -116,7 +127,7 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
           { retries: { limit: 3, delay: "8 seconds", backoff: "linear" }, timeout: "2 minutes" },
           async () => {
             const messageId = required(input.messageId, "messageId")
-            const config = mailConfig(this.env)
+            if (!config) throw new Error("The email task has no HQBase connection")
             const inbound = await getMessage(config, messageId)
             const duplicate = existingReply(
               await getThread(config, messageId),

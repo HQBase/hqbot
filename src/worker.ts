@@ -1,8 +1,16 @@
 import { getAgentByName } from "agents"
 
 import { HQBotAgent } from "./agent"
-import type { WorkflowInput } from "./domain/types"
-import { listInbox, type MailConfig, type MessageSummary } from "./services/mail"
+import type { StoredBotConnection, WorkflowInput } from "./domain/types"
+import { defineBot } from "./services/ai"
+import { decryptConnectionToken, encryptConnectionToken } from "./services/crypto"
+import {
+  isNewInboundMessage,
+  listInbox,
+  listMailboxes,
+  type MailConfig,
+  type MessageSummary,
+} from "./services/mail"
 import { HQBotWorkflow } from "./workflow"
 
 export { HQBotAgent, HQBotWorkflow }
@@ -14,21 +22,6 @@ const jsonHeaders = {
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status, headers: jsonHeaders })
-}
-
-function required(value: string | undefined, name: string): string {
-  const clean = value?.trim()
-  if (!clean) throw new Error(`${name} is not configured`)
-  return clean
-}
-
-function mailConfig(env: Env): MailConfig {
-  return {
-    origin: required(env.HQBASE_ORIGIN, "HQBASE_ORIGIN"),
-    mailboxId: required(env.HQBASE_MAILBOX_ID, "HQBASE_MAILBOX_ID"),
-    mailboxAddress: required(env.HQBASE_MAILBOX_ADDRESS, "HQBASE_MAILBOX_ADDRESS"),
-    token: required(env.HQBASE_AGENT_TOKEN, "HQBASE_AGENT_TOKEN"),
-  }
 }
 
 function equalTokens(left: string, right: string): boolean {
@@ -76,42 +69,61 @@ async function dispatch(env: Env, input: WorkflowInput): Promise<string> {
   return instance.id
 }
 
-function allowedSender(env: Env, sender: string): boolean {
-  const allowed = (env.HQBOT_ALLOWED_SENDERS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean)
-  return allowed.includes(sender.toLowerCase())
-}
-
-async function taskIdForMessage(env: Env, message: MessageSummary): Promise<string> {
-  const digest = await sha256(`${env.HQBOT_ID}\n${message.id}`)
+async function taskIdForMessage(connection: StoredBotConnection, message: MessageSummary) {
+  const digest = await sha256(`${connection.botId}\n${connection.id}\n${message.id}`)
   return `email-${digest.slice(0, 32)}`
 }
 
-async function pollInbox(env: Env): Promise<{ accepted: number; ignored: number }> {
-  const config = mailConfig(env)
+async function mailConfig(env: Env, connection: StoredBotConnection): Promise<MailConfig> {
+  return {
+    origin: connection.origin,
+    mailboxId: connection.mailboxId,
+    mailboxAddress: connection.mailboxAddress,
+    token: await decryptConnectionToken(
+      env.HQBOT_CONNECTION_KEY,
+      connection.tokenCiphertext,
+      connection.tokenIv,
+    ),
+  }
+}
+
+async function pollInbox(env: Env): Promise<{ accepted: number; ignored: number; failed: number }> {
   const agent = await bot(env)
   let accepted = 0
   let ignored = 0
-  for (const message of await listInbox(config)) {
-    if (message.direction !== "inbound" || !allowedSender(env, message.fromAddress)) {
-      ignored += 1
-      continue
+  let failed = 0
+  for (const connection of await agent.listActiveConnections()) {
+    try {
+      for (const message of await listInbox(await mailConfig(env, connection))) {
+        if (!isNewInboundMessage(message, connection.createdAt)) {
+          ignored += 1
+          continue
+        }
+        const taskId = await taskIdForMessage(connection, message)
+        const created = await agent.createEmailTask({
+          id: taskId,
+          botId: connection.botId,
+          connectionId: connection.id,
+          messageId: message.id,
+          sender: message.fromAddress,
+          subject: message.subject,
+          prompt: message.snippet || message.subject,
+        })
+        if (!created) continue
+        await dispatch(env, {
+          taskId,
+          botId: connection.botId,
+          source: "email",
+          connectionId: connection.id,
+          messageId: message.id,
+        })
+        accepted += 1
+      }
+    } catch {
+      failed += 1
     }
-    const taskId = await taskIdForMessage(env, message)
-    const created = await agent.createEmailTask({
-      id: taskId,
-      messageId: message.id,
-      sender: message.fromAddress,
-      subject: message.subject,
-      prompt: message.snippet || message.subject,
-    })
-    if (!created) continue
-    await dispatch(env, { taskId, source: "email", messageId: message.id })
-    accepted += 1
   }
-  return { accepted, ignored }
+  return { accepted, ignored, failed }
 }
 
 async function readJson(request: Request): Promise<Record<string, unknown>> {
@@ -126,24 +138,95 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
   return value as Record<string, unknown>
 }
 
+function cleanString(body: Record<string, unknown>, key: string, limit: number): string {
+  const value = typeof body[key] === "string" ? body[key].trim() : ""
+  if (!value || value.length > limit)
+    throw new Error(`${key} must contain 1 to ${limit} characters`)
+  return value
+}
+
+function canonicalOrigin(value: string): string {
+  const url = new URL(value)
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error("HQBase URL must be an HTTPS origin without a path")
+  }
+  return url.origin
+}
+
+async function connectHQBase(request: Request, env: Env, botId: string): Promise<Response> {
+  const agent = await bot(env)
+  if (!(await agent.hasBot(botId))) return json({ error: "Teammate not found" }, 404)
+  const body = await readJson(request)
+  const origin = canonicalOrigin(cleanString(body, "origin", 500))
+  const token = cleanString(body, "token", 2_000)
+  const mailboxes = await listMailboxes(origin, token)
+  if (mailboxes.length !== 1) {
+    return json({ error: "Use a mailbox-scoped HQBase agent connection" }, 400)
+  }
+  const mailbox = mailboxes[0]
+  if (!mailbox?.isActive || !["agent", "manager"].includes(mailbox.accessLevel ?? "")) {
+    return json({ error: "This HQBase connection cannot handle mail" }, 400)
+  }
+  const encrypted = await encryptConnectionToken(env.HQBOT_CONNECTION_KEY, token)
+  try {
+    const connection = await agent.connectHQBase({
+      id: crypto.randomUUID(),
+      botId,
+      origin,
+      mailboxId: mailbox.id,
+      mailboxAddress: mailbox.address,
+      mailboxName: mailbox.displayName || mailbox.address,
+      tokenCiphertext: encrypted.ciphertext,
+      tokenIv: encrypted.iv,
+    })
+    return json({ connection }, 201)
+  } catch {
+    return json({ error: "This teammate or mailbox already has an HQBase connection" }, 409)
+  }
+}
+
 async function handleApi(request: Request, env: Env): Promise<Response> {
   const unauthorized = requireOwner(request, env)
   if (unauthorized) return unauthorized
   const url = new URL(request.url)
   const agent = await bot(env)
-  if (request.method === "GET" && url.pathname === "/api/snapshot")
-    return json(await agent.getSnapshot())
+
+  if (request.method === "GET" && url.pathname === "/api/snapshot") {
+    return json(await agent.getSnapshot(url.searchParams.get("botId") ?? undefined))
+  }
   if (request.method === "POST" && url.pathname === "/api/poll") return json(await pollInbox(env))
-  if (request.method === "POST" && url.pathname === "/api/tasks") {
+  if (request.method === "POST" && url.pathname === "/api/bots") {
     const body = await readJson(request)
-    const prompt = typeof body.prompt === "string" ? body.prompt.trim() : ""
-    if (!prompt || prompt.length > 20_000)
-      return json({ error: "Prompt must contain 1 to 20000 characters" }, 400)
+    const brief = cleanString(body, "brief", 2_000)
+    const definition = await defineBot(env.AI, env.HQBOT_MODEL_ID, brief)
+    const teammate = await agent.createBot(crypto.randomUUID(), definition, brief)
+    return json({ teammate }, 201)
+  }
+
+  const connectionMatch = /^\/api\/bots\/([^/]+)\/connections\/hqbase$/u.exec(url.pathname)
+  if (request.method === "POST" && connectionMatch?.[1]) {
+    return connectHQBase(request, env, decodeURIComponent(connectionMatch[1]))
+  }
+
+  const taskMatch = /^\/api\/bots\/([^/]+)\/tasks$/u.exec(url.pathname)
+  if (request.method === "POST" && taskMatch?.[1]) {
+    const botId = decodeURIComponent(taskMatch[1])
+    if (!(await agent.hasBot(botId))) return json({ error: "Teammate not found" }, 404)
+    const body = await readJson(request)
+    const prompt = cleanString(body, "prompt", 20_000)
     const taskId = crypto.randomUUID()
-    await agent.createChatTask(taskId, prompt)
-    const workflowId = await dispatch(env, { taskId, source: "chat", prompt })
+    await agent.createChatTask(taskId, botId, prompt)
+    const workflowId = await dispatch(env, { taskId, botId, source: "chat", prompt })
     return json({ taskId, workflowId }, 202)
   }
+
   if (request.method === "GET" && url.pathname.startsWith("/api/artifacts/")) {
     let key: string
     try {
@@ -171,14 +254,7 @@ export default {
       if (url.pathname === "/health") {
         return json({
           ok: true,
-          configured: Boolean(
-            env.HQBOT_OWNER_TOKEN &&
-              env.HQBASE_AGENT_TOKEN &&
-              env.HQBASE_ORIGIN &&
-              env.HQBASE_MAILBOX_ID &&
-              env.HQBASE_MAILBOX_ADDRESS &&
-              env.HQBOT_ALLOWED_SENDERS,
-          ),
+          configured: Boolean(env.HQBOT_OWNER_TOKEN && env.HQBOT_CONNECTION_KEY),
         })
       }
       if (url.pathname.startsWith("/api/")) return handleApi(request, env)

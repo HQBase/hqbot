@@ -42,14 +42,7 @@
     "HQBOT_AUTO_REPLY": "true"
   },
   "secrets": {
-    "required": [
-      "HQBOT_OWNER_TOKEN",
-      "HQBASE_AGENT_TOKEN",
-      "HQBASE_ORIGIN",
-      "HQBASE_MAILBOX_ID",
-      "HQBASE_MAILBOX_ADDRESS",
-      "HQBOT_ALLOWED_SENDERS"
-    ]
+    "required": ["HQBOT_OWNER_TOKEN", "HQBOT_CONNECTION_KEY"]
   },
   "observability": {
     "enabled": true,

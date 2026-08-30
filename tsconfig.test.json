@@ -12,5 +12,10 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["test/**/*.ts", "src/domain/**/*.ts", "src/services/mail.ts"]
+  "include": [
+    "test/**/*.ts",
+    "src/domain/**/*.ts",
+    "src/services/crypto.ts",
+    "src/services/mail.ts"
+  ]
 }

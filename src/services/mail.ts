@@ -5,6 +5,14 @@ export interface MailConfig {
   token: string
 }
 
+export interface ConnectedMailbox {
+  id: string
+  address: string
+  displayName: string
+  isActive: boolean
+  accessLevel: "read" | "agent" | "manager" | null
+}
+
 export interface MessageSummary {
   id: string
   threadId: string
@@ -26,6 +34,10 @@ export interface MessageDetail extends MessageSummary {
   messageId: string | null
   inReplyTo: string | null
   references: string[]
+}
+
+export function isNewInboundMessage(message: MessageSummary, connectedAt: string): boolean {
+  return message.direction === "inbound" && (message.receivedAt ?? message.createdAt) > connectedAt
 }
 
 function mailUrl(config: MailConfig, path: string): URL {
@@ -57,6 +69,10 @@ export function listInbox(config: MailConfig): Promise<MessageSummary[]> {
     limit: "20",
   })
   return mailJson(config, `/api/v2/messages?${query.toString()}`)
+}
+
+export function listMailboxes(origin: string, token: string): Promise<ConnectedMailbox[]> {
+  return mailJson({ origin, token, mailboxId: "", mailboxAddress: "" }, "/api/v2/mailboxes")
 }
 
 export function getMessage(config: MailConfig, messageId: string): Promise<MessageDetail> {

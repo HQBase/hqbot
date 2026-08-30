@@ -5,9 +5,9 @@ token, mailbox content, or Cloudflare credential.
 
 Use `wrangler secret put` or `pnpm hqbot install` for deployed secrets. Keep `.dev.vars` local.
 
-The default bot can read public web pages and send an HQBase reply only for an accepted mailbox
-task. The exact sender allowlist is a security boundary. Use a dedicated HQBase mailbox agent with
-**Handle mail** access. Do not give it broader workspace access.
+Each teammate can read public web pages. A teammate can send an HQBase reply only after the owner
+connects a mailbox-scoped credential. HQBot encrypts that credential before Durable Object storage.
+Use **Handle mail** access and do not give the credential broader workspace access.
 
 Report a security problem privately to the repository maintainers. Do not include credentials,
 mail content, or customer data in an issue.

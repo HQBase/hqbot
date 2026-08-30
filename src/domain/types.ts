@@ -1,15 +1,38 @@
 export type TaskSource = "chat" | "email"
 export type TaskStatus = "queued" | "working" | "researching" | "replying" | "completed" | "failed"
 
-export interface BotProfile {
+export interface BotConnection {
+  id: string
+  provider: "hqbase"
+  origin: string
+  mailboxId: string
+  mailboxAddress: string
+  mailboxName: string
+  active: boolean
+  createdAt: string
+}
+
+export interface StoredBotConnection extends BotConnection {
+  botId: string
+  tokenCiphertext: string
+  tokenIv: string
+}
+
+export interface BotTeammate {
   id: string
   name: string
   title: string
   description: string
+  brief: string
+  createdAt: string
+  updatedAt: string
+  connection: BotConnection | null
 }
 
 export interface BotTask {
   id: string
+  botId: string
+  connectionId: string | null
   source: TaskSource
   status: TaskStatus
   prompt: string
@@ -35,15 +58,9 @@ export interface BotActivity {
   createdAt: string
 }
 
-export interface BotSnapshot {
-  profile: BotProfile
-  routine: {
-    name: string
-    schedule: string
-    mailboxAddress: string | null
-    allowedSenders: string[]
-    autoReply: boolean
-  }
+export interface WorkspaceSnapshot {
+  bots: BotTeammate[]
+  selectedBot: BotTeammate | null
   tasks: BotTask[]
   activeTask: BotTask | null
   activity: BotActivity[]
@@ -69,7 +86,15 @@ export interface ResearchResult {
 
 export interface WorkflowInput {
   taskId: string
+  botId: string
   source: TaskSource
+  connectionId?: string
   messageId?: string
   prompt?: string
+}
+
+export interface BotDefinition {
+  name: string
+  title: string
+  description: string
 }

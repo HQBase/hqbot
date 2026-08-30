@@ -1,0 +1,2 @@
+HQBOT_OWNER_TOKEN=replace-with-a-long-random-token
+HQBOT_CONNECTION_KEY=replace-with-32-random-bytes-as-base64url

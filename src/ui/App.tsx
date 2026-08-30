@@ -4,25 +4,28 @@ import {
   Check,
   ChevronRight,
   CircleAlert,
-  Clock3,
   Globe2,
   Inbox,
   KeyRound,
+  Link2,
   LoaderCircle,
+  LockKeyhole,
   Monitor,
+  Plus,
   RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  X,
 } from "lucide-react"
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 
-import type { BotSnapshot, BotTask } from "../domain/types"
+import type { BotTask, BotTeammate, WorkspaceSnapshot } from "../domain/types"
 
 const tokenKey = "hqbot-owner-token"
+const newAgentId = "__new_agent__"
 const terminalStatuses = new Set(["completed", "failed"])
-const newTaskId = "__new__"
 
 async function api<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
@@ -34,26 +37,35 @@ async function api<T>(path: string, token: string, init?: RequestInit): Promise<
   return body
 }
 
+function initials(name: string): string {
+  return name
+    .split(/\s+/u)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+}
+
 function relativeTime(value: string): string {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1_000))
   if (seconds < 60) return `${seconds}s ago`
   const minutes = Math.round(seconds / 60)
   if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  return `${hours}h ago`
+  return `${Math.round(minutes / 60)}h ago`
 }
 
 function statusLabel(task: BotTask | null): string {
   if (!task) return "Ready"
-  const labels: Record<string, string> = {
-    queued: "Queued",
-    working: "Planning",
-    researching: "Researching",
-    replying: "Replying",
-    completed: "Complete",
-    failed: "Needs attention",
-  }
-  return labels[task.status] ?? task.status
+  return (
+    {
+      queued: "Queued",
+      working: "Planning",
+      researching: "Researching",
+      replying: "Replying",
+      completed: "Complete",
+      failed: "Needs attention",
+    }[task.status] ?? task.status
+  )
 }
 
 function AccessGate({ onUnlock }: { onUnlock: (token: string) => void }) {
@@ -79,10 +91,10 @@ function AccessGate({ onUnlock }: { onUnlock: (token: string) => void }) {
         <div className="brand-mark large">
           <Bot size={27} strokeWidth={1.7} />
         </div>
-        <p className="eyebrow">Customer-owned agent</p>
-        <h1>Welcome to HQBot</h1>
+        <p className="eyebrow">Your Cloudflare account</p>
+        <h1>Open HQBot</h1>
         <p className="access-copy">
-          Your teammate, browser, memory, and work history run in your Cloudflare account.
+          Your teammates, computers, connections, memory, and work history are self-hosted.
         </p>
         <form onSubmit={submit}>
           <label htmlFor="owner-token">
@@ -98,11 +110,11 @@ function AccessGate({ onUnlock }: { onUnlock: (token: string) => void }) {
           />
           {error ? <p className="form-error">{error}</p> : null}
           <button className="primary-button" disabled={!value.trim()} type="submit">
-            Open HQBot <ChevronRight size={16} />
+            Open workspace <ChevronRight size={16} />
           </button>
         </form>
         <div className="trust-line">
-          <ShieldCheck size={15} /> No HQBot cloud account. No shared runtime.
+          <ShieldCheck size={15} /> No shared HQBot runtime
         </div>
       </section>
     </main>
@@ -111,41 +123,53 @@ function AccessGate({ onUnlock }: { onUnlock: (token: string) => void }) {
 
 export function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem(tokenKey) ?? "")
-  const [snapshot, setSnapshot] = useState<BotSnapshot | null>(null)
+  const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null)
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState("")
   const [error, setError] = useState("")
   const [sending, setSending] = useState(false)
   const [polling, setPolling] = useState(false)
+  const [connectOpen, setConnectOpen] = useState(false)
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    if (!token) return
-    try {
-      const next = await api<BotSnapshot>("/api/snapshot", token)
-      setSnapshot(next)
-      setSelectedTaskId(
-        (current) => current ?? next.activeTask?.id ?? next.tasks[0]?.id ?? newTaskId,
-      )
-      setError("")
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "HQBot could not load")
-    }
-  }, [token])
+  const load = useCallback(
+    async (requestedBotId?: string | null) => {
+      if (!token) return
+      const botId = requestedBotId ?? selectedBotId
+      const query = botId && botId !== newAgentId ? `?botId=${encodeURIComponent(botId)}` : ""
+      try {
+        const next = await api<WorkspaceSnapshot>(`/api/snapshot${query}`, token)
+        setSnapshot(next)
+        if (botId !== newAgentId) {
+          setSelectedBotId(next.selectedBot?.id ?? newAgentId)
+          setSelectedTaskId(
+            (current) => current ?? next.activeTask?.id ?? next.tasks[0]?.id ?? null,
+          )
+        }
+        setError("")
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "HQBot could not load")
+      }
+    },
+    [selectedBotId, token],
+  )
 
   useEffect(() => {
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 2_500)
+    void load()
+    const timer = window.setInterval(() => void load(), 2_500)
     return () => window.clearInterval(timer)
-  }, [refresh])
+  }, [load])
 
+  const selectedBot =
+    selectedBotId === newAgentId
+      ? null
+      : (snapshot?.bots.find((candidate) => candidate.id === selectedBotId) ??
+        snapshot?.selectedBot ??
+        null)
   const selectedTask = useMemo(
     () =>
-      selectedTaskId === newTaskId
-        ? null
-        : (snapshot?.tasks.find((task) => task.id === selectedTaskId) ??
-          snapshot?.activeTask ??
-          null),
+      snapshot?.tasks.find((task) => task.id === selectedTaskId) ?? snapshot?.activeTask ?? null,
     [selectedTaskId, snapshot],
   )
 
@@ -158,7 +182,7 @@ export function App() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((response) => {
-        if (!response.ok) throw new Error("Browser evidence could not load")
+        if (!response.ok) throw new Error("Computer evidence could not load")
         return response.blob()
       })
       .then((blob) => {
@@ -173,22 +197,33 @@ export function App() {
     }
   }, [selectedTask?.screenshotKey, token])
 
-  async function submitTask(event: FormEvent) {
+  async function submitMessage(event: FormEvent) {
     event.preventDefault()
     const value = prompt.trim()
     if (!value || sending) return
     setSending(true)
     setError("")
     try {
-      const created = await api<{ taskId: string }>("/api/tasks", token, {
-        method: "POST",
-        body: JSON.stringify({ prompt: value }),
-      })
-      setPrompt("")
-      setSelectedTaskId(created.taskId)
-      await refresh()
+      if (!selectedBot) {
+        const created = await api<{ teammate: BotTeammate }>("/api/bots", token, {
+          method: "POST",
+          body: JSON.stringify({ brief: value }),
+        })
+        setPrompt("")
+        setSelectedBotId(created.teammate.id)
+        setSelectedTaskId(null)
+        await load(created.teammate.id)
+      } else {
+        const created = await api<{ taskId: string }>(`/api/bots/${selectedBot.id}/tasks`, token, {
+          method: "POST",
+          body: JSON.stringify({ prompt: value }),
+        })
+        setPrompt("")
+        setSelectedTaskId(created.taskId)
+        await load(selectedBot.id)
+      }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The task could not start")
+      setError(cause instanceof Error ? cause.message : "The message could not be sent")
     } finally {
       setSending(false)
     }
@@ -198,7 +233,7 @@ export function App() {
     setPolling(true)
     try {
       await api("/api/poll", token, { method: "POST" })
-      await refresh()
+      await load(selectedBot?.id)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Inbox check failed")
     } finally {
@@ -206,11 +241,17 @@ export function App() {
     }
   }
 
+  function lockWorkspace() {
+    sessionStorage.removeItem(tokenKey)
+    setToken("")
+    setSnapshot(null)
+  }
+
   if (!token) return <AccessGate onUnlock={setToken} />
   if (!snapshot) {
     return (
       <main className="loading-screen">
-        <LoaderCircle className="spin" /> <span>{error || "Waking HQBot…"}</span>
+        <LoaderCircle className="spin" /> <span>{error || "Waking your teammates…"}</span>
       </main>
     )
   }
@@ -227,7 +268,7 @@ export function App() {
           </div>
           <div>
             <strong>HQBot</strong>
-            <span>Self-hosted</span>
+            <span>Your AI team</span>
           </div>
           <span className="live-pill">
             <i /> LIVE
@@ -238,28 +279,44 @@ export function App() {
           className="new-task"
           type="button"
           onClick={() => {
-            setSelectedTaskId(newTaskId)
+            setSelectedBotId(newAgentId)
+            setSelectedTaskId(null)
             setPrompt("")
           }}
         >
-          <Sparkles size={16} /> New task
+          <Plus size={16} /> New agent
         </button>
 
-        <nav className="roster" aria-label="Bot roster">
+        <nav className="roster" aria-label="AI teammates">
           <p className="nav-label">Your team</p>
-          <button className="bot-row active" type="button">
-            <span className="avatar">HQ</span>
-            <span>
-              <strong>{snapshot.profile.name}</strong>
-              <small>{statusLabel(snapshot.activeTask)}</small>
-            </span>
-            {snapshot.activeTask && !terminalStatuses.has(snapshot.activeTask.status) ? (
-              <LoaderCircle className="spin" size={15} />
-            ) : (
-              <span className="online-dot" />
-            )}
-          </button>
-          <p className="nav-label tasks-label">Recent work</p>
+          <div className="bot-list">
+            {snapshot.bots.map((teammate) => {
+              const active = teammate.id === selectedBot?.id
+              return (
+                <button
+                  className={active ? "bot-row active" : "bot-row"}
+                  key={teammate.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedBotId(teammate.id)
+                    setSelectedTaskId(null)
+                    void load(teammate.id)
+                  }}
+                >
+                  <span className="avatar">{initials(teammate.name)}</span>
+                  <span>
+                    <strong>{teammate.name}</strong>
+                    <small>
+                      {teammate.connection ? teammate.connection.mailboxAddress : teammate.title}
+                    </small>
+                  </span>
+                  <span className="online-dot" />
+                </button>
+              )
+            })}
+          </div>
+
+          {selectedBot ? <p className="nav-label tasks-label">Recent work</p> : null}
           <div className="task-list">
             {snapshot.tasks.map((task) => (
               <button
@@ -285,136 +342,164 @@ export function App() {
           </div>
         </nav>
 
-        <div className="sidebar-foot">
+        <div className="sidebar-foot footer-actions">
           <CloudflareBadge />
+          <button type="button" onClick={lockWorkspace} aria-label="Lock workspace">
+            <LockKeyhole size={14} />
+          </button>
         </div>
       </aside>
 
       <section className="conversation">
         <header className="conversation-head">
           <div>
-            <p className="eyebrow">{snapshot.profile.title}</p>
-            <h1>{snapshot.profile.name}</h1>
+            <p className="eyebrow">{selectedBot?.title ?? "Create a teammate in chat"}</p>
+            <h1>{selectedBot?.name ?? "New agent"}</h1>
           </div>
-          <div className={`status-chip ${working ? "working" : ""}`}>
-            {working ? (
-              <LoaderCircle className="spin" size={14} />
-            ) : (
-              <span className="status-dot" />
-            )}
-            {statusLabel(selectedTask)}
-          </div>
+          {selectedBot ? (
+            <div className={`status-chip ${working ? "working" : ""}`}>
+              {working ? (
+                <LoaderCircle className="spin" size={14} />
+              ) : (
+                <span className="status-dot" />
+              )}
+              {statusLabel(selectedTask)}
+            </div>
+          ) : null}
         </header>
 
         <div className="transcript">
-          {!selectedTask ? (
-            <div className="welcome-block">
-              <span className="avatar large-avatar">HQ</span>
-              <p className="eyebrow">Always on</p>
-              <h2>Hand off the whole job.</h2>
-              <p>{snapshot.profile.description}</p>
-              <div className="suggestions">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPrompt(
-                      "Research the current HQBase product and explain its main self-hosting advantage with source links.",
-                    )
-                  }
-                >
-                  Research a product <ArrowUp size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPrompt(
-                      "Compare two public sources about Cloudflare Agents and give me a concise recommendation.",
-                    )
-                  }
-                >
-                  Compare sources <ArrowUp size={14} />
-                </button>
-              </div>
-            </div>
+          {!selectedBot ? (
+            <NewAgentWelcome onSuggestion={setPrompt} />
           ) : (
             <>
-              <div className="date-rule">
-                <span>{new Date(selectedTask.createdAt).toLocaleString()}</span>
-              </div>
-              <div className="message user-message">
+              <div className="message bot-message intro-message">
                 <div className="message-meta">
-                  {selectedTask.source === "email" ? selectedTask.sender : "You"}
-                  <span>{selectedTask.source === "email" ? "via HQBase" : "direct"}</span>
+                  <span className="mini-avatar">{initials(selectedBot.name)}</span>
+                  {selectedBot.name}
                 </div>
-                {selectedTask.subject ? (
-                  <strong className="subject">{selectedTask.subject}</strong>
-                ) : null}
-                <p>{selectedTask.prompt}</p>
+                <p>Good to meet you. What do you want me around for?</p>
               </div>
-              {activity.map((item, index) => (
-                <div
-                  className="activity-row"
-                  key={item.id}
-                  style={{ animationDelay: `${index * 70}ms` }}
-                >
-                  <span className="activity-icon">
-                    {item.phase === "browser" ? (
-                      <Globe2 size={15} />
-                    ) : item.phase === "completed" ? (
-                      <Check size={15} />
-                    ) : item.phase === "failed" ? (
-                      <CircleAlert size={15} />
-                    ) : (
-                      <Search size={15} />
-                    )}
-                  </span>
-                  <div>
-                    <strong>{item.title}</strong>
-                    {item.detail ? <p>{item.detail}</p> : null}
-                  </div>
-                  <time>{relativeTime(item.createdAt)}</time>
+              <div className="message user-message setup-message">
+                <div className="message-meta">
+                  You <span>teammate brief</span>
                 </div>
-              ))}
-              {selectedTask.result ? (
-                <div className="message bot-message">
-                  <div className="message-meta">
-                    <span className="mini-avatar">HQ</span> HQBot{" "}
-                    <span>{selectedTask.replyMessageId ? "sent through HQBase" : "result"}</span>
-                  </div>
-                  <p>{selectedTask.result}</p>
+                <p>{selectedBot.brief}</p>
+              </div>
+              <div className="message bot-message setup-message">
+                <div className="message-meta">
+                  <span className="mini-avatar">{initials(selectedBot.name)}</span>
+                  {selectedBot.name}
                 </div>
-              ) : null}
-              {selectedTask.error ? (
-                <div className="error-card">
-                  <CircleAlert size={18} />
-                  <div>
-                    <strong>HQBot needs attention</strong>
-                    <p>{selectedTask.error}</p>
+                <p>{selectedBot.description}</p>
+                {!selectedBot.connection ? (
+                  <button
+                    className="inline-connect"
+                    type="button"
+                    onClick={() => setConnectOpen(true)}
+                  >
+                    <Link2 size={14} /> Connect HQBase
+                  </button>
+                ) : null}
+              </div>
+
+              {[...snapshot.tasks].reverse().map((task) => {
+                const taskActivity = snapshot.activeTask?.id === task.id ? activity : []
+                return (
+                  <div className="task-exchange" key={task.id}>
+                    <div className="date-rule">
+                      <span>{new Date(task.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div className="message user-message">
+                      <div className="message-meta">
+                        {task.source === "email" ? task.sender : "You"}
+                        <span>{task.source === "email" ? "via HQBase" : "direct"}</span>
+                      </div>
+                      {task.subject ? <strong className="subject">{task.subject}</strong> : null}
+                      <p>{task.prompt}</p>
+                    </div>
+                    {taskActivity.map((item, index) => (
+                      <div
+                        className="activity-row"
+                        key={item.id}
+                        style={{ animationDelay: `${index * 70}ms` }}
+                      >
+                        <span className="activity-icon">
+                          {item.phase === "browser" ? (
+                            <Globe2 size={15} />
+                          ) : item.phase === "completed" ? (
+                            <Check size={15} />
+                          ) : item.phase === "failed" ? (
+                            <CircleAlert size={15} />
+                          ) : (
+                            <Search size={15} />
+                          )}
+                        </span>
+                        <div>
+                          <strong>{item.title}</strong>
+                          {item.detail ? <p>{item.detail}</p> : null}
+                        </div>
+                        <time>{relativeTime(item.createdAt)}</time>
+                      </div>
+                    ))}
+                    {task.result ? (
+                      <div className="message bot-message">
+                        <div className="message-meta">
+                          <span className="mini-avatar">{initials(selectedBot.name)}</span>
+                          {selectedBot.name}
+                          <span>
+                            {task.replyMessageId ? "sent through HQBase" : "finished work"}
+                          </span>
+                        </div>
+                        <p>{task.result}</p>
+                      </div>
+                    ) : null}
+                    {task.error ? (
+                      <div className="error-card">
+                        <CircleAlert size={18} />
+                        <div>
+                          <strong>{selectedBot.name} needs attention</strong>
+                          <p>{task.error}</p>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              ) : null}
+                )
+              })}
             </>
           )}
         </div>
 
-        <form className="composer" onSubmit={submitTask}>
+        <form className="composer" onSubmit={submitMessage}>
           {error ? <div className="composer-error">{error}</div> : null}
           <textarea
-            aria-label="Message HQBot"
+            aria-label={selectedBot ? `Message ${selectedBot.name}` : "Describe your new agent"}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Give HQBot a task…"
+            placeholder={
+              selectedBot
+                ? `Message ${selectedBot.name}…`
+                : "What do you want this agent around for?"
+            }
             rows={3}
           />
           <div className="composer-actions">
             <span>
-              <Globe2 size={14} /> Public web <ShieldCheck size={14} /> Read-only research
+              {selectedBot ? (
+                <button className="add-context" type="button" onClick={() => setConnectOpen(true)}>
+                  <Plus size={14} /> Connect
+                </button>
+              ) : (
+                <>
+                  <Sparkles size={14} /> Creates a durable teammate
+                </>
+              )}
             </span>
             <button
               className="send-button"
               disabled={!prompt.trim() || sending}
               type="submit"
-              aria-label="Send task"
+              aria-label="Send"
             >
               {sending ? <LoaderCircle className="spin" size={17} /> : <ArrowUp size={17} />}
             </button>
@@ -427,7 +512,7 @@ export function App() {
           <header>
             <div>
               <Monitor size={16} />
-              <span>Agent computer</span>
+              <span>{selectedBot ? `${selectedBot.name}'s computer` : "Agent computer"}</span>
             </div>
             <span className="cloud-label">CLOUDFLARE</span>
           </header>
@@ -444,15 +529,15 @@ export function App() {
             </div>
             <div className="computer-view">
               {screenshotUrl ? (
-                <img src={screenshotUrl} alt="The final page from HQBot's cloud browser research" />
+                <img src={screenshotUrl} alt="The final page from this teammate's browser work" />
               ) : (
                 <div className="computer-idle">
                   <div className="radar">
                     <span />
                   </div>
                   <Globe2 size={28} />
-                  <strong>{working ? "Browser is working" : "Computer ready"}</strong>
-                  <p>HQBot uses a real browser in your Cloudflare account.</p>
+                  <strong>{working ? "Computer is working" : "Computer ready"}</strong>
+                  <p>Each teammate works in a cloud browser in your account.</p>
                 </div>
               )}
             </div>
@@ -472,48 +557,220 @@ export function App() {
         <section className="routine-card">
           <div className="section-title">
             <div>
-              <Clock3 size={16} />
-              <span>Routine</span>
+              <Link2 size={16} />
+              <span>Connections</span>
             </div>
-            <button
-              onClick={() => void pollNow()}
-              disabled={polling}
-              aria-label="Check HQBase inbox now"
-              type="button"
-            >
-              {polling ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}
-            </button>
+            {selectedBot?.connection ? (
+              <button
+                onClick={() => void pollNow()}
+                disabled={polling}
+                aria-label="Check connected HQBase inbox"
+                type="button"
+              >
+                {polling ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}
+              </button>
+            ) : null}
           </div>
-          <div className="routine-name">
-            <span className="routine-icon">
-              <Inbox size={17} />
-            </span>
-            <div>
-              <strong>{snapshot.routine.name}</strong>
-              <p>{snapshot.routine.mailboxAddress || "Mailbox not configured"}</p>
+          {selectedBot?.connection ? (
+            <>
+              <div className="routine-name">
+                <span className="routine-icon">
+                  <Inbox size={17} />
+                </span>
+                <div>
+                  <strong>HQBase</strong>
+                  <p>{selectedBot.connection.mailboxAddress}</p>
+                </div>
+                <span className="enabled-badge">ON</span>
+              </div>
+              <dl>
+                <div>
+                  <dt>Checks</dt>
+                  <dd>Every minute</dd>
+                </div>
+                <div>
+                  <dt>Work</dt>
+                  <dd>Research and reply</dd>
+                </div>
+                <div>
+                  <dt>Scope</dt>
+                  <dd>{selectedBot.connection.mailboxName}</dd>
+                </div>
+              </dl>
+              <p className="routine-note">
+                <ShieldCheck size={14} /> Encrypted connection. Mail stays in HQBase.
+              </p>
+            </>
+          ) : (
+            <div className="empty-connection">
+              <span>
+                <Plus size={18} />
+              </span>
+              <strong>{selectedBot ? "Connect a tool" : "Choose an agent"}</strong>
+              <p>
+                {selectedBot
+                  ? "Give this teammate its own HQBase mailbox connection."
+                  : "Connections belong to one teammate."}
+              </p>
+              {selectedBot ? (
+                <button type="button" onClick={() => setConnectOpen(true)}>
+                  Connect HQBase
+                </button>
+              ) : null}
             </div>
-            <span className="enabled-badge">ON</span>
-          </div>
-          <dl>
-            <div>
-              <dt>Runs</dt>
-              <dd>{snapshot.routine.schedule}</dd>
-            </div>
-            <div>
-              <dt>Action</dt>
-              <dd>{snapshot.routine.autoReply ? "Research + reply" : "Research only"}</dd>
-            </div>
-            <div>
-              <dt>Allowed</dt>
-              <dd>{snapshot.routine.allowedSenders.join(", ") || "No senders"}</dd>
-            </div>
-          </dl>
-          <p className="routine-note">
-            <ShieldCheck size={14} /> Other senders stay in HQBase and do not start a task.
-          </p>
+          )}
         </section>
       </aside>
+
+      {connectOpen && selectedBot ? (
+        <ConnectionDialog
+          bot={selectedBot}
+          token={token}
+          onClose={() => setConnectOpen(false)}
+          onConnected={async () => {
+            setConnectOpen(false)
+            await load(selectedBot.id)
+          }}
+        />
+      ) : null}
     </main>
+  )
+}
+
+function NewAgentWelcome({ onSuggestion }: { onSuggestion: (value: string) => void }) {
+  return (
+    <div className="welcome-block">
+      <span className="avatar large-avatar">+</span>
+      <p className="eyebrow">New teammate</p>
+      <h2>What do you want me around for?</h2>
+      <p>
+        Describe a concrete job or a general sidekick. HQBot will create a durable teammate from
+        this chat.
+      </p>
+      <div className="suggestions">
+        <button
+          type="button"
+          onClick={() =>
+            onSuggestion(
+              "Be my inbox manager. Research requests, draft useful replies, and keep me informed.",
+            )
+          }
+        >
+          Inbox manager <ArrowUp size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSuggestion(
+              "Be my research analyst. Investigate questions in a real browser and return concise, sourced work.",
+            )
+          }
+        >
+          Research analyst <ArrowUp size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ConnectionDialog({
+  bot,
+  token,
+  onClose,
+  onConnected,
+}: {
+  bot: BotTeammate
+  token: string
+  onClose: () => void
+  onConnected: () => Promise<void>
+}) {
+  const [origin, setOrigin] = useState("https://")
+  const [credential, setCredential] = useState("")
+  const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function connect(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError("")
+    try {
+      await api(`/api/bots/${bot.id}/connections/hqbase`, token, {
+        method: "POST",
+        body: JSON.stringify({ origin, token: credential }),
+      })
+      await onConnected()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "HQBase could not connect")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="connection-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connection-title"
+      >
+        <header>
+          <div>
+            <span className="connection-logo">
+              <Inbox size={20} />
+            </span>
+            <div>
+              <p className="eyebrow">Connect to {bot.name}</p>
+              <h2 id="connection-title">HQBase</h2>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close connection dialog">
+            <X size={17} />
+          </button>
+        </header>
+        <p className="dialog-copy">
+          Connect one mailbox-scoped HQBase agent. {bot.name} will watch that inbox, research new
+          requests, and reply through HQBase.
+        </p>
+        <form onSubmit={connect}>
+          <label htmlFor="hqbase-origin">HQBase URL</label>
+          <input
+            id="hqbase-origin"
+            type="url"
+            value={origin}
+            onChange={(event) => setOrigin(event.target.value)}
+            placeholder="https://mail.example.com"
+            required
+          />
+          <label htmlFor="hqbase-token">Agent connection credential</label>
+          <input
+            id="hqbase-token"
+            type="password"
+            autoComplete="off"
+            value={credential}
+            onChange={(event) => setCredential(event.target.value)}
+            placeholder="hqb_agent_…"
+            required
+          />
+          <p className="field-help">
+            Create a mailbox agent with <strong>Handle mail</strong> access in HQBase. Paste the
+            one-time credential here.
+          </p>
+          {error ? <p className="form-error">{error}</p> : null}
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={saving || !origin.trim() || !credential.trim()}
+          >
+            {saving ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />}
+            Connect to {bot.name}
+          </button>
+        </form>
+        <div className="dialog-trust">
+          <ShieldCheck size={14} /> Encrypted before storage in your Cloudflare account
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -522,7 +779,7 @@ function CloudflareBadge() {
     <div className="cloudflare-badge">
       <span className="cf-mark">☁</span>
       <div>
-        <strong>Runs on your Cloudflare</strong>
+        <strong>Your Cloudflare</strong>
         <small>Workers · AI · Browser · R2</small>
       </div>
     </div>

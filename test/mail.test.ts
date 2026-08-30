@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { existingReply, type MessageDetail } from "../src/services/mail"
+import { existingReply, isNewInboundMessage, type MessageDetail } from "../src/services/mail"
 
 function message(overrides: Partial<MessageDetail>): MessageDetail {
   return {
@@ -46,5 +46,23 @@ describe("existingReply", () => {
       inReplyTo: "<other@example.com>",
     })
     expect(existingReply([inbound, outbound], inbound, "hqbot@example.com")).toBeNull()
+  })
+})
+
+describe("isNewInboundMessage", () => {
+  it("does not run the mailbox backlog when a teammate first connects", () => {
+    const connectedAt = "2026-08-30T12:00:00.000Z"
+    expect(
+      isNewInboundMessage(message({ receivedAt: "2026-08-30T11:59:59.000Z" }), connectedAt),
+    ).toBe(false)
+    expect(
+      isNewInboundMessage(message({ receivedAt: "2026-08-30T12:00:01.000Z" }), connectedAt),
+    ).toBe(true)
+    expect(
+      isNewInboundMessage(
+        message({ direction: "outbound", receivedAt: "2026-08-30T12:00:01.000Z" }),
+        connectedAt,
+      ),
+    ).toBe(false)
   })
 })

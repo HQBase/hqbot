@@ -31,7 +31,7 @@
         "description": "R2 stores browser screenshots and reviewable task artifacts."
       },
       "HQBOT_AGENT": {
-        "description": "A Durable Object stores the Bot profile, transcript, tasks, and activity."
+        "description": "A Durable Object stores teammate profiles, connections, chats, tasks, and activity."
       },
       "HQBOT_WORKFLOW": {
         "description": "A Workflow runs durable research and reply tasks."
