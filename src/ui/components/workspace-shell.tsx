@@ -56,6 +56,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
 
   const sidebar = (
     <TeammateSidebar
+      archivedBots={snapshot.archivedBots}
       bots={snapshot.bots}
       selectedId={controller.selectedBot?.id ?? null}
       onCreate={beginNewTeammate}

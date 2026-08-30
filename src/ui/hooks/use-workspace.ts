@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { BotTeammate } from "../../domain/types";
+import type { BotRoutine, BotTeammate } from "../../domain/types";
 import { api, errorMessage } from "../lib/api";
 import type { DialogName, WorkspaceEvent, WorkspaceView } from "../types";
 import { useWorkspaceEvents } from "./use-workspace-events";
@@ -57,7 +57,11 @@ export function useWorkspace(onSignedOut: () => void) {
     () =>
       newTeammate
         ? null
-        : (snapshot?.bots.find((bot) => bot.id === selectedBotId) ?? snapshot?.selectedBot ?? null),
+        : ([...(snapshot?.bots ?? []), ...(snapshot?.archivedBots ?? [])].find(
+            (bot) => bot.id === selectedBotId
+          ) ??
+          snapshot?.selectedBot ??
+          null),
     [newTeammate, selectedBotId, snapshot]
   );
   const selectedTask = newTeammate ? null : (snapshot?.activeTask ?? snapshot?.tasks[0] ?? null);
@@ -105,6 +109,45 @@ export function useWorkspace(onSignedOut: () => void) {
     }
   }
 
+  async function setRoutineActive(routine: BotRoutine, active: boolean): Promise<void> {
+    if (!selectedBot) return;
+    setError("");
+    try {
+      await api(`/api/bots/${selectedBot.id}/routines/${routine.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active })
+      });
+      await load(selectedBot.id);
+    } catch (cause) {
+      setError(errorMessage(cause, `The routine could not be ${active ? "resumed" : "paused"}`));
+    }
+  }
+
+  async function deleteRoutine(routine: BotRoutine): Promise<void> {
+    if (!selectedBot) return;
+    setError("");
+    try {
+      await api(`/api/bots/${selectedBot.id}/routines/${routine.id}`, { method: "DELETE" });
+      await load(selectedBot.id);
+    } catch (cause) {
+      setError(errorMessage(cause, "The routine could not be deleted"));
+    }
+  }
+
+  async function restoreSelectedBot(): Promise<void> {
+    if (!selectedBot?.hidden) return;
+    setError("");
+    try {
+      await api(`/api/bots/${selectedBot.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ hidden: false })
+      });
+      await load(selectedBot.id);
+    } catch (cause) {
+      setError(errorMessage(cause, "The teammate could not be restored"));
+    }
+  }
+
   async function logout(): Promise<void> {
     try {
       await api("/api/auth/logout", { method: "POST" });
@@ -116,6 +159,7 @@ export function useWorkspace(onSignedOut: () => void) {
 
   return {
     beginNewTeammate,
+    deleteRoutine,
     detailsOpen,
     dialog,
     error,
@@ -124,11 +168,13 @@ export function useWorkspace(onSignedOut: () => void) {
     mobileChatOpen,
     newTeammate,
     realtimeStatus,
+    restoreSelectedBot,
     selectBot,
     selectedBot,
     selectedTask,
     send,
     sending,
+    setRoutineActive,
     setDetailsOpen,
     setDialog,
     setError,

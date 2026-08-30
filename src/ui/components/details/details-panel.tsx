@@ -40,8 +40,12 @@ export function DetailsPanel({
           routines={snapshot.routines}
           skills={snapshot.skills}
           onConnect={() => controller.setDialog("connection")}
+          onDeleteRoutine={(routine) => void controller.deleteRoutine(routine)}
           onNewRoutine={() => controller.setDialog("routine")}
           onNewSkill={() => controller.setDialog("skill")}
+          onSetRoutineActive={(routine, active) =>
+            void controller.setRoutineActive(routine, active)
+          }
           onUseSkill={onUseSkill}
         />
       </div>

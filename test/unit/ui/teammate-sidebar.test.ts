@@ -31,6 +31,7 @@ describe("TeammateSidebar", () => {
   it("shows teammates by latest interaction and has no Recent work section", () => {
     const html = renderToStaticMarkup(
       createElement(TeammateSidebar, {
+        archivedBots: [],
         bots: [
           teammate("old", "Older teammate", "2026-08-28T12:00:00.000Z"),
           teammate("new", "Latest teammate", "2026-08-30T12:00:00.000Z")
@@ -44,5 +45,25 @@ describe("TeammateSidebar", () => {
     expect(html.indexOf("Latest teammate")).toBeLessThan(html.indexOf("Older teammate"));
     expect(html).not.toContain("Recent work");
     expect(html).toContain("Teammates");
+  });
+
+  it("keeps archived teammates in a separate restorable roster", () => {
+    const archived = {
+      ...teammate("archived", "Archived teammate", "2026-08-29T12:00:00.000Z"),
+      hidden: true
+    };
+    const html = renderToStaticMarkup(
+      createElement(TeammateSidebar, {
+        archivedBots: [archived],
+        bots: [teammate("active", "Active teammate", "2026-08-30T12:00:00.000Z")],
+        onCreate: vi.fn(),
+        onSelect: vi.fn(),
+        selectedId: archived.id
+      })
+    );
+
+    expect(html).toContain("Archived");
+    expect(html).toContain("Archived teammate");
+    expect(html).toContain('aria-current="page"');
   });
 });

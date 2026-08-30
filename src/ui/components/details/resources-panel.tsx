@@ -1,5 +1,14 @@
 import type { ComponentType, ReactNode } from "react";
-import { PiCalendar, PiFile, PiLink, PiPlus, PiSparkle } from "react-icons/pi";
+import {
+  PiCalendar,
+  PiFile,
+  PiLink,
+  PiPause,
+  PiPlay,
+  PiPlus,
+  PiSparkle,
+  PiTrash
+} from "react-icons/pi";
 
 import type {
   BotConnection,
@@ -22,8 +31,10 @@ export function ResourcesPanel({
   routines,
   skills,
   onConnect,
+  onDeleteRoutine,
   onNewRoutine,
   onNewSkill,
+  onSetRoutineActive,
   onUseSkill
 }: {
   bot: BotTeammate;
@@ -32,8 +43,10 @@ export function ResourcesPanel({
   routines: BotRoutine[];
   skills: BotSkill[];
   onConnect: () => void;
+  onDeleteRoutine: (routine: BotRoutine) => void;
   onNewRoutine: () => void;
   onNewSkill: () => void;
+  onSetRoutineActive: (routine: BotRoutine, active: boolean) => void;
   onUseSkill: (skill: BotSkill) => void;
 }) {
   const connectionStatus = bot.connection
@@ -118,7 +131,33 @@ export function ResourcesPanel({
                   Every {formatInterval(routine.intervalMinutes)}
                 </small>
               </span>
-              <Badge variant="outline">{routine.active ? "On" : "Paused"}</Badge>
+              <span className="flex shrink-0 items-center gap-1">
+                <Badge variant="outline">{routine.active ? "On" : "Paused"}</Badge>
+                <Button
+                  aria-label={`${routine.active ? "Pause" : "Resume"} ${routine.name}`}
+                  disabled={bot.hidden && !routine.active}
+                  size="icon"
+                  title={
+                    bot.hidden && !routine.active
+                      ? "Restore this teammate before you resume the routine"
+                      : undefined
+                  }
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onSetRoutineActive(routine, !routine.active)}
+                >
+                  {routine.active ? <PiPause /> : <PiPlay />}
+                </Button>
+                <Button
+                  aria-label={`Delete ${routine.name}`}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onDeleteRoutine(routine)}
+                >
+                  <PiTrash />
+                </Button>
+              </span>
             </div>
           ))
         )}
