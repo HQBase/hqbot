@@ -70,6 +70,9 @@ function missingSecretValues(secretNames, environment) {
     if (!setupToken) {
       throw new Error(`Set ${setupSecret} before the first deployment.`);
     }
+    if (setupToken.length < 24 || setupToken.length > 256) {
+      throw new Error(`${setupSecret} must contain 24 to 256 characters.`);
+    }
     values[setupSecret] = setupToken;
   }
   if (!secretNames.has(connectionSecret)) {

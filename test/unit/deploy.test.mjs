@@ -146,4 +146,26 @@ describe("HQBot deployment", () => {
     expect(runtime.runWrangler).not.toHaveBeenCalled();
     expect(stdoutWrite.mock.calls.flat().join(" ")).not.toContain(setupToken);
   });
+
+  it.each([
+    ["short", "s".repeat(23)],
+    ["long", "l".repeat(257)]
+  ])("rejects a %s first-install setup token", (_label, invalidToken) => {
+    const runtime = operations({ status: 0, stdout: "[]", stderr: "" });
+    runtime.environment = { HQBOT_SETUP_TOKEN: invalidToken };
+
+    expect(() => deploy(runtime)).toThrow("HQBOT_SETUP_TOKEN must contain 24 to 256 characters");
+    expect(runtime.runWrangler).not.toHaveBeenCalled();
+    expect(stdoutWrite.mock.calls.flat().join(" ")).not.toContain(invalidToken);
+  });
+
+  it.each([24, 256])("accepts a %i-character first-install setup token", (length) => {
+    const runWrangler = vi.fn();
+    const runtime = operations({ status: 0, stdout: "[]", stderr: "" }, runWrangler);
+    runtime.environment = { HQBOT_SETUP_TOKEN: "s".repeat(length) };
+
+    deploy(runtime);
+
+    expect(runWrangler).toHaveBeenCalledOnce();
+  });
 });

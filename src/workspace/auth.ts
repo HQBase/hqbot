@@ -5,8 +5,6 @@ const SESSION_DAYS = 30;
 const LOGIN_WINDOW_MS = 15 * 60 * 1_000;
 const LOGIN_BLOCK_MS = 15 * 60 * 1_000;
 const PER_CLIENT_FAILURES = 5;
-const GLOBAL_FAILURES = 50;
-const GLOBAL_LOGIN_KEY = "global";
 
 function encode(bytes: Uint8Array): string {
   let binary = "";
@@ -95,10 +93,7 @@ export class WorkspaceAuth {
   }
 
   async login(username: string, password: string, attemptKey: string): Promise<OwnerLoginResult> {
-    if (
-      !this.canAttempt(attemptKey, PER_CLIENT_FAILURES) ||
-      !this.canAttempt(GLOBAL_LOGIN_KEY, GLOBAL_FAILURES)
-    ) {
+    if (!this.canAttempt(attemptKey, PER_CLIENT_FAILURES)) {
       return { token: null, limited: true };
     }
     const owner = this.sql<OwnerRow>`SELECT username, salt, password_hash, iterations
@@ -107,7 +102,6 @@ export class WorkspaceAuth {
     const computed = await derive(password, owner.salt, owner.iterations);
     if (!equal(owner.username, username) || !equal(owner.password_hash, computed)) {
       this.recordFailure(attemptKey, PER_CLIENT_FAILURES);
-      this.recordFailure(GLOBAL_LOGIN_KEY, GLOBAL_FAILURES);
       return { token: null, limited: false };
     }
     this.sql`DELETE FROM login_limits WHERE key_hash = ${attemptKey}`;

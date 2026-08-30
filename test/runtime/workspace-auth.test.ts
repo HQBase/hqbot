@@ -68,8 +68,20 @@ describe("workspace owner authentication", () => {
     expect(JSON.stringify(database.prepare("SELECT * FROM owner_sessions").all())).not.toContain(
       token
     );
-    expect(database.prepare("SELECT key_hash FROM login_limits").all()).toEqual(
-      expect.arrayContaining([{ key_hash: "hashed-client-address" }, { key_hash: "global" }])
-    );
+    expect(database.prepare("SELECT key_hash FROM login_limits").all()).toEqual([
+      { key_hash: "hashed-client-address" }
+    ]);
+  });
+
+  it("does not let distributed failures lock out a correct login", async () => {
+    await auth.bootstrap("owner", "correct horse battery staple");
+    for (let client = 0; client < 60; client += 1) {
+      await auth.login("owner", "incorrect password value", `client-${client}`);
+    }
+
+    const result = await auth.login("owner", "correct horse battery staple", "owner-client");
+
+    expect(result.limited).toBe(false);
+    expect(result.token).toHaveLength(43);
   });
 });
