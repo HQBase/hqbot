@@ -1,5 +1,3 @@
-import { encryptConnectionToken } from "../services/crypto";
-import { canHandleMail, listMailboxes } from "../services/mail";
 import {
   cleanString,
   json,
@@ -9,21 +7,6 @@ import {
   teammate,
   workspace
 } from "./common";
-
-function canonicalOrigin(value: string): string {
-  const url = new URL(value);
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.pathname !== "/" ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error("HQBase URL must be an HTTPS origin without a path");
-  }
-  return url.origin;
-}
 
 function nextRun(intervalMinutes: number): string {
   return new Date(Date.now() + intervalMinutes * 60_000).toISOString();
@@ -136,65 +119,6 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
     }
     await (await teammate(env, routine[0])).reconcileScheduledTasks();
     return json({ deleted: true });
-  }
-
-  const connection = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/connections\/hqbase$/u);
-  if (request.method === "POST" && connection?.[0]) {
-    const unavailable = await requireActiveTeammate(agent, connection[0]);
-    if (unavailable) return unavailable;
-    const body = await readJson(request);
-    const origin = canonicalOrigin(cleanString(body, "origin", 500));
-    const token = cleanString(body, "token", 2_000);
-    const mailboxes = await listMailboxes(origin, token);
-    if (mailboxes.length !== 1) {
-      return json({ error: "Use a mailbox-scoped HQBase agent connection" }, 400);
-    }
-    const mailbox = mailboxes[0];
-    if (!canHandleMail(mailbox)) {
-      return json({ error: "This HQBase connection cannot handle mail" }, 400);
-    }
-    const encrypted = await encryptConnectionToken(env.HQBOT_CONNECTION_KEY, token);
-    try {
-      const connected = await agent.connectHQBase({
-        id: crypto.randomUUID(),
-        botId: connection[0],
-        origin,
-        mailboxId: mailbox.id,
-        mailboxAddress: mailbox.address,
-        mailboxName: mailbox.displayName || mailbox.address,
-        tokenCiphertext: encrypted.ciphertext,
-        tokenIv: encrypted.iv
-      });
-      return json({ connection: connected }, 201);
-    } catch {
-      return json({ error: "This teammate or mailbox already has an HQBase connection" }, 409);
-    }
-  }
-  if (request.method === "DELETE" && connection?.[0]) {
-    return (await agent.disconnectHQBase(connection[0]))
-      ? json({ disconnected: true })
-      : json({ error: "HQBase connection not found" }, 404);
-  }
-
-  const approval = pathMatch(url.pathname, /^\/api\/tasks\/([^/]+)\/approval$/u);
-  if (request.method === "POST" && approval?.[0]) {
-    const task = await agent.getTask(approval[0]);
-    if (!task) return json({ error: "Task not found" }, 404);
-    const body = await readJson(request);
-    if (typeof body.approved !== "boolean") {
-      return json({ error: "approved must be true or false" }, 400);
-    }
-    if (body.approved) {
-      const unavailable = await requireActiveTeammate(agent, task.botId);
-      if (unavailable) return unavailable;
-    }
-    const peer = await teammate(env, task.botId);
-    const executionId = await peer.replyApprovalForTask(task.id);
-    if (!executionId) return json({ error: "This task is not waiting for approval" }, 409);
-    if (!(await peer.resolveReplyApproval(executionId, body.approved))) {
-      return json({ error: "This approval was already resolved" }, 409);
-    }
-    return json({ accepted: true });
   }
 
   const liveView = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/live-view$/u);

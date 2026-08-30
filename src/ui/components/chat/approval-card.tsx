@@ -5,19 +5,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Spinner } from "../ui/spinner";
 
 export function ApprovalCard({
-  approveLabel = "Send reply",
-  description = "HQBot will send it through the connected HQBase mailbox.",
-  denyLabel = "Keep as draft",
-  draft,
+  approveLabel = "Approve",
+  description = "This connected-service tool can change remote data.",
+  denyLabel = "Deny",
+  details,
   pending,
-  title = "Approve this reply?",
+  title = "Approve this action?",
   onApprove,
   onDeny
 }: {
   approveLabel?: string;
   description?: string;
   denyLabel?: string;
-  draft?: string | null;
+  details?: string | null;
   pending: boolean;
   title?: string;
   onApprove: () => void;
@@ -35,12 +35,12 @@ export function ApprovalCard({
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 p-4 pt-2">
-        {draft ? (
+        {details ? (
           <section
-            aria-label="HQBase reply draft"
+            aria-label="Action details"
             className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-divider bg-reader p-3 text-sm leading-6"
           >
-            {draft}
+            {details}
           </section>
         ) : null}
         <div className="flex justify-end gap-2">

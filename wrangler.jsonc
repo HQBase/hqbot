@@ -47,7 +47,7 @@
     "HQBOT_GLOBAL_DAILY_BUDGET_USD": "5"
   },
   "secrets": {
-    "required": ["HQBOT_CONNECTION_KEY", "HQBOT_SETUP_TOKEN"]
+    "required": ["HQBOT_SETUP_TOKEN"]
   },
   "observability": {
     "enabled": true,

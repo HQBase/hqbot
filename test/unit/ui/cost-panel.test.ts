@@ -9,14 +9,11 @@ import { CostPanel } from "../../../src/ui/components/details/cost-panel";
 
 const empty: CostTotal = { estimatedUsd: 0, inputUnits: 0, outputUnits: 0 };
 
-function snapshot(selectedBotHqbaseRealtime: boolean): CostSnapshot {
+function snapshot(): CostSnapshot {
   return {
     dayStartedAt: "2026-08-30T00:00:00.000Z",
     overall: { estimatedUsd: 1.25, inputUnits: 0, outputUnits: 0 },
     platform: {
-      durableObjectGbSecondsPerDay: 1234.5678,
-      hqbaseRealtimeConnections: 2,
-      selectedBotHqbaseRealtime,
       resources: {
         overall: {
           durableObjects: 4,
@@ -58,7 +55,7 @@ function renderCostPanel(costs: CostSnapshot): string {
 
 describe("CostPanel", () => {
   it("keeps the three totals and separates AI tokens from browser use", () => {
-    const html = renderCostPanel(snapshot(true));
+    const html = renderCostPanel(snapshot());
 
     expect(html).toContain("Task");
     expect(html).toContain("$0.01");
@@ -72,18 +69,8 @@ describe("CostPanel", () => {
     expect(html).toContain("$0.04");
   });
 
-  it("does not add a separate HQBase usage section", () => {
-    const connected = renderCostPanel(snapshot(true));
-    const disconnected = renderCostPanel(snapshot(false));
-
-    expect(connected).not.toContain("HQBase realtime");
-    expect(connected).not.toContain("GB-s/day");
-    expect(disconnected).not.toContain("HQBase realtime");
-    expect(disconnected).not.toContain("GB-s/day");
-  });
-
   it("shows raw Cloudflare resources for the teammate and overall workspace", () => {
-    const html = renderCostPanel(snapshot(true));
+    const html = renderCostPanel(snapshot());
 
     expect(html).toContain("Raw Cloudflare footprint");
     expect(html).toContain("Tracked, not billing");

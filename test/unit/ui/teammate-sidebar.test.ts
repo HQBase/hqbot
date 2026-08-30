@@ -10,7 +10,6 @@ import type { TeammateSummary } from "../../../src/ui/types";
 function teammate(id: string, name: string, lastInteractedAt: string): TeammateSummary {
   return {
     brief: "",
-    connection: null,
     createdAt: "2026-08-01T00:00:00.000Z",
     dailyBudgetUsd: 1,
     description: "",
@@ -69,5 +68,24 @@ describe("TeammateSidebar", () => {
     expect(html).toContain("Archived");
     expect(html).toContain("Archived teammate");
     expect(html).toContain('aria-current="page"');
+  });
+
+  it("uses the teammate title when no recent message exists", () => {
+    const connected = {
+      ...teammate("connected", "Connected teammate", "2026-08-30T12:00:00.000Z"),
+      lastMessage: null
+    };
+    const html = renderToStaticMarkup(
+      createElement(TeammateSidebar, {
+        archivedBots: [],
+        bots: [connected],
+        onCreate: vi.fn(),
+        onLogout: vi.fn(),
+        onSelect: vi.fn(),
+        selectedId: null
+      })
+    );
+
+    expect(html).toContain("Research teammate");
   });
 });

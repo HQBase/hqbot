@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -15,7 +14,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const wranglerLog = resolve(root, ".wrangler", "wrangler.log");
-const connectionSecret = "HQBOT_CONNECTION_KEY";
 const setupSecret = "HQBOT_SETUP_TOKEN";
 const trustedWindowsAccounts = new Set(["SY", "S-1-5-18", "BA", "S-1-5-32-544"]);
 
@@ -74,9 +72,6 @@ function missingSecretValues(secretNames, environment) {
       throw new Error(`${setupSecret} must contain 24 to 256 characters.`);
     }
     values[setupSecret] = setupToken;
-  }
-  if (!secretNames.has(connectionSecret)) {
-    values[connectionSecret] = randomBytes(32).toString("base64url");
   }
   return values;
 }

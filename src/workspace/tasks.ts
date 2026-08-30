@@ -37,43 +37,8 @@ function serviceTotals(rows: Row[]): CostServiceTotals {
   return totals;
 }
 
-type RealtimePlatform = Omit<CostSnapshot["platform"], "resources">;
-
-const emptyPlatform: RealtimePlatform = {
-  durableObjectGbSecondsPerDay: 0,
-  hqbaseRealtimeConnections: 0,
-  selectedBotHqbaseRealtime: false
-};
-
 export class WorkspaceTasks {
   constructor(private readonly sql: Sql) {}
-
-  createEmailTask(input: {
-    id: string;
-    botId: string;
-    connectionId: string;
-    messageId: string;
-    sender: string;
-    subject: string;
-    prompt: string;
-  }): boolean {
-    const timestamp = now();
-    const rows = this.sql<{ id: string }>`INSERT OR IGNORE INTO tasks (
-      id, bot_id, connection_id, source, status, prompt, subject, sender, source_message_id,
-      created_at, updated_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, ${input.connectionId}, 'email', 'queued', ${input.prompt},
-      ${input.subject}, ${input.sender}, ${input.messageId}, ${timestamp}, ${timestamp}
-    ) RETURNING id`;
-    if (rows.length === 0) return false;
-    this.addActivity(
-      input.id,
-      "queued",
-      "Email received",
-      "The connected HQBase inbox sent this task."
-    );
-    return true;
-  }
 
   createChatTask(id: string, botId: string, prompt: string): void {
     const timestamp = now();
@@ -95,16 +60,6 @@ export class WorkspaceTasks {
       WHERE id = ${taskId}`;
   }
 
-  setTaskInput(
-    taskId: string,
-    prompt: string,
-    subject: string | null,
-    sender: string | null
-  ): void {
-    this.sql`UPDATE tasks SET prompt = ${prompt}, subject = ${subject}, sender = ${sender},
-      updated_at = ${now()} WHERE id = ${taskId}`;
-  }
-
   setStatus(taskId: string, status: TaskStatus): void {
     this.sql`UPDATE tasks SET status = ${status}, updated_at = ${now()} WHERE id = ${taskId}`;
   }
@@ -121,55 +76,13 @@ export class WorkspaceTasks {
 
   cancelBotTasks(botId: string): string[] {
     const ids = this.sql<{ id: string }>`SELECT id FROM tasks WHERE bot_id = ${botId}
-      AND status NOT IN ('replying', 'cancelled', 'completed', 'failed')`;
+      AND status NOT IN ('cancelled', 'completed', 'failed')`;
     return ids.filter(({ id }) => this.cancelTask(id)).map(({ id }) => id);
   }
 
   listActivity(taskId: string): BotActivity[] {
     return this.sql<Row>`SELECT * FROM activity WHERE task_id = ${taskId}
       ORDER BY created_at ASC`.map(activityFromRow);
-  }
-
-  requestReplyApproval(taskId: string, result: string): boolean {
-    const rows = this.sql<{ id: string }>`UPDATE tasks
-      SET status = 'awaiting_approval', result = ${result}, updated_at = ${now()}
-      WHERE id = ${taskId} AND source = 'email'
-        AND status IN ('queued', 'working', 'researching', 'awaiting_approval')
-      RETURNING id`;
-    if (rows.length === 0) return false;
-    this.addActivity(
-      taskId,
-      "approval",
-      "Reply needs approval",
-      "Review the draft before HQBot sends it through HQBase."
-    );
-    return true;
-  }
-
-  recordReplyDecision(taskId: string, approved: boolean): void {
-    this.addActivity(
-      taskId,
-      approved ? "approved" : "denied",
-      approved ? "Reply approved" : "Reply kept as a draft",
-      approved ? "The approved reply can now be sent." : "Nothing was sent."
-    );
-  }
-
-  rejectReply(taskId: string): boolean {
-    const rows = this.sql<{ id: string }>`UPDATE tasks
-      SET status = 'cancelled', error = NULL, updated_at = ${now()}
-      WHERE id = ${taskId} AND source = 'email' AND status = 'awaiting_approval'
-      RETURNING id`;
-    return rows.length > 0;
-  }
-
-  claimApprovedReply(taskId: string, draft: string): boolean {
-    const rows = this.sql<{ id: string }>`UPDATE tasks
-      SET status = 'replying', updated_at = ${now()}
-      WHERE id = ${taskId} AND source = 'email' AND status = 'awaiting_approval'
-        AND result = ${draft}
-      RETURNING id`;
-    return rows.length > 0;
   }
 
   addActivity(taskId: string, phase: string, title: string, detail: string | null = null): void {
@@ -183,15 +96,10 @@ export class WorkspaceTasks {
       updated_at = ${now()} WHERE id = ${taskId}`;
   }
 
-  completeTask(taskId: string, result: string, replyMessageId: string | null): void {
+  completeTask(taskId: string, result: string): void {
     this.sql`UPDATE tasks SET status = 'completed', result = ${result},
-      reply_message_id = ${replyMessageId}, error = NULL, updated_at = ${now()} WHERE id = ${taskId}`;
-    this.addActivity(
-      taskId,
-      "completed",
-      replyMessageId ? "Work sent" : "Work completed",
-      replyMessageId ? "HQBase accepted the reply." : "The result is ready in this chat."
-    );
+      error = NULL, updated_at = ${now()} WHERE id = ${taskId}`;
+    this.addActivity(taskId, "completed", "Work completed", "The result is ready in this chat.");
   }
 
   failTask(taskId: string, error: string): void {
@@ -205,7 +113,7 @@ export class WorkspaceTasks {
     const rows = this.sql<{ id: string }>`UPDATE tasks
       SET status = 'cancelled', error = NULL, updated_at = ${now()}
       WHERE id = ${taskId}
-        AND status NOT IN ('replying', 'cancelled', 'completed', 'failed')
+        AND status NOT IN ('cancelled', 'completed', 'failed')
       RETURNING id`;
     if (rows.length === 0) return false;
     this.addActivity(taskId, "cancelled", "Task stopped", "The owner stopped this work.");
@@ -221,11 +129,7 @@ export class WorkspaceTasks {
     )`;
   }
 
-  getCosts(
-    botId?: string | null,
-    taskId?: string | null,
-    platform: RealtimePlatform = emptyPlatform
-  ): CostSnapshot {
+  getCosts(botId?: string | null, taskId?: string | null): CostSnapshot {
     const dayStartedAt = startOfUtcDay();
     const overall = this.sql<Row>`SELECT
       COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
@@ -279,7 +183,6 @@ export class WorkspaceTasks {
         selectedTask: serviceTotals(taskServices)
       },
       platform: {
-        ...platform,
         resources: readCloudflareResourceFootprint(this.sql, botId, dayStartedAt)
       }
     };

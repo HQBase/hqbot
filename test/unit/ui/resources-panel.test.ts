@@ -10,7 +10,6 @@ import { ResourcesPanel } from "../../../src/ui/components/details/resources-pan
 function teammate(): BotTeammate {
   return {
     brief: "",
-    connection: null,
     createdAt: "2026-08-30T12:00:00.000Z",
     dailyBudgetUsd: 1,
     description: "",
@@ -57,8 +56,8 @@ function render(routines: BotRoutine[] = []): string {
 }
 
 describe("ResourcesPanel", () => {
-  it("does not add an HQBase section to teammate details", () => {
-    expect(render()).not.toContain("HQBase");
+  it("does not add a provider-specific section to teammate details", () => {
+    expect(render()).not.toContain("Mailbox");
     expect(render()).not.toContain("Manage");
   });
 

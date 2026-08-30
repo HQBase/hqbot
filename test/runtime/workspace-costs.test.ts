@@ -60,11 +60,7 @@ describe("workspace cost snapshot", () => {
       INSERT INTO files VALUES ('bot-a', 100), ('bot-a', 200), ('bot-b', 300);
     `);
 
-    const costs = tasks.getCosts("bot-a", "task-a", {
-      durableObjectGbSecondsPerDay: 10_800,
-      hqbaseRealtimeConnections: 2,
-      selectedBotHqbaseRealtime: true
-    });
+    const costs = tasks.getCosts("bot-a", "task-a");
 
     expect(costs.overall.estimatedUsd).toBeCloseTo(0.06);
     expect(costs.selectedBot.estimatedUsd).toBeCloseTo(0.03);
@@ -81,9 +77,6 @@ describe("workspace cost snapshot", () => {
     });
     expect(costs.services.selectedTask).toEqual(costs.services.selectedBot);
     expect(costs.platform).toEqual({
-      durableObjectGbSecondsPerDay: 10_800,
-      hqbaseRealtimeConnections: 2,
-      selectedBotHqbaseRealtime: true,
       resources: {
         overall: {
           durableObjects: 3,
@@ -113,9 +106,6 @@ describe("workspace cost snapshot", () => {
         }
       },
       platform: {
-        durableObjectGbSecondsPerDay: 0,
-        hqbaseRealtimeConnections: 0,
-        selectedBotHqbaseRealtime: false,
         resources: {
           overall: {
             durableObjects: 1,

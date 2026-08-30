@@ -2,8 +2,6 @@ import type { TaskStatus, WorkspaceSnapshot } from "../domain/types";
 import type { WorkspaceCatalog } from "./catalog";
 import type { WorkspaceTasks } from "./tasks";
 
-const REALTIME_DURABLE_OBJECT_GB_SECONDS_PER_DAY = 0.125 * 60 * 60 * 24;
-
 function terminal(status: TaskStatus): boolean {
   return ["completed", "failed", "cancelled"].includes(status);
 }
@@ -20,9 +18,6 @@ export function readWorkspaceSnapshot(
   const tasks = selectedBot ? taskStore.listTasks(selectedBot.id) : [];
   const activeTask = tasks.find((task) => !terminal(task.status)) ?? tasks[0] ?? null;
   const computer = catalog.getComputerState();
-  const realtimeConnections = catalog
-    .listActiveConnections()
-    .filter((connection) => connection.realtimeStatus === "connected");
   return {
     bots,
     archivedBots,
@@ -41,13 +36,6 @@ export function readWorkspaceSnapshot(
       expiresAt: computer.expiresAt,
       updatedAt: computer.updatedAt
     },
-    costs: taskStore.getCosts(selectedBot?.id, activeTask?.id, {
-      durableObjectGbSecondsPerDay:
-        realtimeConnections.length > 0 ? REALTIME_DURABLE_OBJECT_GB_SECONDS_PER_DAY : 0,
-      hqbaseRealtimeConnections: realtimeConnections.length,
-      selectedBotHqbaseRealtime: realtimeConnections.some(
-        (connection) => connection.botId === selectedBot?.id
-      )
-    })
+    costs: taskStore.getCosts(selectedBot?.id, activeTask?.id)
   };
 }

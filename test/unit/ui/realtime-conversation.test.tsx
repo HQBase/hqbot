@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import type { PendingAction } from "@cloudflare/codemode";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +10,9 @@ import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
 import { interact, renderComponent } from "./render.tsx";
 
 const agent = vi.hoisted(() => ({
-  pendingApprovals: vi.fn(async () => []),
+  approveIntegrationAction: vi.fn(async () => undefined),
+  listIntegrationApprovals: vi.fn<() => Promise<PendingAction[]>>(async () => []),
+  rejectIntegrationAction: vi.fn(async () => true),
   ready: Promise.resolve()
 }));
 const chat = vi.hoisted(() => ({
@@ -48,12 +51,12 @@ const teammate = {
   modelId: "@cf/zai-org/glm-5.3-flash",
   dailyBudgetUsd: 2,
   createdAt: "2026-08-30T12:00:00.000Z",
-  updatedAt: "2026-08-30T12:00:00.000Z",
-  connection: null
+  updatedAt: "2026-08-30T12:00:00.000Z"
 } satisfies BotTeammate;
 
 afterEach(() => {
   vi.clearAllMocks();
+  agent.listIntegrationApprovals.mockResolvedValue([]);
   chat.messages = [
     { id: "user-1", role: "user", parts: [{ type: "text", text: "hey how are you?" }] },
     { id: "assistant-1", role: "assistant", parts: [{ type: "text", text: "I'm doing well." }] }
@@ -293,12 +296,80 @@ describe("RealtimeConversation", () => {
 
     await interact(() =>
       view.container
-        .querySelector<HTMLButtonElement>('button[aria-label="Stop task"]')
+        .querySelector<HTMLButtonElement>('button[aria-label="Stop teammate activity"]')
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     );
 
     expect(chat.stop).toHaveBeenCalledTimes(1);
     expect(stopSelectedBot).toHaveBeenCalledTimes(1);
+    await view.unmount();
+  });
+
+  it("offers stop for background teammate activity when the chat is idle", async () => {
+    const controller = {
+      detailsOpen: false,
+      error: "",
+      load: vi.fn(async () => undefined),
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] },
+      stopSelectedBot: vi.fn(async () => undefined)
+    } as unknown as WorkspaceController;
+    const view = await renderComponent(
+      <RealtimeConversation
+        bot={{ ...teammate, status: "working" }}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={() => undefined}
+      />
+    );
+
+    expect(
+      view.container.querySelector('button[aria-label="Stop teammate activity"]')
+    ).not.toBeNull();
+    expect(view.container.textContent).toContain("Working");
+    await view.unmount();
+  });
+
+  it("shows and resolves a connected-service approval", async () => {
+    agent.listIntegrationApprovals.mockResolvedValue([
+      {
+        args: { title: "Open an issue" },
+        connector: "mcp_github",
+        executionId: "execution-1",
+        method: "create_issue",
+        seq: 1
+      }
+    ]);
+    const controller = {
+      detailsOpen: true,
+      error: "",
+      load: vi.fn(async () => undefined),
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] }
+    } as unknown as WorkspaceController;
+    const view = await renderComponent(
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={() => undefined}
+      />
+    );
+
+    expect(view.container.textContent).toContain("Connected-service approval");
+    expect(view.container.textContent).toContain("Open an issue");
+    await interact(() =>
+      [...view.container.querySelectorAll("button")]
+        .find((button) => button.textContent?.includes("Approve"))
+        ?.click()
+    );
+    expect(agent.approveIntegrationAction).toHaveBeenCalledWith("execution-1");
     await view.unmount();
   });
 

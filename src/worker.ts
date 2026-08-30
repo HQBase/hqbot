@@ -21,6 +21,16 @@ async function authorizeAgent(
   env: Env,
   route: AgentRouteMatch
 ): Promise<Response | undefined> {
+  const isMcpCallback =
+    route.className === "HQBOT_TEAMMATE" &&
+    request.method === "GET" &&
+    new URL(request.url).pathname ===
+      `/agents/hqbot-teammate/${encodeURIComponent(route.name)}/callback`;
+  if (isMcpCallback) {
+    return (await (await workspace(env)).hasBot(route.name))
+      ? undefined
+      : json({ error: "Teammate not found" }, 404);
+  }
   const unauthorized = await requireOwner(request, env);
   if (unauthorized) return unauthorized;
   const origin = request.headers.get("origin");
@@ -44,7 +54,7 @@ async function health(env: Env): Promise<Response> {
   }
   return json({
     ok: true,
-    configured: Boolean(env.HQBOT_CONNECTION_KEY) && ownerConfigured,
+    configured: ownerConfigured,
     ownerConfigured,
     version: {
       id: env.CF_VERSION_METADATA.id,

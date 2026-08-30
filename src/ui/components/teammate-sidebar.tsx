@@ -197,7 +197,7 @@ function TeammateRow({
           {archived ? <PiArchive className="size-3 shrink-0 text-tertiary" /> : null}
         </span>
         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-          {bot.lastMessage ?? bot.connection?.mailboxAddress ?? bot.title}
+          {bot.lastMessage ?? bot.title}
         </span>
       </span>
       <span className="flex flex-col items-end gap-1">

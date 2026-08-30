@@ -75,7 +75,7 @@ describe("turn routing", () => {
         brief: "Answer the owner directly. Follow the instructions in the conversation.",
         modelId: DEEPSEEK_FALLBACK_MODEL_ID
       },
-      connection: null,
+      connectedServices: [],
       memories: [],
       skills: [],
       route: "direct"
@@ -95,21 +95,18 @@ describe("turn routing", () => {
     expect(route).toBe("research");
     expect(tools).toContain("browser_execute");
     expect(tools).toContain("read");
-    expect(tools).not.toContain("send_hqbase_reply");
   });
 
-  it("keeps email research read-only and activates the reply approval tool", () => {
+  it("activates connected tools when the request names a connected service", () => {
     const route = routeTurn({
-      messages: userMessage("Please answer this request"),
-      metadata: { source: "email" }
+      messages: userMessage("List my GitHub issues"),
+      connectedServices: ["GitHub"]
     });
-    const tools = activeTools(route, browserTools);
+    const tools = activeTools(route, [...browserTools, "codemode"]);
 
-    expect(route).toBe("email");
+    expect(route).toBe("research");
+    expect(tools).toContain("codemode");
     expect(tools).toContain("browser_markdown");
-    expect(tools).not.toContain("browser_execute");
-    expect(tools).not.toContain("write");
-    expect(tools).toContain("send_hqbase_reply");
   });
 
   it("does not browse for a model identity question", () => {
@@ -123,10 +120,10 @@ describe("turn routing", () => {
 
   it("keeps delegated research read-only and disables another delegation", () => {
     const route = routeTurn({
-      messages: userMessage("[hqbot:email] Research the latest changes"),
+      messages: userMessage("Research the latest changes"),
       body: { delegation: true }
     });
-    const tools = activeTools(route, browserTools, { readOnly: true });
+    const tools = activeTools(route, [...browserTools, "codemode"], { readOnly: true });
 
     expect(route).toBe("research");
     expect(tools).toContain("browser_markdown");
@@ -134,7 +131,7 @@ describe("turn routing", () => {
     expect(tools).not.toContain("browser_execute");
     expect(tools).not.toContain("write");
     expect(tools).not.toContain("edit");
-    expect(tools).not.toContain("send_hqbase_reply");
+    expect(tools).not.toContain("codemode");
     expect(tools).not.toContain("delegate_to_teammates");
   });
 
@@ -166,15 +163,15 @@ describe("durable task submission", () => {
   it("carries server task metadata into Think lifecycle hooks", () => {
     const { message, metadata } = createSubmittedTaskMessage({
       taskId: "task-1",
-      source: "email",
+      source: "chat",
       prompt: "Research this request"
     });
 
-    expect(metadata).toEqual({ taskId: "task-1", source: "email" });
+    expect(metadata).toEqual({ taskId: "task-1", source: "chat" });
     expect(message).toMatchObject({
       id: "task:task-1",
       metadata: { turnMetadata: metadata },
-      parts: [{ type: "text", text: expect.stringContaining("Task ID: task-1") }]
+      parts: [{ type: "text", text: "Research this request" }]
     });
   });
 
@@ -186,7 +183,6 @@ describe("durable task submission", () => {
         reason: "Restore this teammate before you start new work"
       })),
       getBot: vi.fn(async () => null),
-      getBotConnection: vi.fn(async () => null),
       listBots: vi.fn(async () => []),
       listMemories: vi.fn(async () => []),
       listSkills: vi.fn(async () => []),
@@ -196,10 +192,11 @@ describe("durable task submission", () => {
     await expect(
       prepareTeammateTurn({
         botId: "archived",
-        browserTools: [],
+        connectedServices: [],
         context: { body: {}, messages: [] } as never,
         maxSteps: 1,
         modelFor: () => "test-model",
+        toolNames: [],
         workspaceAgent
       })
     ).rejects.toThrow("Restore this teammate before you start new work");
@@ -219,7 +216,6 @@ describe("durable task submission", () => {
         brief: "Be concise.",
         modelId: DEEPSEEK_FALLBACK_MODEL_ID
       })),
-      getBotConnection: vi.fn(async () => null),
       listBots: vi.fn(async () => []),
       listMemories: vi.fn(async () => []),
       listSkills: vi.fn(async () => []),
@@ -228,10 +224,11 @@ describe("durable task submission", () => {
 
     const config = await prepareTeammateTurn({
       botId: "bot-1",
-      browserTools: [],
+      connectedServices: [],
       context: { body: {}, messages: userMessage("Hello") } as never,
       maxSteps: 1,
       modelFor,
+      toolNames: [],
       workspaceAgent
     });
 
@@ -248,7 +245,6 @@ describe("turn completion", () => {
     await finishTeammateResponse({
       botId: "researcher",
       metadata: null,
-      replyApproval: null,
       result: chatResponse("Finished the research.\nTwo sources agree."),
       workspaceAgent
     });
@@ -260,22 +256,18 @@ describe("turn completion", () => {
     );
   });
 
-  it("fails a completed email task when no reply approval was produced", async () => {
-    const failTask = vi.fn();
-    const workspaceAgent = { failTask } as unknown as WorkspaceAgentRpc;
+  it("completes a durable chat task with the assistant result", async () => {
+    const completeTask = vi.fn();
+    const workspaceAgent = { completeTask } as unknown as WorkspaceAgentRpc;
 
     await finishTeammateResponse({
       botId: "researcher",
-      metadata: { source: "email", taskId: "task-1" },
-      replyApproval: null,
-      result: chatResponse("I researched the request but did not draft the reply."),
+      metadata: { source: "chat", taskId: "task-1" },
+      result: chatResponse("The task is complete."),
       workspaceAgent
     });
 
-    expect(failTask).toHaveBeenCalledWith(
-      "task-1",
-      "The email task finished without producing a reply for approval"
-    );
+    expect(completeTask).toHaveBeenCalledWith("task-1", "The task is complete.");
   });
 });
 

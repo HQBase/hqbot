@@ -12,8 +12,9 @@ describe("schema migrations", () => {
     expect(pendingMigrations([1, 2])).toEqual(schemaMigrations.slice(2));
     expect(pendingMigrations([1, 2, 3])).toEqual(schemaMigrations.slice(3));
     expect(pendingMigrations([1, 2, 3, 4])).toEqual(schemaMigrations.slice(4));
-    expect(pendingMigrations([1, 2, 3, 4, 5])).toEqual([schemaMigrations[5]]);
-    expect(pendingMigrations([1, 2, 3, 4, 5, 6])).toEqual([]);
+    expect(pendingMigrations([1, 2, 3, 4, 5])).toEqual(schemaMigrations.slice(5));
+    expect(pendingMigrations([1, 2, 3, 4, 5, 6])).toEqual([schemaMigrations[6]]);
+    expect(pendingMigrations([1, 2, 3, 4, 5, 6, 7])).toEqual([]);
   });
 
   it("keeps versions ordered and unique", () => {

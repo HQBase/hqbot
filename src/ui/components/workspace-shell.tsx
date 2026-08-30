@@ -111,13 +111,14 @@ function WorkspaceDialogs({ controller }: { controller: WorkspaceController }) {
   const changed = () => controller.load(bot.id);
   return (
     <>
-      <ConnectionDialog
-        bot={bot}
-        key={`connection-${bot.id}`}
-        open={controller.dialog === "connection"}
-        onChanged={changed}
-        onOpenChange={(open) => !open && close()}
-      />
+      {controller.dialog === "connection" ? (
+        <ConnectionDialog
+          bot={bot}
+          key={`connection-${bot.id}`}
+          open
+          onOpenChange={(open) => !open && close()}
+        />
+      ) : null}
       <ProfileDialog
         bot={bot}
         key={`profile-${bot.id}`}

@@ -1,33 +1,11 @@
-export type TaskSource = "chat" | "email";
+export type TaskSource = "chat";
 export type TaskStatus =
   | "queued"
   | "working"
   | "researching"
-  | "awaiting_approval"
-  | "replying"
   | "cancelled"
   | "completed"
   | "failed";
-
-export interface BotConnection {
-  id: string;
-  provider: "hqbase";
-  origin: string;
-  mailboxId: string;
-  mailboxAddress: string;
-  mailboxName: string;
-  active: boolean;
-  realtimeStatus: "connected" | "connecting" | "disconnected";
-  lastEventAt: string | null;
-  createdAt: string;
-}
-
-export interface StoredBotConnection extends BotConnection {
-  botId: string;
-  tokenCiphertext: string;
-  tokenIv: string;
-  changeCursor: string | null;
-}
 
 export interface BotTeammate {
   id: string;
@@ -44,7 +22,6 @@ export interface BotTeammate {
   dailyBudgetUsd: number;
   createdAt: string;
   updatedAt: string;
-  connection: BotConnection | null;
 }
 
 export interface BotMemory {
@@ -104,16 +81,11 @@ export interface StoredComputerState extends ComputerState {
 export interface BotTask {
   id: string;
   botId: string;
-  connectionId: string | null;
   source: TaskSource;
   status: TaskStatus;
   prompt: string;
-  subject: string | null;
-  sender: string | null;
-  sourceMessageId: string | null;
   submissionId: string | null;
   result: string | null;
-  replyMessageId: string | null;
   screenshotKey: string | null;
   browserUrl: string | null;
   error: string | null;
@@ -186,9 +158,6 @@ export interface CostSnapshot {
     selectedTask: CostServiceTotals;
   };
   platform: {
-    durableObjectGbSecondsPerDay: number;
-    hqbaseRealtimeConnections: number;
-    selectedBotHqbaseRealtime: boolean;
     resources: {
       overall: CloudflareResourceFootprint;
       selectedBot: CloudflareResourceFootprint;

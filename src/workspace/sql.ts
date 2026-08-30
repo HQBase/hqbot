@@ -1,13 +1,11 @@
 import type {
   BotActivity,
-  BotConnection,
   BotFile,
   BotMemory,
   BotRoutine,
   BotSkill,
   BotTask,
   BotTeammate,
-  StoredBotConnection,
   StoredComputerState,
   TaskSource,
   TaskStatus
@@ -44,16 +42,11 @@ export function taskFromRow(row: Row): BotTask {
   return {
     id: text(row, "id"),
     botId: nullableText(row, "bot_id") ?? "legacy",
-    connectionId: nullableText(row, "connection_id"),
     source: text(row, "source") as TaskSource,
     status: text(row, "status") as TaskStatus,
     prompt: text(row, "prompt"),
-    subject: nullableText(row, "subject"),
-    sender: nullableText(row, "sender"),
-    sourceMessageId: nullableText(row, "source_message_id"),
     submissionId: nullableText(row, "submission_id"),
     result: nullableText(row, "result"),
-    replyMessageId: nullableText(row, "reply_message_id"),
     screenshotKey: nullableText(row, "screenshot_key"),
     browserUrl: nullableText(row, "browser_url"),
     error: nullableText(row, "error"),
@@ -73,36 +66,7 @@ export function activityFromRow(row: Row): BotActivity {
   };
 }
 
-export function publicConnection(row: Row): BotConnection {
-  const rawStatus = nullableText(row, "socket_status");
-  const realtimeStatus = ["connected", "connecting", "disconnected"].includes(rawStatus ?? "")
-    ? (rawStatus as BotConnection["realtimeStatus"])
-    : "disconnected";
-  return {
-    id: text(row, "id"),
-    provider: "hqbase",
-    origin: text(row, "origin"),
-    mailboxId: text(row, "mailbox_id"),
-    mailboxAddress: text(row, "mailbox_address"),
-    mailboxName: text(row, "mailbox_name"),
-    active: row.active === 1,
-    realtimeStatus,
-    lastEventAt: nullableText(row, "last_event_at"),
-    createdAt: text(row, "created_at")
-  };
-}
-
-export function storedConnection(row: Row): StoredBotConnection {
-  return {
-    ...publicConnection(row),
-    botId: text(row, "bot_id"),
-    tokenCiphertext: text(row, "token_ciphertext"),
-    tokenIv: text(row, "token_iv"),
-    changeCursor: nullableText(row, "change_cursor")
-  };
-}
-
-export function botFromRow(row: Row, connection: BotConnection | null): BotTeammate {
+export function botFromRow(row: Row): BotTeammate {
   const rawStatus = nullableText(row, "status");
   const status = ["idle", "working", "needs_approval", "offline"].includes(rawStatus ?? "")
     ? (rawStatus as BotTeammate["status"])
@@ -121,8 +85,7 @@ export function botFromRow(row: Row, connection: BotConnection | null): BotTeamm
     modelId: nullableText(row, "model_id"),
     dailyBudgetUsd: number(row, "daily_budget_usd", 2),
     createdAt: text(row, "created_at"),
-    updatedAt: text(row, "updated_at"),
-    connection
+    updatedAt: text(row, "updated_at")
   };
 }
 

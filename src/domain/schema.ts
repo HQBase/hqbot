@@ -55,7 +55,7 @@ export const schemaMigrations: readonly SchemaMigration[] = [
       `CREATE TABLE IF NOT EXISTS connections (
         id TEXT PRIMARY KEY,
         bot_id TEXT NOT NULL,
-        provider TEXT NOT NULL CHECK (provider = 'hqbase'),
+        provider TEXT NOT NULL CHECK (provider = 'legacy'),
         origin TEXT NOT NULL,
         mailbox_id TEXT NOT NULL,
         mailbox_address TEXT NOT NULL,
@@ -193,6 +193,19 @@ export const schemaMigrations: readonly SchemaMigration[] = [
         updated_at TEXT NOT NULL
       )`,
       "CREATE INDEX IF NOT EXISTS login_limits_updated ON login_limits(updated_at)"
+    ]
+  },
+  {
+    version: 7,
+    statements: [
+      `UPDATE usage_events SET bot_id = NULL, task_id = NULL
+        WHERE task_id IN (SELECT id FROM tasks WHERE source = 'email')`,
+      `UPDATE files SET task_id = NULL
+        WHERE task_id IN (SELECT id FROM tasks WHERE source = 'email')`,
+      `DELETE FROM activity
+        WHERE task_id IN (SELECT id FROM tasks WHERE source = 'email')`,
+      "DELETE FROM tasks WHERE source = 'email'",
+      "DROP TABLE IF EXISTS connections"
     ]
   }
 ];

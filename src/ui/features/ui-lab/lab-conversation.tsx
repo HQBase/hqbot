@@ -81,10 +81,10 @@ export function LabConversation({
           <AgentMessage name={bot.name} parts={partsFor(mode)} speaker="assistant" />
           {mode === "live" ? (
             <ApprovalCard
-              description="Send the researched answer through HQBase"
-              draft="Browser time is billed only while the session runs."
+              description="The connected tool will create a remote record."
+              details={'{\n  "title": "Save the researched answer"\n}'}
               pending={false}
-              title="Review this reply"
+              title="Connected-service approval"
               onApprove={() => undefined}
               onDeny={() => undefined}
             />

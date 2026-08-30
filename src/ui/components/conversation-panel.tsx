@@ -102,8 +102,8 @@ function ArchivedConversation({
           <div>
             <h2 className="text-sm font-semibold">{bot.name} is archived</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Its routines, mailbox connection, and active work are stopped. Restore it before you
-              send a message.
+              Its routines, connections, and active work are stopped. Restore it before you send a
+              message.
             </p>
           </div>
           {controller.error ? <p className="text-xs text-destructive">{controller.error}</p> : null}

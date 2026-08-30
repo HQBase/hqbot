@@ -71,10 +71,7 @@ describe("HQBot deployment", () => {
   it("preserves existing secrets and tags the exact clean commit", () => {
     const runtime = operations({
       status: 0,
-      stdout: JSON.stringify([
-        { name: "HQBOT_CONNECTION_KEY", type: "secret_text" },
-        { name: "HQBOT_SETUP_TOKEN", type: "secret_text" }
-      ]),
+      stdout: JSON.stringify([{ name: "HQBOT_SETUP_TOKEN", type: "secret_text" }]),
       stderr: ""
     });
 
@@ -86,7 +83,7 @@ describe("HQBot deployment", () => {
     expect(runtime.runWrangler).toHaveBeenCalledWith(deployArgs);
   });
 
-  it("creates restricted first-install secrets and removes their temporary directory", () => {
+  it("creates the restricted first-install secret and removes its temporary directory", () => {
     let secretDirectory;
     const runWrangler = vi.fn((args) => {
       const secretArgument = args.indexOf("--secrets-file");
@@ -97,11 +94,7 @@ describe("HQBot deployment", () => {
       secretDirectory = dirname(secretFile);
       expect(existsSync(secretFile)).toBe(true);
       const secret = JSON.parse(readFileSync(secretFile, "utf8"));
-      expect(secret).toEqual({
-        HQBOT_CONNECTION_KEY: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
-        HQBOT_SETUP_TOKEN: setupToken
-      });
-      expect(stdoutWrite.mock.calls.flat().join(" ")).not.toContain(secret.HQBOT_CONNECTION_KEY);
+      expect(secret).toEqual({ HQBOT_SETUP_TOKEN: setupToken });
       expect(stdoutWrite.mock.calls.flat().join(" ")).not.toContain(setupToken);
 
       if (process.platform !== "win32") {
@@ -146,7 +139,7 @@ describe("HQBot deployment", () => {
   it("fails without exposing or inventing a missing setup token", () => {
     const runtime = operations({
       status: 0,
-      stdout: JSON.stringify([{ name: "HQBOT_CONNECTION_KEY", type: "secret_text" }]),
+      stdout: "[]",
       stderr: ""
     });
 

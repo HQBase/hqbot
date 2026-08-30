@@ -1,4 +1,4 @@
-import type { PendingApproval } from "@cloudflare/think";
+import type { PendingAction } from "@cloudflare/codemode";
 import { useAgentChat } from "@cloudflare/think/react";
 import { useAgent } from "agents/react";
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -12,20 +12,19 @@ import { ConversationHeader } from "./conversation-header";
 
 interface TeammateAgentClient {
   readonly state: unknown;
-  approveExecution(executionId: string): Promise<unknown>;
-  pendingApprovals(executionId?: string): Promise<PendingApproval[]>;
-  rejectExecution(executionId: string, reason?: string): Promise<unknown>;
+  approveIntegrationAction(executionId: string): Promise<unknown>;
+  listIntegrationApprovals(): Promise<PendingAction[]>;
+  rejectIntegrationAction(executionId: string, seq: number): Promise<boolean>;
 }
 
 type LocalFile = ComposerFile & { file: File };
 
-export function replyDraft(approval: PendingApproval): string | null {
-  if (approval.source !== "action" || approval.descriptor.action !== "send_hqbase_reply")
-    return null;
-  const input = approval.descriptor.input;
-  if (!input || typeof input !== "object") return null;
-  const draft = (input as Record<string, unknown>).draft;
-  return typeof draft === "string" && draft.length > 0 ? draft : null;
+export function integrationActionDetails(action: PendingAction): string {
+  try {
+    return JSON.stringify(action.args, null, 2).slice(0, 8_000);
+  } catch {
+    return "Action details are not available.";
+  }
 }
 
 export function RealtimeConversation({
@@ -46,7 +45,7 @@ export function RealtimeConversation({
     name: bot.id
   });
   const chat = useAgentChat({ agent, credentials: "include", throttle: 50 });
-  const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [approvals, setApprovals] = useState<PendingAction[]>([]);
   const [resolving, setResolving] = useState<string | null>(null);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [localError, setLocalError] = useState("");
@@ -54,7 +53,7 @@ export function RealtimeConversation({
 
   const refreshApprovals = useCallback(async () => {
     try {
-      setApprovals(await agent.stub.pendingApprovals());
+      setApprovals(await agent.stub.listIntegrationApprovals());
     } catch {
       // A reconnect or terminal close will retry when chat becomes ready.
     }
@@ -94,7 +93,9 @@ export function RealtimeConversation({
     queuedInitialMessage
   ]);
 
-  const approvalRevision = approvals.map((approval) => approval.executionId).join(":");
+  const approvalRevision = approvals
+    .map((approval) => `${approval.executionId}:${approval.seq}`)
+    .join(":");
   useEffect(() => {
     if (chat.messages.length > 0 || approvalRevision)
       endRef.current?.scrollIntoView({ block: "end" });
@@ -113,6 +114,7 @@ export function RealtimeConversation({
     Boolean(pendingInitialMessage);
   const composerBusy = busy || controller.sending;
   const connectionError = chat.connectionError?.message ?? agent.connectionError?.message ?? "";
+  const teammateActive = busy || bot.status === "working" || bot.status === "needs_approval";
   const lastMessage = chat.messages.at(-1);
   const lastAssistantHasOutput =
     lastMessage?.role === "assistant" &&
@@ -161,12 +163,12 @@ export function RealtimeConversation({
     );
   }
 
-  async function resolveApproval(approval: PendingApproval, approved: boolean): Promise<void> {
+  async function resolveApproval(approval: PendingAction, approved: boolean): Promise<void> {
     setResolving(approval.executionId);
     setLocalError("");
     try {
-      if (approved) await agent.stub.approveExecution(approval.executionId);
-      else await agent.stub.rejectExecution(approval.executionId, "The owner kept this as a draft");
+      if (approved) await agent.stub.approveIntegrationAction(approval.executionId);
+      else await agent.stub.rejectIntegrationAction(approval.executionId, approval.seq);
       await refreshApprovals();
       await controller.load(bot.id);
     } catch (cause) {
@@ -191,9 +193,17 @@ export function RealtimeConversation({
         bot={bot}
         showBack={showBack}
         status={
-          chat.isRecovering ? "Recovering" : busy ? "Working" : connectionError ? "Offline" : "Live"
+          chat.isRecovering
+            ? "Recovering"
+            : bot.status === "needs_approval"
+              ? "Needs approval"
+              : teammateActive
+                ? "Working"
+                : connectionError
+                  ? "Offline"
+                  : "Live"
         }
-        working={busy}
+        working={teammateActive}
         onBack={() => controller.setMobileChatOpen(false)}
         onDetails={() => controller.setDetailsOpen(true)}
         onEdit={() => controller.setDialog("profile")}
@@ -244,13 +254,11 @@ export function RealtimeConversation({
           ) : null}
           {approvals.map((approval) => (
             <ApprovalCard
-              description={approval.descriptor.summary}
-              draft={replyDraft(approval)}
-              key={approval.executionId}
+              description={`${approval.connector} requested ${approval.method}. Review the exact input before you approve it.`}
+              details={integrationActionDetails(approval)}
+              key={`${approval.executionId}:${approval.seq}`}
               pending={resolving === approval.executionId}
-              title={
-                approval.descriptor.risk === "high" ? "Approval required" : "Review this action"
-              }
+              title="Connected-service approval"
               onApprove={() => void resolveApproval(approval, true)}
               onDeny={() => void resolveApproval(approval, false)}
             />

@@ -3,18 +3,18 @@ import type { LanguageModel, UIMessage } from "ai";
 
 import { mentionedTeammates } from "../domain/collaboration";
 import { type HQBotModelId, normalizeHQBotModelId } from "../domain/models";
-import type { ReplyApproval } from "./approval";
 import { delegationInstructions } from "./collaboration";
 import { activeTools, latestUserText, routeTurn, teammateInstructions } from "./routing";
 import type { TeammateChatSubmission, TeammateTaskSubmission, WorkspaceAgentRpc } from "./types";
 
 interface PrepareTeammateTurnInput {
   botId: string;
-  browserTools: readonly string[];
+  connectedServices: readonly string[];
   context: TurnContext;
   maxSteps: number;
   modelFor(modelId: HQBotModelId): LanguageModel;
   metadata?: Record<string, unknown> | null;
+  toolNames: readonly string[];
   workspaceAgent: WorkspaceAgentRpc;
 }
 
@@ -43,13 +43,12 @@ export function createSubmittedTaskMessage(input: TeammateTaskSubmission): {
   const taskId = safeTaskId(input.taskId);
   const prompt = input.prompt.trim().slice(0, 100_000);
   if (prompt.length === 0) throw new Error("Task prompt is required");
-  const text = input.source === "email" ? `[hqbot:email]\nTask ID: ${taskId}\n\n${prompt}` : prompt;
   const metadata = { taskId, source: input.source };
   return {
     message: {
       id: `task:${taskId}`,
       role: "user",
-      parts: [{ type: "text", text }],
+      parts: [{ type: "text", text: prompt }],
       // The current Think submitMessages path stores options.metadata in its
       // ledger but does not stamp it on the message used by lifecycle hooks.
       metadata: { turnMetadata: metadata }
@@ -117,12 +116,10 @@ function responseText(result: ChatResponseResult): string {
 export async function finishTeammateResponse(input: {
   botId: string;
   metadata?: Record<string, unknown> | null;
-  replyApproval: ReplyApproval | null;
   result: ChatResponseResult;
   workspaceAgent: WorkspaceAgentRpc;
 }): Promise<void> {
   const taskId = input.metadata?.taskId;
-  const source = input.metadata?.source;
   const text = responseText(input.result);
   if (typeof taskId !== "string") {
     const summary =
@@ -134,23 +131,10 @@ export async function finishTeammateResponse(input: {
     await input.workspaceAgent.markInteraction(input.botId, summary, "idle");
     return;
   }
-  if (source === "email") {
-    if (input.replyApproval) {
-      await input.workspaceAgent.requestReplyApproval(taskId, input.replyApproval.draft);
-    } else if (input.result.status === "error") {
-      await input.workspaceAgent.failTask(taskId, input.result.error ?? "The email task failed");
-    } else if (input.result.status === "completed") {
-      await input.workspaceAgent.failTask(
-        taskId,
-        "The email task finished without producing a reply for approval"
-      );
-    }
-    return;
-  }
   if (input.result.status === "error") {
     await input.workspaceAgent.failTask(taskId, input.result.error ?? "The task failed");
   } else if (input.result.status === "completed" && text) {
-    await input.workspaceAgent.completeTask(taskId, text, null);
+    await input.workspaceAgent.completeTask(taskId, text);
   }
 }
 
@@ -158,17 +142,17 @@ export async function prepareTeammateTurn(input: PrepareTeammateTurnInput): Prom
   const route = routeTurn({
     messages: input.context.messages,
     body: input.context.body,
-    metadata: input.metadata ?? undefined
+    metadata: input.metadata ?? undefined,
+    connectedServices: input.connectedServices
   });
   const delegated = input.context.body?.delegation === true;
   const taskId = input.metadata?.taskId;
   const occurredAt = new Date().toISOString();
-  const [bot, bots, memories, skills, connection, spendPolicy] = await Promise.all([
+  const [bot, bots, memories, skills, spendPolicy] = await Promise.all([
     input.workspaceAgent.getBot(input.botId),
     input.workspaceAgent.listBots(),
     input.workspaceAgent.listMemories(input.botId),
     input.workspaceAgent.listSkills(input.botId),
-    input.workspaceAgent.getBotConnection(input.botId),
     input.workspaceAgent.checkSpendPolicy(input.botId, typeof taskId === "string" ? taskId : null)
   ]);
   if (!spendPolicy.allowed) throw new Error(spendPolicy.reason ?? "The cost budget was reached");
@@ -178,10 +162,16 @@ export async function prepareTeammateTurn(input: PrepareTeammateTurnInput): Prom
     ? []
     : mentionedTeammates(latestUserText(input.context.messages), input.botId, bots);
   const canDelegate = collaborators.length > 0;
-  const instructions = teammateInstructions({ bot, memories, skills, connection, route });
+  const instructions = teammateInstructions({
+    bot,
+    connectedServices: input.connectedServices,
+    memories,
+    skills,
+    route
+  });
   return {
     instructions: `${instructions}${canDelegate ? delegationInstructions(collaborators) : ""}`,
-    activeTools: activeTools(route, input.browserTools, { canDelegate, readOnly: delegated }),
+    activeTools: activeTools(route, input.toolNames, { canDelegate, readOnly: delegated }),
     maxSteps: route === "direct" ? (canDelegate ? 4 : 1) : delegated ? 4 : input.maxSteps,
     maxOutputTokens: route === "direct" ? 1_500 : delegated ? 2_500 : 5_000,
     model: input.modelFor(normalizeHQBotModelId(bot?.modelId)),

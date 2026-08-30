@@ -36,7 +36,7 @@
         "description": "R2 stores browser screenshots and reviewable task artifacts."
       },
       "HQBOT_AGENT": {
-        "description": "A Durable Object stores the owner, teammate roster, HQBase connections, and aggregate costs."
+        "description": "A Durable Object stores the owner, teammate roster, and aggregate costs."
       },
       "HQBOT_TEAMMATE": {
         "description": "One durable Think agent stores each teammate's chat, files, tools, schedules, and cost events."

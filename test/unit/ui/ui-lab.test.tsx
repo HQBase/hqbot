@@ -15,7 +15,7 @@ describe("AgentUiLab", () => {
     );
 
     expect(view.container.textContent).toContain("Researcher");
-    expect(view.container.textContent).toContain("Review this reply");
+    expect(view.container.textContent).toContain("Connected-service approval");
     for (const label of ["Shell", "Streaming", "Reconnecting", "Error", "Mobile"]) {
       expect(
         [...view.container.querySelectorAll("button")].some(

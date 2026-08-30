@@ -12,7 +12,6 @@ const server = createTestHarness({
     {
       configPath: "./test/integration/worker/wrangler.test.jsonc",
       secrets: {
-        HQBOT_CONNECTION_KEY: "integration-connection-key-32-bytes",
         HQBOT_SETUP_TOKEN: setupCode
       }
     }
@@ -167,7 +166,8 @@ describe("HQBot Worker authentication", () => {
       { version: 3 },
       { version: 4 },
       { version: 5 },
-      { version: 6 }
+      { version: 6 },
+      { version: 7 }
     ]);
     expect(await storage.exec("SELECT name FROM pragma_table_info('owner') ORDER BY cid")).toEqual(
       expect.arrayContaining([{ name: "username" }, { name: "password_hash" }])
@@ -285,6 +285,27 @@ describe("HQBot Worker authentication", () => {
     });
   });
 
+  it("opens only the exact OAuth callback without an owner session", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const created = await post("/api/bots", { brief: "Connect tools." }, session);
+    const { teammate } = (await created.json()) as { teammate: { id: string } };
+
+    const callback = await request(
+      `/agents/hqbot-teammate/${teammate.id}/callback?code=invalid&state=invalid`
+    );
+    expect(callback.status).not.toBe(401);
+
+    const noncanonical = await request(
+      `/agents/hqbot-teammate/${teammate.id}/extra/callback?code=invalid&state=invalid`
+    );
+    expect(noncanonical.status).toBe(401);
+
+    const missing = await request(
+      "/agents/hqbot-teammate/missing/callback?code=invalid&state=invalid"
+    );
+    expect(missing.status).toBe(404);
+  });
+
   it("stops all teammate activity and deletes its durable data", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const created = await post(
@@ -392,15 +413,6 @@ describe("HQBot Worker authentication", () => {
       now,
       now
     );
-    await storage.exec(
-      `INSERT INTO tasks (
-        id, bot_id, source, status, prompt, created_at, updated_at
-      ) VALUES ('email-task', ?, 'email', 'awaiting_approval', 'Draft a reply', ?, ?)`,
-      teammate.id,
-      now,
-      now
-    );
-
     const blocked = [
       post(`/api/bots/${teammate.id}/tasks`, { prompt: "Research this" }, session),
       post(`/api/bots/${teammate.id}/files`, { file: "ignored" }, session),
@@ -421,12 +433,6 @@ describe("HQBot Worker authentication", () => {
         headers: { "Content-Type": "application/json", Cookie: session, Origin: origin },
         body: JSON.stringify({ active: true })
       }),
-      post(
-        `/api/bots/${teammate.id}/connections/hqbase`,
-        { origin: "https://hqbase.example.com", token: "mailbox-token" },
-        session
-      ),
-      post("/api/tasks/email-task/approval", { approved: true }, session),
       request(`/api/bots/${teammate.id}/live-view`, { headers: { Cookie: session } })
     ];
 

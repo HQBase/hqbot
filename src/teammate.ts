@@ -1,5 +1,11 @@
 import {
-  type ActionAuthorizationDecision,
+  createCodemodeRuntime,
+  DynamicWorkerExecutor,
+  type McpConnectionLike,
+  type PendingAction,
+  type ProxyToolOutput
+} from "@cloudflare/codemode";
+import {
   type ChatResponseResult,
   type StepContext,
   Think,
@@ -12,12 +18,6 @@ import { callable } from "agents";
 import type { LanguageModel, ToolSet } from "ai";
 
 import {
-  clearPendingReplyApprovals,
-  findReplyApproval,
-  replyApprovalOutcome,
-  resolveReplyApprovalLifecycle
-} from "./runtime/approval";
-import {
   type BrowserSessionLease,
   closeBrowserSession,
   createTeammateBrowserRuntime,
@@ -29,11 +29,25 @@ import {
 } from "./runtime/browser";
 import { executeDelegatedTask, teammateDelegator } from "./runtime/collaboration";
 import { estimateModelUsage, identifyModel } from "./runtime/costs";
+import {
+  integrationApprovalStatus,
+  rejectPendingIntegrationActions
+} from "./runtime/integration-lifecycle";
+import { TeammateMcpConnector } from "./runtime/integrations";
+import {
+  cleanBearerToken,
+  cleanConnectionName,
+  cleanConnectionUrl,
+  connectionList,
+  integrationOutcomeText,
+  mcpConnectorName,
+  mcpOAuthCallbackResponse,
+  type TeammateConnection
+} from "./runtime/mcp";
 import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
-import { routeTurn } from "./runtime/routing";
 import { teammateScheduledTasks } from "./runtime/schedules";
 import { suspendTeammateWork } from "./runtime/suspension";
-import { createTeammateActions, REPLY_PERMISSION } from "./runtime/teammate-actions";
+import { createTeammateActions } from "./runtime/teammate-actions";
 import {
   finishTeammateResponse,
   prepareTeammateTurn,
@@ -56,6 +70,7 @@ export class HQBotTeammate extends Think<Env> {
   chatStreamStallTimeoutMs = 120_000;
   workspaceBash = false;
   includeMcpTools = false;
+  waitForMcpConnections = { timeout: 10_000 };
   storeMessages = false;
   storeTools = false;
 
@@ -97,7 +112,18 @@ export class HQBotTeammate extends Think<Env> {
     return this.modelFor(GLM_PRIMARY_MODEL_ID);
   }
   getTools(): ToolSet {
-    return this.browserRuntime.tools;
+    const hasReadyConnection = Object.values(this.getMcpServers().servers).some(
+      (server) => server.state === "ready"
+    );
+    return hasReadyConnection
+      ? {
+          ...this.browserRuntime.tools,
+          codemode: this.integrationRuntime().tool({
+            description:
+              "Use connected services with compact TypeScript. Search and describe tools before calling them. Every connected-service tool call pauses for owner approval."
+          })
+        }
+      : this.browserRuntime.tools;
   }
   getActions() {
     return createTeammateActions({
@@ -106,26 +132,24 @@ export class HQBotTeammate extends Think<Env> {
       delegate: teammateDelegator(this.env.HQBOT_TEAMMATE, this.name)
     });
   }
-  authorizeTurn(ctx: TurnContext): ActionAuthorizationDecision {
-    const route = routeTurn({
-      messages: ctx.messages,
-      body: ctx.body,
-      metadata: this.activeTurnMetadata
+
+  onStart(): void {
+    this.mcp.configureOAuthCallback({
+      customHandler: (result) => mcpOAuthCallbackResponse(result.authSuccess)
     });
-    return {
-      allowed: true,
-      grantedPermissions: route === "email" ? [REPLY_PERMISSION] : []
-    };
   }
 
   async beforeTurn(ctx: TurnContext): Promise<TurnConfig> {
     return prepareTeammateTurn({
       botId: this.name,
-      browserTools: Object.keys(this.browserRuntime.tools),
+      connectedServices: connectionList(this.getMcpServers())
+        .filter((connection) => connection.status === "ready")
+        .map((connection) => connection.name),
       context: ctx,
       maxSteps: this.maxSteps,
       modelFor: (modelId) => this.modelFor(modelId),
       metadata: this.activeTurnMetadata,
+      toolNames: Object.keys(this.getTools()),
       workspaceAgent: this.workspaceAgent
     });
   }
@@ -155,19 +179,19 @@ export class HQBotTeammate extends Think<Env> {
   async onChatResponse(result: ChatResponseResult): Promise<void> {
     const metadata =
       this.activeTurnMetadata ?? (await this.inspectSubmission(result.requestId))?.metadata;
-    const taskId = metadata?.taskId;
-    const source = metadata?.source;
-    const replyApproval =
-      source === "email" && typeof taskId === "string"
-        ? findReplyApproval(await this.pendingApprovals(), { taskId })
-        : null;
     await finishTeammateResponse({
       botId: this.name,
       metadata,
-      replyApproval,
       result,
       workspaceAgent: this.workspaceAgent
     });
+    if ((await this.integrationRuntime().pending()).length > 0) {
+      await this.workspaceAgent.markInteraction(
+        this.name,
+        "Action needs approval",
+        "needs_approval"
+      );
+    }
   }
 
   async getScheduledTasks() {
@@ -202,30 +226,96 @@ export class HQBotTeammate extends Think<Env> {
   }
 
   @callable()
-  async replyApprovalForTask(taskId: string): Promise<string | null> {
-    const approval = findReplyApproval(await this.pendingApprovals(), {
-      taskId: safeTaskId(taskId)
+  listConnections(): TeammateConnection[] {
+    return connectionList(this.getMcpServers());
+  }
+
+  @callable()
+  async connectMcp(input: {
+    name: string;
+    url: string;
+    token?: string;
+  }): Promise<TeammateConnection> {
+    const bot = await this.workspaceAgent.getBot(this.name);
+    if (!bot || bot.hidden) throw new Error("Restore this teammate before you add a connection");
+    const name = cleanConnectionName(input.name);
+    const url = cleanConnectionUrl(input.url);
+    const token = cleanBearerToken(input.token);
+    const result = await this.addMcpServer(name, url, {
+      transport: {
+        type: "auto",
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {})
+      }
     });
-    return approval?.executionId ?? null;
+    const connection = connectionList(this.getMcpServers()).find((item) => item.id === result.id);
+    if (!connection) throw new Error("The connection state is not available");
+    return result.state === "authenticating"
+      ? { ...connection, authUrl: result.authUrl }
+      : connection;
   }
 
   @callable()
-  async resolveReplyApproval(executionId: string, approved: boolean): Promise<boolean> {
-    const output = approved
-      ? await this.approveExecution(executionId)
-      : await this.rejectExecution(executionId, "The owner kept this as a draft");
-    const outcome = replyApprovalOutcome(output, approved);
-    return approved ? outcome === "approved" : outcome === "rejected";
+  async disconnectMcp(id: string): Promise<void> {
+    if (!this.getMcpServers().servers[id]) throw new Error("Connection not found");
+    const runtime = this.integrationRuntime();
+    const rejected = await rejectPendingIntegrationActions(runtime, mcpConnectorName(id));
+    await this.removeMcpServer(id);
+    if (rejected > 0) {
+      await this.workspaceAgent.markInteraction(
+        this.name,
+        "Connection removed",
+        await integrationApprovalStatus(runtime)
+      );
+    }
   }
 
   @callable()
-  override async approveExecution(executionId: string): Promise<unknown> {
-    return this.resolveNativeApproval(executionId, true);
+  async listIntegrationApprovals(): Promise<PendingAction[]> {
+    return this.integrationRuntime().pending();
   }
 
   @callable()
-  override async rejectExecution(executionId: string, reason?: string): Promise<unknown> {
-    return this.resolveNativeApproval(executionId, false, reason);
+  async approveIntegrationAction(executionId: string): Promise<ProxyToolOutput> {
+    const bot = await this.workspaceAgent.getBot(this.name);
+    if (!bot || bot.hidden) throw new Error("Restore this teammate before you approve an action");
+    const runtime = this.integrationRuntime();
+    const output = await runtime.approve({ executionId: safeTaskId(executionId) });
+    const message = integrationOutcomeText(output);
+    await this.addMessages([
+      {
+        id: `integration:${output.executionId}:${Date.now()}`,
+        role: "assistant",
+        parts: [{ type: "text", text: message }]
+      }
+    ]);
+    await this.workspaceAgent.markInteraction(
+      this.name,
+      message,
+      await integrationApprovalStatus(runtime)
+    );
+    return output;
+  }
+
+  @callable()
+  async rejectIntegrationAction(executionId: string, seq: number): Promise<boolean> {
+    const runtime = this.integrationRuntime();
+    const rejected = await runtime.reject({ executionId: safeTaskId(executionId), seq });
+    if (rejected) {
+      const message = "The connected-service action was denied.";
+      await this.addMessages([
+        {
+          id: `integration-rejected:${executionId}:${Date.now()}`,
+          role: "assistant",
+          parts: [{ type: "text", text: message }]
+        }
+      ]);
+      await this.workspaceAgent.markInteraction(
+        this.name,
+        message,
+        await integrationApprovalStatus(runtime)
+      );
+    }
+    return rejected;
   }
 
   @callable()
@@ -250,11 +340,7 @@ export class HQBotTeammate extends Think<Env> {
   async cancelTask(taskId: string): Promise<void> {
     const safeId = safeTaskId(taskId);
     await this.cancelSubmission(safeId, "The owner stopped this task");
-    await clearPendingReplyApprovals({
-      taskId: safeId,
-      pending: this.pendingApprovals(),
-      reject: (executionId) => super.rejectExecution(executionId, "The owner stopped this task")
-    });
+    await rejectPendingIntegrationActions(this.integrationRuntime());
     await closeBrowserSession(this.browserRuntime);
     this.resetTurnState();
   }
@@ -262,12 +348,14 @@ export class HQBotTeammate extends Think<Env> {
   @callable()
   async suspend(taskIds: string[]): Promise<void> {
     await suspendTeammateWork(this, taskIds);
+    await rejectPendingIntegrationActions(this.integrationRuntime());
     await closeBrowserSession(this.browserRuntime);
     this.resetTurnState();
   }
 
   async stopActivity(taskIds: string[], reason = "The owner stopped this teammate"): Promise<void> {
     await suspendTeammateWork(this, taskIds, reason);
+    await rejectPendingIntegrationActions(this.integrationRuntime());
     await closeBrowserSession(this.browserRuntime);
     this.resetTurnState();
   }
@@ -286,22 +374,20 @@ export class HQBotTeammate extends Think<Env> {
     );
   }
 
-  private async resolveNativeApproval(
-    executionId: string,
-    approved: boolean,
-    reason?: string
-  ): Promise<unknown> {
-    return resolveReplyApprovalLifecycle({
-      executionId,
-      approved,
-      pending: this.pendingApprovals(executionId),
-      resolve: () =>
-        approved ? super.approveExecution(executionId) : super.rejectExecution(executionId, reason),
-      recordRejection: async (taskId) => {
-        await this.workspaceAgent.rejectReply(taskId);
-      },
-      fail: (taskId) =>
-        this.workspaceAgent.failTask(taskId, "The approved HQBase reply could not be sent")
+  private integrationRuntime() {
+    const state = this.getMcpServers();
+    const connectors = Object.entries(state.servers).flatMap(([id, server]) => {
+      if (server.state !== "ready") return [];
+      const connection = this.mcp.mcpConnections[id] as McpConnectionLike | undefined;
+      return connection
+        ? [new TeammateMcpConnector(this.ctx, this.env, id, server.name, connection)]
+        : [];
+    });
+    return createCodemodeRuntime({
+      ctx: this.ctx,
+      connectors,
+      executor: new DynamicWorkerExecutor({ loader: this.env.LOADER }),
+      name: "integrations"
     });
   }
 

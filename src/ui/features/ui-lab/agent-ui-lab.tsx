@@ -66,7 +66,7 @@ export function AgentUiLab() {
             </TabsList>
           </Tabs>
           <p className="hidden text-xs text-muted-foreground md:block">
-            Uses the real HQBot components and HQBase design tokens.
+            Uses the real HQBot components and design tokens.
           </p>
         </div>
         <LabPreview state={state} />

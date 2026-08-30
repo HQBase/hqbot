@@ -10,7 +10,6 @@ import { interact, renderComponent } from "./render.tsx";
 function teammate(id: string, name: string, hidden = false): BotTeammate {
   return {
     brief: "",
-    connection: null,
     createdAt: "2026-08-30T12:00:00.000Z",
     dailyBudgetUsd: 1,
     description: "",

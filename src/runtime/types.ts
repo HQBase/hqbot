@@ -13,6 +13,7 @@ export interface WorkspaceBotDto {
   description: string;
   brief: string;
   modelId: string | null;
+  hidden?: boolean;
 }
 
 export interface WorkspaceTeammateDto extends WorkspaceBotDto {
@@ -37,12 +38,6 @@ export interface WorkspaceRoutineDto {
   prompt: string;
   intervalMinutes: number;
   active: boolean;
-}
-
-export interface WorkspaceConnectionDto {
-  id: string;
-  active: boolean;
-  mailboxAddress: string;
 }
 
 export interface ModelUsageDto {
@@ -71,38 +66,22 @@ export interface SpendPolicyDto {
   reason: string | null;
 }
 
-export interface SendApprovedReplyInput {
-  botId: string;
-  taskId: string;
-  draft: string;
-}
-
-export interface SendApprovedReplyResult {
-  messageId: string;
-  duplicate: boolean;
-}
-
 export interface WorkspaceAgentRpc {
   getBot(botId: string): Promise<WorkspaceBotDto | null>;
   listBots(): Promise<WorkspaceTeammateDto[]>;
   listMemories(botId: string): Promise<WorkspaceMemoryDto[]>;
   listSkills(botId: string): Promise<WorkspaceSkillDto[]>;
   listRoutines(botId: string): Promise<WorkspaceRoutineDto[]>;
-  getBotConnection(botId: string): Promise<WorkspaceConnectionDto | null>;
   checkSpendPolicy(botId: string, taskId: string | null): Promise<SpendPolicyDto>;
   recordUsage(usage: ModelUsageDto): Promise<void>;
   recordResourceUsage(usage: ResourceUsageDto): Promise<void>;
   markInteraction(
     botId: string,
     occurredAtOrMessage: string,
-    status?: "working" | "idle"
+    status?: "working" | "idle" | "needs_approval"
   ): Promise<void>;
-  requestReplyApproval(taskId: string, draft: string): Promise<boolean>;
-  claimApprovedReply(taskId: string, draft: string): Promise<boolean>;
-  rejectReply(taskId: string): Promise<boolean>;
-  completeTask(taskId: string, result: string, replyMessageId: string | null): Promise<void>;
+  completeTask(taskId: string, result: string): Promise<void>;
   failTask(taskId: string, error: string): Promise<void>;
-  sendApprovedReply(input: SendApprovedReplyInput): Promise<SendApprovedReplyResult>;
 }
 
 export interface DelegatedTaskInput {
@@ -118,7 +97,7 @@ export interface DelegatedTaskResult {
 
 export interface TeammateTaskSubmission {
   taskId: string;
-  source: "chat" | "email";
+  source: "chat";
   prompt: string;
 }
 

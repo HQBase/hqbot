@@ -38,7 +38,7 @@ describe("workspace teammate lifecycle", () => {
 
   afterEach(() => database.close());
 
-  it("archives a teammate without leaving mail or routines active", () => {
+  it("archives a teammate and pauses its routines", () => {
     catalog.createBot(
       "bot-1",
       { name: "Research", title: "Researcher", description: "Finds evidence." },
@@ -54,18 +54,7 @@ describe("workspace teammate lifecycle", () => {
       nextRunAt: "2026-08-31T12:00:00.000Z",
       prompt: "Prepare the brief"
     });
-    catalog.connectHQBase({
-      botId: "bot-1",
-      id: "connection-1",
-      mailboxAddress: "hqbot@example.com",
-      mailboxId: "mailbox-1",
-      mailboxName: "HQBot",
-      origin: "https://hqbase.example.com",
-      tokenCiphertext: "ciphertext",
-      tokenIv: "iv"
-    });
-
-    expect(catalog.archiveBot("bot-1")).toMatchObject({ hidden: true, connection: null });
+    expect(catalog.archiveBot("bot-1")).toMatchObject({ hidden: true });
     expect(catalog.listBots()).toEqual([]);
     expect(catalog.listArchivedBots()).toEqual([
       expect.objectContaining({ id: "bot-1", hidden: true })
@@ -73,7 +62,6 @@ describe("workspace teammate lifecycle", () => {
     expect(catalog.automations.listRoutines("bot-1")).toEqual([
       expect.objectContaining({ id: "routine-1", active: false })
     ]);
-    expect(catalog.listActiveConnections()).toEqual([]);
   });
 
   it("lets an archived teammate remain selected for restore", () => {
@@ -134,30 +122,10 @@ describe("workspace teammate lifecycle", () => {
       nextRunAt: "2026-08-31T12:00:00.000Z",
       prompt: "Prepare the brief"
     });
-    catalog.connectHQBase({
-      botId: "bot-1",
-      id: "connection-1",
-      mailboxAddress: "hqbot@example.com",
-      mailboxId: "mailbox-1",
-      mailboxName: "HQBot",
-      origin: "https://hqbase.example.com",
-      tokenCiphertext: "ciphertext",
-      tokenIv: "iv"
-    });
-
     expect(catalog.listBotArtifactKeys("bot-1")).toEqual(["files/bot-1/file-1/note.txt"]);
     expect(catalog.deleteBot("bot-1")).toBe(true);
     expect(catalog.deleteBot("bot-1")).toBe(false);
-    for (const table of [
-      "activity",
-      "bots",
-      "connections",
-      "files",
-      "memories",
-      "routines",
-      "skills",
-      "tasks"
-    ]) {
+    for (const table of ["activity", "bots", "files", "memories", "routines", "skills", "tasks"]) {
       expect(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({
         count: 0
       });

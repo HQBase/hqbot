@@ -67,7 +67,7 @@ function migrateTwo(sql: Sql): void {
   sql`CREATE TABLE IF NOT EXISTS connections (
     id TEXT PRIMARY KEY,
     bot_id TEXT NOT NULL,
-    provider TEXT NOT NULL CHECK (provider = 'hqbase'),
+    provider TEXT NOT NULL CHECK (provider = 'legacy'),
     origin TEXT NOT NULL,
     mailbox_id TEXT NOT NULL,
     mailbox_address TEXT NOT NULL,
@@ -201,6 +201,19 @@ function migrateSix(sql: Sql): void {
   finish(sql, 6);
 }
 
+function migrateSeven(sql: Sql): void {
+  if (isApplied(sql, 7)) return;
+  sql`UPDATE usage_events SET bot_id = NULL, task_id = NULL
+    WHERE task_id IN (SELECT id FROM tasks WHERE source = 'email')`;
+  sql`UPDATE files SET task_id = NULL
+    WHERE task_id IN (SELECT id FROM tasks WHERE source = 'email')`;
+  sql`DELETE FROM activity
+    WHERE task_id IN (SELECT id FROM tasks WHERE source = 'email')`;
+  sql`DELETE FROM tasks WHERE source = 'email'`;
+  sql`DROP TABLE IF EXISTS connections`;
+  finish(sql, 7);
+}
+
 export function migrateWorkspace(sql: Sql): void {
   sql`CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY,
@@ -212,4 +225,5 @@ export function migrateWorkspace(sql: Sql): void {
   migrateFour(sql);
   migrateFive(sql);
   migrateSix(sql);
+  migrateSeven(sql);
 }

@@ -1,12 +1,9 @@
 import { action } from "@cloudflare/think";
 import { z } from "zod";
 
-import { executeApprovedReply } from "./approval";
 import { delegateToNamedTeammates, MAX_DELEGATED_TASK_CHARS } from "./collaboration";
 import { latestUserText } from "./routing";
 import type { DelegatedTaskResult, WorkspaceAgentRpc, WorkspaceTeammateDto } from "./types";
-
-export const REPLY_PERMISSION = "hqbase:reply";
 
 interface TeammateActionDependencies {
   botId: string;
@@ -31,33 +28,6 @@ export function createTeammateActions(dependencies: TeammateActionDependencies) 
           currentBotId: dependencies.botId,
           listBots: () => dependencies.workspaceAgent.listBots(),
           delegate: dependencies.delegate
-        })
-    }),
-    send_hqbase_reply: action({
-      description: "Submit the final draft as a reply through the connected HQBase mailbox.",
-      inputSchema: z.object({
-        taskId: z.string().min(1).max(200),
-        draft: z.string().min(1).max(100_000)
-      }),
-      kind: "durable-pause",
-      approval: true,
-      approvalSummary: "Send this HQBase reply",
-      approvalRisk: "high",
-      permissions: [REPLY_PERMISSION],
-      idempotencyKey: ({ input }) => `hqbase-reply:${dependencies.botId}:${input.taskId}`,
-      timeoutMs: 60_000,
-      execute: ({ taskId, draft }) =>
-        executeApprovedReply({
-          taskId,
-          draft,
-          claim: (approvedTaskId, approvedDraft) =>
-            dependencies.workspaceAgent.claimApprovedReply(approvedTaskId, approvedDraft),
-          send: () =>
-            dependencies.workspaceAgent.sendApprovedReply({
-              botId: dependencies.botId,
-              taskId,
-              draft
-            })
         })
     })
   };

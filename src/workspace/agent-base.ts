@@ -104,7 +104,7 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
   markInteraction(
     botId: string,
     occurredAtOrMessage: string,
-    status: "working" | "idle" = "working"
+    status: BotTeammate["status"] = "working"
   ): void {
     const current = this.catalog.getBot(botId);
     const isTimestamp = !Number.isNaN(Date.parse(occurredAtOrMessage));
@@ -213,34 +213,8 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     return this.tasks.getTask(taskId);
   }
 
-  requestReplyApproval(taskId: string, draft: string): boolean {
-    if (!this.tasks.requestReplyApproval(taskId, draft)) return false;
-    const task = this.tasks.getTask(taskId);
-    if (task) this.catalog.markInteraction(task.botId, "Reply needs approval", "needs_approval");
-    this.changed();
-    return true;
-  }
-
-  claimApprovedReply(taskId: string, draft: string): boolean {
-    if (!this.tasks.claimApprovedReply(taskId, draft)) return false;
-    this.tasks.recordReplyDecision(taskId, true);
-    const task = this.tasks.getTask(taskId);
-    if (task) this.catalog.markInteraction(task.botId, "Sending approved reply", "working");
-    this.changed();
-    return true;
-  }
-
-  rejectReply(taskId: string): boolean {
-    const task = this.tasks.getTask(taskId);
-    if (!task || !this.tasks.rejectReply(taskId)) return false;
-    this.tasks.recordReplyDecision(taskId, false);
-    this.catalog.markInteraction(task.botId, "Reply kept as a draft", "idle");
-    this.changed();
-    return true;
-  }
-
-  completeTask(taskId: string, result: string, replyMessageId: string | null): void {
-    this.tasks.completeTask(taskId, result, replyMessageId);
+  completeTask(taskId: string, result: string): void {
+    this.tasks.completeTask(taskId, result);
     const task = this.tasks.getTask(taskId);
     if (task) this.catalog.markInteraction(task.botId, result, "idle");
     this.changed();

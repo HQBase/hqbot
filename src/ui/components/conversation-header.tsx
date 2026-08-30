@@ -47,7 +47,13 @@ export function ConversationHeader({
         {status}
       </Badge>
       {working ? (
-        <Button aria-label="Stop task" size="icon" type="button" variant="ghost" onClick={onStop}>
+        <Button
+          aria-label="Stop teammate activity"
+          size="icon"
+          type="button"
+          variant="ghost"
+          onClick={onStop}
+        >
           <PiStop />
         </Button>
       ) : null}

@@ -19,8 +19,7 @@ export const labBots: BotTeammate[] = [
     modelId: "@cf/zai-org/glm-5.3-flash",
     dailyBudgetUsd: 5,
     createdAt: minutesAgo(8_000),
-    updatedAt: minutesAgo(2),
-    connection: null
+    updatedAt: minutesAgo(2)
   },
   {
     id: "support",
@@ -36,19 +35,7 @@ export const labBots: BotTeammate[] = [
     modelId: "@cf/zai-org/glm-5.3-flash",
     dailyBudgetUsd: 8,
     createdAt: minutesAgo(7_000),
-    updatedAt: minutesAgo(18),
-    connection: {
-      id: "connection-support",
-      provider: "hqbase",
-      origin: "https://mail.example.com",
-      mailboxId: "mailbox-support",
-      mailboxAddress: "support@example.com",
-      mailboxName: "Support",
-      active: true,
-      realtimeStatus: "connected",
-      lastEventAt: minutesAgo(18),
-      createdAt: minutesAgo(6_000)
-    }
+    updatedAt: minutesAgo(18)
   },
   {
     id: "operator",
@@ -64,8 +51,7 @@ export const labBots: BotTeammate[] = [
     modelId: "@cf/deepseek-ai/deepseek-v4-flash-0731",
     dailyBudgetUsd: 3,
     createdAt: minutesAgo(5_000),
-    updatedAt: minutesAgo(180),
-    connection: null
+    updatedAt: minutesAgo(180)
   }
 ];
 
@@ -84,8 +70,7 @@ export const labArchivedBots: BotTeammate[] = [
     modelId: "@cf/zai-org/glm-5.3-flash",
     dailyBudgetUsd: 2,
     createdAt: minutesAgo(12_000),
-    updatedAt: minutesAgo(1_440),
-    connection: null
+    updatedAt: minutesAgo(1_440)
   }
 ];
 
@@ -109,9 +94,6 @@ export const labCosts: CostSnapshot = {
     }
   },
   platform: {
-    durableObjectGbSecondsPerDay: 1_728.42,
-    hqbaseRealtimeConnections: 2,
-    selectedBotHqbaseRealtime: true,
     resources: {
       overall: {
         durableObjects: 4,

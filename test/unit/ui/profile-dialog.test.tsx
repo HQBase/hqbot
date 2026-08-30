@@ -20,8 +20,7 @@ const bot = {
   modelId: "@cf/zai-org/glm-5.3-flash",
   dailyBudgetUsd: 2,
   createdAt: "2026-08-30T12:00:00.000Z",
-  updatedAt: "2026-08-30T12:00:00.000Z",
-  connection: null
+  updatedAt: "2026-08-30T12:00:00.000Z"
 } satisfies BotTeammate;
 
 afterEach(() => {

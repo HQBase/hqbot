@@ -1,11 +1,9 @@
 import type {
-  BotConnection,
   BotDefinition,
   BotFile,
   BotMemory,
   BotSkill,
   BotTeammate,
-  StoredBotConnection,
   StoredComputerState
 } from "../domain/types";
 import { WorkspaceAutomations } from "./automations";
@@ -15,12 +13,9 @@ import {
   fileFromRow,
   memoryFromRow,
   now,
-  publicConnection,
   type Row,
   type Sql,
-  skillFromRow,
-  storedConnection,
-  text
+  skillFromRow
 } from "./sql";
 
 export class WorkspaceCatalog {
@@ -60,22 +55,14 @@ export class WorkspaceCatalog {
   }
 
   private listBotsByVisibility(hidden: boolean): BotTeammate[] {
-    const connectionRows = this.sql<Row>`SELECT * FROM connections ORDER BY created_at ASC`;
-    const connections = new Map(
-      connectionRows.map((row) => [text(row, "bot_id"), publicConnection(row)])
-    );
     return this.sql<Row>`SELECT * FROM bots
       WHERE hidden = ${hidden ? 1 : 0}
-      ORDER BY pinned DESC, COALESCE(last_interacted_at, created_at) DESC`.map((row) =>
-      botFromRow(row, connections.get(text(row, "id")) ?? null)
-    );
+      ORDER BY pinned DESC, COALESCE(last_interacted_at, created_at) DESC`.map(botFromRow);
   }
 
   getBot(id: string): BotTeammate | null {
     const row = this.sql<Row>`SELECT * FROM bots WHERE id = ${id}`[0];
-    if (!row) return null;
-    const connection = this.sql<Row>`SELECT * FROM connections WHERE bot_id = ${id}`[0];
-    return botFromRow(row, connection ? publicConnection(connection) : null);
+    return row ? botFromRow(row) : null;
   }
 
   updateBot(
@@ -109,7 +96,6 @@ export class WorkspaceCatalog {
     const bot = this.updateBot(id, { hidden: true });
     if (!bot) return null;
     this.automations.pauseBotRoutines(id);
-    this.disconnectHQBase(id);
     return this.getBot(id);
   }
 
@@ -198,7 +184,6 @@ export class WorkspaceCatalog {
     this.sql`DELETE FROM activity WHERE task_id IN (SELECT id FROM tasks WHERE bot_id = ${id})`;
     this.sql`DELETE FROM files WHERE bot_id = ${id}`;
     this.sql`DELETE FROM tasks WHERE bot_id = ${id}`;
-    this.sql`DELETE FROM connections WHERE bot_id = ${id}`;
     this.sql`DELETE FROM memories WHERE bot_id = ${id}`;
     this.sql`DELETE FROM routines WHERE bot_id = ${id}`;
     this.sql`DELETE FROM skills WHERE bot_id = ${id}`;
@@ -249,57 +234,5 @@ export class WorkspaceCatalog {
       screenshot_key = excluded.screenshot_key, expires_at = excluded.expires_at,
       cookies_ciphertext = excluded.cookies_ciphertext, cookies_iv = excluded.cookies_iv,
       updated_at = excluded.updated_at`;
-  }
-
-  connectHQBase(input: {
-    id: string;
-    botId: string;
-    origin: string;
-    mailboxId: string;
-    mailboxAddress: string;
-    mailboxName: string;
-    tokenCiphertext: string;
-    tokenIv: string;
-  }): BotConnection {
-    const timestamp = now();
-    this.sql`INSERT INTO connections (
-      id, bot_id, provider, origin, mailbox_id, mailbox_address, mailbox_name,
-      token_ciphertext, token_iv, active, socket_status, created_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, 'hqbase', ${input.origin}, ${input.mailboxId},
-      ${input.mailboxAddress}, ${input.mailboxName}, ${input.tokenCiphertext}, ${input.tokenIv},
-      1, 'connecting', ${timestamp}
-    )`;
-    return publicConnection(
-      this.sql<Row>`SELECT * FROM connections WHERE id = ${input.id}`[0] as Row
-    );
-  }
-
-  getBotConnection(connectionId: string): StoredBotConnection | null {
-    const row = this.sql<Row>`SELECT * FROM connections WHERE id = ${connectionId}`[0];
-    return row ? storedConnection(row) : null;
-  }
-
-  listActiveConnections(): StoredBotConnection[] {
-    return this.sql<Row>`SELECT * FROM connections WHERE active = 1 ORDER BY created_at ASC`.map(
-      storedConnection
-    );
-  }
-
-  setConnectionRealtime(
-    id: string,
-    status: BotConnection["realtimeStatus"],
-    cursor?: string | null
-  ): void {
-    this.sql`UPDATE connections SET socket_status = ${status},
-      change_cursor = COALESCE(${cursor ?? null}, change_cursor),
-      last_event_at = ${status === "connected" ? now() : null} WHERE id = ${id}`;
-  }
-
-  disconnectHQBase(botId: string): boolean {
-    return (
-      this.sql<{ id: string }>`DELETE FROM connections
-        WHERE bot_id = ${botId} AND provider = 'hqbase' RETURNING id`.length > 0
-    );
   }
 }
