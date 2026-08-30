@@ -140,7 +140,6 @@ export class HQBotTeammate extends Think<Env> {
       customHandler: (result) => mcpOAuthCallbackResponse(result.authSuccess)
     });
   }
-
   async beforeTurn(ctx: TurnContext): Promise<TurnConfig> {
     return prepareTeammateTurn({
       botId: this.name,
@@ -155,7 +154,6 @@ export class HQBotTeammate extends Think<Env> {
       workspaceAgent: this.workspaceAgent
     });
   }
-
   async onStepFinish(ctx: StepContext): Promise<void> {
     const model = identifyModel(ctx.response.modelId, this.attemptedModel);
     const taskId = this.activeTurnMetadata?.taskId;
@@ -168,7 +166,6 @@ export class HQBotTeammate extends Think<Env> {
       })
     );
   }
-
   async afterToolCall(ctx: ToolCallResultContext): Promise<void> {
     if (ctx.toolName !== "browser_execute") return;
     const taskId = this.activeTurnMetadata?.taskId;
@@ -177,7 +174,6 @@ export class HQBotTeammate extends Think<Env> {
     );
     await this.armBrowserLeases(leases);
   }
-
   async onChatResponse(result: ChatResponseResult): Promise<void> {
     const metadata =
       this.activeTurnMetadata ?? (await this.inspectSubmission(result.requestId))?.metadata;
@@ -195,14 +191,12 @@ export class HQBotTeammate extends Think<Env> {
       );
     }
   }
-
   async getScheduledTasks() {
     return teammateScheduledTasks(await this.workspaceAgent.listRoutines(this.name), async () => {
       await this.browserRuntime.connector.sweep();
       await this.browserRuntime.meter.flush();
     });
   }
-
   async runDelegatedTask(input: DelegatedTaskInput): Promise<DelegatedTaskResult> {
     return executeDelegatedTask(input, {
       targetId: this.name,
@@ -211,12 +205,10 @@ export class HQBotTeammate extends Think<Env> {
         this.runTurn({ mode: "wait", input: prompt, body: { delegation: true }, signal })
     });
   }
-
   @callable()
   async reconcileScheduledTasks(): Promise<void> {
     await this.internal_reconcileScheduledTasks();
   }
-
   @callable()
   submitChat(input: TeammateChatSubmission) {
     const firstSubmission = input.submissionId === `first:${this.name}`;
@@ -228,17 +220,14 @@ export class HQBotTeammate extends Think<Env> {
         firstSubmission && Boolean(await this.ctx.storage.get<boolean>(FIRST_MESSAGE_STOPPED_KEY))
     });
   }
-
   @callable()
   submitTask(input: TeammateTaskSubmission) {
     return submitTaskTurn(input, (messages, options) => this.submitMessages(messages, options));
   }
-
   @callable()
   listConnections(): TeammateConnection[] {
     return connectionList(this.getMcpServers());
   }
-
   @callable()
   async connectMcp(input: {
     name: string;
@@ -262,7 +251,6 @@ export class HQBotTeammate extends Think<Env> {
       ? { ...connection, authUrl: result.authUrl }
       : connection;
   }
-
   @callable()
   async disconnectMcp(id: string): Promise<void> {
     if (!this.getMcpServers().servers[id]) throw new Error("Connection not found");
@@ -277,7 +265,6 @@ export class HQBotTeammate extends Think<Env> {
       );
     }
   }
-
   @callable()
   async listIntegrationApprovals(): Promise<PendingAction[]> {
     return this.integrationRuntime().pending();
