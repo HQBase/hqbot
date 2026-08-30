@@ -10,4 +10,4 @@ pnpm check
 ```
 
 Record each Durable Object schema change as a new migration. Add fresh-install and update tests.
-Use only Cloudflare services for runtime compute, AI, browsers, workflows, queues, and storage.
+Use only Cloudflare services for runtime compute, AI, browsers, queues, schedules, and storage.

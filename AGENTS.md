@@ -11,9 +11,9 @@ Always write in Simplified Technical English (ASD-STE100). Use simple, brief, cl
 - Use HQBase Mail API v2. Do not implement mail transport or mailbox storage.
 - Never log credentials or mail content.
 - Put every non-idempotent external action behind an exact duplicate check.
-- Use Cloudflare services for compute, state, AI, browser work, workflows, and object storage.
+- Use Cloudflare services for compute, state, AI, browser work, queues, schedules, and object storage.
 - Record storage changes as ordered schema migrations and test fresh and update paths.
-- Run the complete local gate and one deployed real-world workflow before completion.
+- Run the complete local gate and one deployed real-world mail flow before completion.
 
 ## Quality gate
 
@@ -23,4 +23,3 @@ pnpm deploy:dry-run
 ```
 
 Run `pnpm cf:typegen` after each `wrangler.jsonc` change.
-
