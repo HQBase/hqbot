@@ -14,6 +14,7 @@ import { callable, getAgentByName } from "agents";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
 
 import {
+  clearPendingReplyApprovals,
   findReplyApproval,
   replyApprovalOutcome,
   resolveReplyApprovalLifecycle
@@ -25,7 +26,7 @@ import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
 import { routeTurn } from "./runtime/routing";
 import { intervalSchedule } from "./runtime/schedules";
 import { createTeammateActions, REPLY_PERMISSION } from "./runtime/teammate-actions";
-import { prepareTeammateTurn, safeTaskId } from "./runtime/turn";
+import { finishTeammateResponse, prepareTeammateTurn, safeTaskId } from "./runtime/turn";
 import {
   type DelegatedTaskInput,
   type DelegatedTaskResult,
@@ -148,30 +149,17 @@ export class HQBotTeammate extends Think<Env> {
   async onChatResponse(result: ChatResponseResult): Promise<void> {
     const taskId = this.activeTurnMetadata?.taskId;
     const source = this.activeTurnMetadata?.source;
-    if (typeof taskId !== "string") return;
-    if (source === "email") {
-      const approval = findReplyApproval(await this.pendingApprovals(), { taskId });
-      if (approval) {
-        await this.workspaceAgent.requestReplyApproval(taskId, approval.draft);
-      } else if (result.status === "error") {
-        await this.workspaceAgent.failTask(taskId, result.error ?? "The email task failed");
-      }
-      return;
-    }
-    if (result.status === "error") {
-      await this.workspaceAgent.failTask(taskId, result.error ?? "The task failed");
-      return;
-    }
-    if (result.status !== "completed") return;
-    const text = result.message.parts
-      .filter(
-        (part): part is Extract<(typeof result.message.parts)[number], { type: "text" }> =>
-          part.type === "text"
-      )
-      .map((part) => part.text)
-      .join("\n")
-      .trim();
-    if (text) await this.workspaceAgent.completeTask(taskId, text, null);
+    const replyApproval =
+      source === "email" && typeof taskId === "string"
+        ? findReplyApproval(await this.pendingApprovals(), { taskId })
+        : null;
+    await finishTeammateResponse({
+      botId: this.name,
+      metadata: this.activeTurnMetadata,
+      replyApproval,
+      result,
+      workspaceAgent: this.workspaceAgent
+    });
   }
 
   async getScheduledTasks(): Promise<ThinkScheduledTasks> {
@@ -271,8 +259,14 @@ export class HQBotTeammate extends Think<Env> {
 
   @callable()
   async cancelTask(taskId: string): Promise<void> {
-    await this.cancelSubmission(safeTaskId(taskId), "The owner stopped this task");
-    this.cancelAllChats();
+    const safeId = safeTaskId(taskId);
+    await this.cancelSubmission(safeId, "The owner stopped this task");
+    await clearPendingReplyApprovals({
+      taskId: safeId,
+      pending: this.pendingApprovals(),
+      reject: (executionId) => super.rejectExecution(executionId, "The owner stopped this task")
+    });
+    this.resetTurnState();
   }
 
   private async resolveNativeApproval(
@@ -286,7 +280,9 @@ export class HQBotTeammate extends Think<Env> {
       pending: this.pendingApprovals(executionId),
       resolve: () =>
         approved ? super.approveExecution(executionId) : super.rejectExecution(executionId, reason),
-      recordRejection: (taskId) => this.workspaceAgent.recordReplyDecision(taskId, false),
+      recordRejection: async (taskId) => {
+        await this.workspaceAgent.rejectReply(taskId);
+      },
       fail: (taskId) =>
         this.workspaceAgent.failTask(taskId, "The approved HQBase reply could not be sent")
     });

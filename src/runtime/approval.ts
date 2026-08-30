@@ -44,7 +44,9 @@ export function findReplyApproval(
   return null;
 }
 
-export type ReplyApprovalOutcome = "approved" | "rejected" | "failed" | "conflict";
+export const STALE_REPLY_APPROVAL_ERROR = "This reply approval is no longer current";
+
+export type ReplyApprovalOutcome = "approved" | "rejected" | "failed" | "stale" | "conflict";
 
 interface ResolveReplyApprovalInput {
   executionId: string;
@@ -57,17 +59,34 @@ interface ResolveReplyApprovalInput {
 
 interface ExecuteApprovedReplyInput<Result> {
   taskId: string;
-  recordDecision: (taskId: string) => Promise<void>;
+  draft: string;
+  claim: (taskId: string, draft: string) => Promise<boolean>;
   send: () => Promise<Result>;
+}
+
+interface ClearReplyApprovalsInput {
+  taskId: string;
+  pending: Promise<readonly unknown[]>;
+  reject: (executionId: string) => Promise<unknown>;
+}
+
+function errorMessage(result: Record<string, unknown>): string | null {
+  if (typeof result.error === "string") return result.error;
+  const error = record(result.error);
+  if (typeof error?.message === "string") return error.message;
+  return result.status === "error" ? "" : null;
 }
 
 export function replyApprovalOutcome(output: unknown, approved: boolean): ReplyApprovalOutcome {
   const result = record(output);
-  if (!result || typeof result.status !== "string") return approved ? "approved" : "conflict";
+  if (!result) return approved ? "approved" : "conflict";
   if (result.status === "rejected") return approved ? "conflict" : "rejected";
-  if (result.status !== "error") return approved ? "approved" : "conflict";
-  const detail = typeof result.error === "string" ? result.error : "";
-  return detail.includes("no longer pending") ? "conflict" : "failed";
+  const detail = errorMessage(result);
+  if (detail !== null) {
+    if (detail.includes(STALE_REPLY_APPROVAL_ERROR)) return "stale";
+    return detail.includes("no longer pending") ? "conflict" : "failed";
+  }
+  return approved ? "approved" : "conflict";
 }
 
 export async function resolveReplyApprovalLifecycle(
@@ -85,6 +104,17 @@ export async function resolveReplyApprovalLifecycle(
 export async function executeApprovedReply<Result>(
   input: ExecuteApprovedReplyInput<Result>
 ): Promise<Result> {
-  await input.recordDecision(input.taskId);
+  if (!(await input.claim(input.taskId, input.draft))) {
+    throw new Error(STALE_REPLY_APPROVAL_ERROR);
+  }
   return input.send();
+}
+
+export async function clearPendingReplyApprovals(input: ClearReplyApprovalsInput): Promise<number> {
+  const pending = await input.pending;
+  const approvals = pending
+    .map((candidate) => findReplyApproval([candidate], { taskId: input.taskId }))
+    .filter((approval): approval is ReplyApproval => approval !== null);
+  for (const approval of approvals) await input.reject(approval.executionId);
+  return approvals.length;
 }

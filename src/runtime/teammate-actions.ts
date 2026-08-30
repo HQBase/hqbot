@@ -49,8 +49,9 @@ export function createTeammateActions(dependencies: TeammateActionDependencies) 
       execute: ({ taskId, draft }) =>
         executeApprovedReply({
           taskId,
-          recordDecision: (approvedTaskId) =>
-            dependencies.workspaceAgent.recordReplyDecision(approvedTaskId, true),
+          draft,
+          claim: (approvedTaskId, approvedDraft) =>
+            dependencies.workspaceAgent.claimApprovedReply(approvedTaskId, approvedDraft),
           send: () =>
             dependencies.workspaceAgent.sendApprovedReply({
               botId: dependencies.botId,

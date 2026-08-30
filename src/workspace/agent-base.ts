@@ -100,13 +100,17 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     return bot;
   }
 
-  markInteraction(botId: string, occurredAtOrMessage: string): void {
+  markInteraction(
+    botId: string,
+    occurredAtOrMessage: string,
+    status: "working" | "idle" = "working"
+  ): void {
     const current = this.catalog.getBot(botId);
     const isTimestamp = !Number.isNaN(Date.parse(occurredAtOrMessage));
     this.catalog.markInteraction(
       botId,
       isTimestamp ? (current?.lastMessage ?? "Active now") : occurredAtOrMessage,
-      "working"
+      status
     );
     this.changed();
   }
@@ -211,13 +215,22 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     return true;
   }
 
-  recordReplyDecision(taskId: string, approved: boolean): void {
+  claimApprovedReply(taskId: string, draft: string): boolean {
+    if (!this.tasks.claimApprovedReply(taskId, draft)) return false;
+    this.tasks.recordReplyDecision(taskId, true);
     const task = this.tasks.getTask(taskId);
-    if (!task) return;
-    if (!approved && !this.tasks.rejectReply(taskId)) return;
-    this.tasks.recordReplyDecision(taskId, approved);
-    if (!approved) this.catalog.markInteraction(task.botId, "Reply kept as a draft", "idle");
+    if (task) this.catalog.markInteraction(task.botId, "Sending approved reply", "working");
     this.changed();
+    return true;
+  }
+
+  rejectReply(taskId: string): boolean {
+    const task = this.tasks.getTask(taskId);
+    if (!task || !this.tasks.rejectReply(taskId)) return false;
+    this.tasks.recordReplyDecision(taskId, false);
+    this.catalog.markInteraction(task.botId, "Reply kept as a draft", "idle");
+    this.changed();
+    return true;
   }
 
   completeTask(taskId: string, result: string, replyMessageId: string | null): void {
@@ -234,9 +247,12 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     this.changed();
   }
 
-  cancelTask(taskId: string): void {
-    this.tasks.cancelTask(taskId);
+  cancelTask(taskId: string): boolean {
+    if (!this.tasks.cancelTask(taskId)) return false;
+    const task = this.tasks.getTask(taskId);
+    if (task) this.catalog.markInteraction(task.botId, "Task stopped", "idle");
     this.changed();
+    return true;
   }
 
   recordUsage(usage: ModelUsageDto | UsageInput): void {

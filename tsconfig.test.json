@@ -25,6 +25,7 @@
     "src/workspace/auth.ts",
     "src/workspace/budgets.ts",
     "src/workspace/catalog.ts",
+    "src/workspace/mail-realtime.ts",
     "src/workspace/migrations.ts",
     "src/workspace/sql.ts",
     "src/workspace/snapshot.ts",

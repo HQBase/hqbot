@@ -1,6 +1,7 @@
 import { getAgentByName } from "agents";
 
 import type { BotConnection, StoredBotConnection } from "./domain/types";
+import { STALE_REPLY_APPROVAL_ERROR } from "./runtime/approval";
 import type {
   SendApprovedReplyInput,
   SendApprovedReplyResult,
@@ -39,9 +40,13 @@ export class HQBotAgent extends WorkspaceAgentBase implements MailRealtimeHost {
     );
   }
 
+  waitUntil(promise: Promise<void>): void {
+    this.ctx.waitUntil(promise);
+  }
+
   connectHQBase(input: Parameters<WorkspaceCatalog["connectHQBase"]>[0]): BotConnection {
     const connection = this.catalog.connectHQBase(input);
-    void this.queue("openConnection", { connectionId: connection.id });
+    this.ctx.waitUntil(this.queue("openConnection", { connectionId: connection.id }));
     this.changed();
     return connection;
   }
@@ -142,6 +147,9 @@ export class HQBotAgent extends WorkspaceAgentBase implements MailRealtimeHost {
       throw new Error("The HQBase email task is not available");
     }
     if (task.replyMessageId) return { messageId: task.replyMessageId, duplicate: true };
+    if (task.status !== "replying" || task.result !== input.draft) {
+      throw new Error(STALE_REPLY_APPROVAL_ERROR);
+    }
     if (!task.sourceMessageId) throw new Error("The source email is not available");
     const connection = this.catalog.getBotConnection(task.connectionId);
     if (!connection?.active) throw new Error("The HQBase connection is not active");
@@ -156,7 +164,6 @@ export class HQBotAgent extends WorkspaceAgentBase implements MailRealtimeHost {
       this.completeTask(task.id, input.draft, duplicate.id);
       return { messageId: duplicate.id, duplicate: true };
     }
-    this.tasks.setStatus(task.id, "replying");
     const reply = await replyToMessage(config, source.id, input.draft);
     this.completeTask(task.id, input.draft, reply.id);
     return { messageId: reply.id, duplicate: false };

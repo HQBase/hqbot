@@ -1,13 +1,16 @@
+import type { ChatResponseResult } from "@cloudflare/think";
 import type { LanguageModel, LanguageModelUsage, ModelMessage } from "ai";
 import { describe, expect, it, vi } from "vitest";
 
 import { estimateModelUsage } from "../../src/runtime/costs";
 import { createHQBotModel } from "../../src/runtime/models";
 import { activeTools, routeTurn } from "../../src/runtime/routing";
+import { finishTeammateResponse } from "../../src/runtime/turn";
 import {
   DEEPSEEK_FALLBACK_MODEL_ID,
   GLM_PRIMARY_MODEL_ID,
-  type HQBotModelId
+  type HQBotModelId,
+  type WorkspaceAgentRpc
 } from "../../src/runtime/types";
 
 function userMessage(text: string): ModelMessage[] {
@@ -29,6 +32,15 @@ function usage(): LanguageModelUsage {
     },
     totalTokens: 1_100
   };
+}
+
+function chatResponse(text: string, status: ChatResponseResult["status"] = "completed") {
+  return {
+    continuation: false,
+    message: { id: "response", role: "assistant", parts: [{ type: "text", text }] },
+    requestId: "request",
+    status
+  } satisfies ChatResponseResult;
 }
 
 describe("turn routing", () => {
@@ -99,6 +111,45 @@ describe("turn routing", () => {
 
     expect(route).toBe("direct");
     expect(tools).toEqual(["delegate_to_teammates"]);
+  });
+});
+
+describe("turn completion", () => {
+  it("returns native realtime chat to idle with the assistant summary", async () => {
+    const markInteraction = vi.fn();
+    const workspaceAgent = { markInteraction } as unknown as WorkspaceAgentRpc;
+
+    await finishTeammateResponse({
+      botId: "researcher",
+      metadata: null,
+      replyApproval: null,
+      result: chatResponse("Finished the research.\nTwo sources agree."),
+      workspaceAgent
+    });
+
+    expect(markInteraction).toHaveBeenCalledWith(
+      "researcher",
+      "Finished the research. Two sources agree.",
+      "idle"
+    );
+  });
+
+  it("fails a completed email task when no reply approval was produced", async () => {
+    const failTask = vi.fn();
+    const workspaceAgent = { failTask } as unknown as WorkspaceAgentRpc;
+
+    await finishTeammateResponse({
+      botId: "researcher",
+      metadata: { source: "email", taskId: "task-1" },
+      replyApproval: null,
+      result: chatResponse("I researched the request but did not draft the reply."),
+      workspaceAgent
+    });
+
+    expect(failTask).toHaveBeenCalledWith(
+      "task-1",
+      "The email task finished without producing a reply for approval"
+    );
   });
 });
 

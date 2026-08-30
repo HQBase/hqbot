@@ -87,9 +87,14 @@ export interface WorkspaceAgentRpc {
   checkSpendPolicy(botId: string, taskId: string | null): Promise<SpendPolicyDto>;
   recordUsage(usage: ModelUsageDto): Promise<void>;
   recordResourceUsage(usage: ResourceUsageDto): Promise<void>;
-  markInteraction(botId: string, occurredAt: string): Promise<void>;
+  markInteraction(
+    botId: string,
+    occurredAtOrMessage: string,
+    status?: "working" | "idle"
+  ): Promise<void>;
   requestReplyApproval(taskId: string, draft: string): Promise<boolean>;
-  recordReplyDecision(taskId: string, approved: boolean): Promise<void>;
+  claimApprovedReply(taskId: string, draft: string): Promise<boolean>;
+  rejectReply(taskId: string): Promise<boolean>;
   completeTask(taskId: string, result: string, replyMessageId: string | null): Promise<void>;
   failTask(taskId: string, error: string): Promise<void>;
   sendApprovedReply(input: SendApprovedReplyInput): Promise<SendApprovedReplyResult>;

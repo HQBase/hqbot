@@ -80,6 +80,40 @@ describe("workspace reply approval state", () => {
     expect(tasks.rejectReply("task-1")).toBe(false);
   });
 
+  it("claims only the exact approved draft", () => {
+    database
+      .prepare("INSERT INTO tasks VALUES (?, 'email', 'awaiting_approval', ?, NULL, ?)")
+      .run("task-1", "Current draft", new Date().toISOString());
+
+    expect(tasks.claimApprovedReply("task-1", "Older draft")).toBe(false);
+    expect(tasks.claimApprovedReply("task-1", "Current draft")).toBe(true);
+    expect(database.prepare("SELECT status, result FROM tasks WHERE id = ?").get("task-1")).toEqual(
+      {
+        status: "replying",
+        result: "Current draft"
+      }
+    );
+    expect(tasks.claimApprovedReply("task-1", "Current draft")).toBe(false);
+  });
+
+  it("lets only one side win a stop-versus-approve race", () => {
+    const insert = database.prepare(
+      "INSERT INTO tasks VALUES (?, 'email', 'awaiting_approval', ?, NULL, ?)"
+    );
+    insert.run("stop-wins", "Draft one", new Date().toISOString());
+    insert.run("approve-wins", "Draft two", new Date().toISOString());
+
+    expect(tasks.cancelTask("stop-wins")).toBe(true);
+    expect(tasks.claimApprovedReply("stop-wins", "Draft one")).toBe(false);
+
+    expect(tasks.claimApprovedReply("approve-wins", "Draft two")).toBe(true);
+    expect(tasks.cancelTask("approve-wins")).toBe(false);
+    expect(database.prepare("SELECT status FROM tasks ORDER BY id").all()).toEqual([
+      { status: "replying" },
+      { status: "cancelled" }
+    ]);
+  });
+
   it("does not reopen a terminal task for a stale approval", () => {
     database
       .prepare("INSERT INTO tasks VALUES (?, 'email', 'completed', ?, NULL, ?)")

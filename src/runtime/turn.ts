@@ -1,6 +1,7 @@
-import type { TurnConfig, TurnContext } from "@cloudflare/think";
+import type { ChatResponseResult, TurnConfig, TurnContext } from "@cloudflare/think";
 
 import { mentionedTeammates } from "../domain/collaboration";
+import type { ReplyApproval } from "./approval";
 import { delegationInstructions } from "./collaboration";
 import { activeTools, latestUserText, routeTurn, teammateInstructions } from "./routing";
 import type { WorkspaceAgentRpc } from "./types";
@@ -18,6 +19,57 @@ export function safeTaskId(value: string): string {
   const taskId = value.trim();
   if (taskId.length === 0 || taskId.length > 200) throw new Error("Invalid task ID");
   return taskId;
+}
+
+function responseText(result: ChatResponseResult): string {
+  return result.message.parts
+    .filter(
+      (part): part is Extract<(typeof result.message.parts)[number], { type: "text" }> =>
+        part.type === "text"
+    )
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
+export async function finishTeammateResponse(input: {
+  botId: string;
+  metadata?: Record<string, unknown> | null;
+  replyApproval: ReplyApproval | null;
+  result: ChatResponseResult;
+  workspaceAgent: WorkspaceAgentRpc;
+}): Promise<void> {
+  const taskId = input.metadata?.taskId;
+  const source = input.metadata?.source;
+  const text = responseText(input.result);
+  if (typeof taskId !== "string") {
+    const summary =
+      input.result.status === "completed"
+        ? text.replace(/\s+/gu, " ") || "Chat completed"
+        : input.result.status === "error"
+          ? "Chat failed"
+          : "Chat stopped";
+    await input.workspaceAgent.markInteraction(input.botId, summary, "idle");
+    return;
+  }
+  if (source === "email") {
+    if (input.replyApproval) {
+      await input.workspaceAgent.requestReplyApproval(taskId, input.replyApproval.draft);
+    } else if (input.result.status === "error") {
+      await input.workspaceAgent.failTask(taskId, input.result.error ?? "The email task failed");
+    } else if (input.result.status === "completed") {
+      await input.workspaceAgent.failTask(
+        taskId,
+        "The email task finished without producing a reply for approval"
+      );
+    }
+    return;
+  }
+  if (input.result.status === "error") {
+    await input.workspaceAgent.failTask(taskId, input.result.error ?? "The task failed");
+  } else if (input.result.status === "completed" && text) {
+    await input.workspaceAgent.completeTask(taskId, text, null);
+  }
 }
 
 export async function prepareTeammateTurn(input: PrepareTeammateTurnInput): Promise<TurnConfig> {

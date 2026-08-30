@@ -12,6 +12,7 @@ import {
 } from "../services/mail";
 
 export interface MailRealtimeHost {
+  waitUntil(promise: Promise<void>): void;
   getStoredConnection(id: string): StoredBotConnection | null;
   saveConnectionState(
     id: string,
@@ -122,14 +123,14 @@ export class MailRealtime {
       if (typeof event.data !== "string") return;
       const message = parseMailEvent(event.data);
       if (message?.topic === "messages" || message?.topic === "mailboxes") {
-        void this.host.queueReconcile(connectionId);
+        this.host.waitUntil(this.host.queueReconcile(connectionId));
       }
     });
     socket.addEventListener("close", () => {
       if (this.sockets.get(connectionId) !== socket) return;
       this.sockets.delete(connectionId);
       this.host.saveConnectionState(connectionId, "disconnected");
-      void this.host.scheduleReconnect(connectionId);
+      this.host.waitUntil(this.host.scheduleReconnect(connectionId));
     });
     socket.addEventListener("error", () => socket.close(1011, "HQBase event connection failed"));
   }

@@ -154,6 +154,15 @@ export class WorkspaceTasks {
     return rows.length > 0;
   }
 
+  claimApprovedReply(taskId: string, draft: string): boolean {
+    const rows = this.sql<{ id: string }>`UPDATE tasks
+      SET status = 'replying', updated_at = ${now()}
+      WHERE id = ${taskId} AND source = 'email' AND status = 'awaiting_approval'
+        AND result = ${draft}
+      RETURNING id`;
+    return rows.length > 0;
+  }
+
   addActivity(taskId: string, phase: string, title: string, detail: string | null = null): void {
     const id = `${taskId}:${phase}`;
     this.sql`INSERT OR IGNORE INTO activity (id, task_id, phase, title, detail, created_at)
@@ -183,10 +192,15 @@ export class WorkspaceTasks {
     this.addActivity(taskId, "failed", "Task stopped", message);
   }
 
-  cancelTask(taskId: string): void {
-    this.sql`UPDATE tasks SET status = 'cancelled', error = NULL, updated_at = ${now()}
-      WHERE id = ${taskId}`;
+  cancelTask(taskId: string): boolean {
+    const rows = this.sql<{ id: string }>`UPDATE tasks
+      SET status = 'cancelled', error = NULL, updated_at = ${now()}
+      WHERE id = ${taskId}
+        AND status NOT IN ('replying', 'cancelled', 'completed', 'failed')
+      RETURNING id`;
+    if (rows.length === 0) return false;
     this.addActivity(taskId, "cancelled", "Task stopped", "The owner stopped this work.");
+    return true;
   }
 
   recordUsage(input: UsageInput): void {

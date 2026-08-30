@@ -145,8 +145,10 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
   if (request.method === "POST" && stop?.[0]) {
     const current = await agent.getTask(stop[0]);
     if (!current) return json({ error: "Task not found" }, 404);
+    if (!(await agent.cancelTask(current.id))) {
+      return json({ error: "This task can no longer be stopped" }, 409);
+    }
     await (await teammate(env, current.botId)).cancelTask(current.id);
-    await agent.cancelTask(current.id);
     return json({ stopped: true });
   }
 
