@@ -91,7 +91,7 @@ function AccessGate({ onUnlock }: { onUnlock: (token: string) => void }) {
         <div className="brand-mark large">
           <Bot size={27} strokeWidth={1.7} />
         </div>
-        <p className="eyebrow">Your Cloudflare account</p>
+        <p className="eyebrow">Self-hosted in your Cloudflare account</p>
         <h1>Open HQBot</h1>
         <p className="access-copy">
           Your teammates, computers, connections, memory, and work history are self-hosted.
@@ -268,10 +268,10 @@ export function App() {
           </div>
           <div>
             <strong>HQBot</strong>
-            <span>Your AI team</span>
+            <span>AI teammates</span>
           </div>
           <span className="live-pill">
-            <i /> LIVE
+            <i /> Connected
           </span>
         </div>
 
@@ -284,11 +284,11 @@ export function App() {
             setPrompt("")
           }}
         >
-          <Plus size={16} /> New agent
+          <Plus size={16} /> New teammate
         </button>
 
         <nav className="roster" aria-label="AI teammates">
-          <p className="nav-label">Your team</p>
+          <p className="nav-label">Teammates</p>
           <div className="bot-list">
             {snapshot.bots.map((teammate) => {
               const active = teammate.id === selectedBot?.id
@@ -354,7 +354,7 @@ export function App() {
         <header className="conversation-head">
           <div>
             <p className="eyebrow">{selectedBot?.title ?? "Create a teammate in chat"}</p>
-            <h1>{selectedBot?.name ?? "New agent"}</h1>
+            <h1>{selectedBot?.name ?? "New teammate"}</h1>
           </div>
           {selectedBot ? (
             <div className={`status-chip ${working ? "working" : ""}`}>
@@ -479,7 +479,7 @@ export function App() {
             placeholder={
               selectedBot
                 ? `Message ${selectedBot.name}…`
-                : "What do you want this agent around for?"
+                : "What do you want this teammate around for?"
             }
             rows={3}
           />
@@ -512,9 +512,9 @@ export function App() {
           <header>
             <div>
               <Monitor size={16} />
-              <span>{selectedBot ? `${selectedBot.name}'s computer` : "Agent computer"}</span>
+              <span>{selectedBot ? `${selectedBot.name}'s computer` : "Teammate computer"}</span>
             </div>
-            <span className="cloud-label">CLOUDFLARE</span>
+            <span className="cloud-label">YOUR CLOUDFLARE</span>
           </header>
           <div className="browser-chrome">
             <div className="browser-top">
@@ -606,7 +606,7 @@ export function App() {
               <span>
                 <Plus size={18} />
               </span>
-              <strong>{selectedBot ? "Connect a tool" : "Choose an agent"}</strong>
+              <strong>{selectedBot ? "Connect a tool" : "Choose a teammate"}</strong>
               <p>
                 {selectedBot
                   ? "Give this teammate its own HQBase mailbox connection."
