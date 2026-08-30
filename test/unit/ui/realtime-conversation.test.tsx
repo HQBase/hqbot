@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BotTeammate } from "../../../src/domain/types";
 import { RealtimeConversation } from "../../../src/ui/components/realtime-conversation";
 import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
+import { InitialMessageAdmissionUnknownError } from "../../../src/ui/lib/initial-message";
 import { interact, renderComponent } from "./render.tsx";
 
 const submitInitialMessage = vi.hoisted(() => vi.fn(async () => undefined));
@@ -37,7 +38,7 @@ vi.mock("agents/react", () => ({
 vi.mock("@cloudflare/think/react", () => ({
   useAgentChat: () => chat
 }));
-vi.mock("../../../src/ui/hooks/use-workspace", async (importOriginal) => ({
+vi.mock("../../../src/ui/lib/initial-message", async (importOriginal) => ({
   ...(await importOriginal()),
   submitInitialMessage
 }));
@@ -228,6 +229,60 @@ describe("RealtimeConversation", () => {
     expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(
       "The connection was lost"
     );
+    await view.unmount();
+  });
+
+  it("keeps an uncertain first message until its fixed-ID broadcast arrives", async () => {
+    chat.messages = [];
+    submitInitialMessage.mockRejectedValueOnce(
+      new InitialMessageAdmissionUnknownError(new TypeError("The response was lost"))
+    );
+    const takePendingInitialMessage = vi.fn(() => "hey how are you?");
+    const onPromptChange = vi.fn();
+    const controller = {
+      detailsOpen: true,
+      error: "",
+      load: vi.fn(async () => undefined),
+      pendingInitialMessage: { botId: teammate.id, text: "hey how are you?" },
+      sending: false,
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] },
+      takePendingInitialMessage
+    } as unknown as WorkspaceController;
+    const content = () => (
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={onPromptChange}
+      />
+    );
+    const view = await renderComponent(content());
+
+    expect(takePendingInitialMessage).not.toHaveBeenCalled();
+    expect(onPromptChange).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain("Waiting to confirm your message");
+
+    chat.messages = [
+      {
+        id: `chat:first:${teammate.id}`,
+        role: "user",
+        parts: [{ type: "text", text: "hey how are you?" }]
+      }
+    ];
+    await view.rerender(content());
+
+    expect(takePendingInitialMessage).toHaveBeenCalledWith(teammate.id);
+    expect(submitInitialMessage).toHaveBeenCalledTimes(1);
+    expect(onPromptChange).not.toHaveBeenCalled();
+    expect(
+      view.container.querySelector('[role="log"]')?.textContent?.match(/hey how are you\?/gu)
+    ).toHaveLength(1);
+    expect(view.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(view.container.textContent).not.toContain("Waiting to confirm your message");
     await view.unmount();
   });
 

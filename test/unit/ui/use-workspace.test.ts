@@ -5,10 +5,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEEPSEEK_FALLBACK_MODEL_ID, GLM_PRIMARY_MODEL_ID } from "../../../src/domain/models";
 import {
   createTeammate,
-  submitInitialMessage,
   useWorkspace,
   type WorkspaceController
 } from "../../../src/ui/hooks/use-workspace";
+import {
+  InitialMessageAdmissionUnknownError,
+  submitInitialMessage
+} from "../../../src/ui/lib/initial-message";
 import { interact, renderComponent } from "./render.tsx";
 
 vi.mock("../../../src/ui/hooks/use-workspace-events", () => ({
@@ -148,6 +151,19 @@ describe("new teammate chat", () => {
     }
   });
 
+  it("keeps delivery uncertain after both idempotent responses are lost", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("The first response was lost"))
+      .mockRejectedValueOnce(new TypeError("The retry response was lost"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(submitInitialMessage("bot-2", "hey")).rejects.toBeInstanceOf(
+      InitialMessageAdmissionUnknownError
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("selects the new teammate before the live chat sends the first message", async () => {
     const teammate = { id: "bot-3", name: "Teammate" };
     const emptySnapshot = { archivedBots: [], bots: [], realtime: { url: null }, tasks: [] };
@@ -243,6 +259,31 @@ describe("teammate model", () => {
       "/api/bots/bot-1/stop",
       expect.objectContaining({ method: "POST" })
     );
+    await view.unmount();
+  });
+
+  it("clears an optimistic first message after its teammate stops", async () => {
+    const bot = { id: "bot-stop", name: "Teammate", modelId: GLM_PRIMARY_MODEL_ID };
+    const empty = { archivedBots: [], bots: [], realtime: { url: null }, tasks: [] };
+    const selected = { ...empty, bots: [bot], selectedBot: bot };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(empty))
+      .mockResolvedValueOnce(jsonResponse({ teammate: bot }, 201))
+      .mockResolvedValueOnce(jsonResponse(selected))
+      .mockResolvedValueOnce(jsonResponse({ stopped: true }))
+      .mockResolvedValueOnce(jsonResponse(selected));
+    vi.stubGlobal("fetch", fetchMock);
+    const view = await renderComponent(createElement(WorkspaceHarness));
+
+    await controller().send("hey");
+    await interact();
+    expect(controller().pendingInitialMessage).toEqual({ botId: bot.id, text: "hey" });
+
+    await controller().stopSelectedBot();
+    await interact();
+
+    expect(controller().pendingInitialMessage).toBeNull();
     await view.unmount();
   });
 

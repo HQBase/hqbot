@@ -14,20 +14,6 @@ export async function createTeammate(message: string): Promise<BotTeammate> {
   return created.teammate;
 }
 
-export async function submitInitialMessage(botId: string, message: string): Promise<void> {
-  const submit = () =>
-    api(`/api/bots/${botId}/messages/initial`, {
-      method: "POST",
-      body: JSON.stringify({ prompt: message })
-    });
-  try {
-    await submit();
-  } catch (cause) {
-    if (!(cause instanceof TypeError)) throw cause;
-    await submit();
-  }
-}
-
 export function useWorkspace(onSignedOut: () => void) {
   const [snapshot, setSnapshot] = useState<WorkspaceView | null>(null);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -224,6 +210,7 @@ export function useWorkspace(onSignedOut: () => void) {
     setError("");
     try {
       await api(`/api/bots/${selectedBot.id}/stop`, { method: "POST" });
+      takePendingInitialMessage(selectedBot.id);
       await load(selectedBot.id);
     } catch (cause) {
       setError(errorMessage(cause, "The teammate could not be stopped"));

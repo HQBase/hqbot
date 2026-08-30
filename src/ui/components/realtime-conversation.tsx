@@ -4,7 +4,8 @@ import { useAgent } from "agents/react";
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import type { BotTeammate } from "../../domain/types";
-import { submitInitialMessage, type WorkspaceController } from "../hooks/use-workspace";
+import type { WorkspaceController } from "../hooks/use-workspace";
+import { InitialMessageAdmissionUnknownError, submitInitialMessage } from "../lib/initial-message";
 import { integrationActionDetails, type TeammateIntegrationClient } from "../lib/mcp";
 import { AgentMessage, type AgentPart, ThinkingIndicator } from "./chat/agent-message";
 import { ApprovalCard } from "./chat/approval-card";
@@ -37,7 +38,6 @@ export function RealtimeConversation({
   const [localError, setLocalError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const initialSubmissionRef = useRef<string | null>(null);
-
   const refreshApprovals = useCallback(async () => {
     try {
       setApprovals(await agent.stub.listIntegrationApprovals());
@@ -45,13 +45,11 @@ export function RealtimeConversation({
       // A reconnect or terminal close will retry when chat becomes ready.
     }
   }, [agent.stub]);
-
   useEffect(() => {
     if (chat.status !== "ready") return;
     void refreshApprovals();
     void controller.load(bot.id);
   }, [bot.id, chat.status, controller.load, refreshApprovals]);
-
   const queuedInitialMessage = controller.pendingInitialMessage?.botId === bot.id;
   useEffect(() => {
     if (!queuedInitialMessage) return;
@@ -68,6 +66,10 @@ export function RealtimeConversation({
       } catch (cause) {
         if (!active) return;
         initialSubmissionRef.current = null;
+        if (cause instanceof InitialMessageAdmissionUnknownError) {
+          setLocalError(cause.message);
+          return;
+        }
         const text = controller.takePendingInitialMessage(bot.id);
         if (text) onPromptChange(text);
         setLocalError(cause instanceof Error ? cause.message : "The message could not be sent");
@@ -84,11 +86,11 @@ export function RealtimeConversation({
     onPromptChange,
     queuedInitialMessage
   ]);
-
   const initialMessageId = `chat:first:${bot.id}`;
   useEffect(() => {
     if (queuedInitialMessage && chat.messages.some((message) => message.id === initialMessageId)) {
       controller.takePendingInitialMessage(bot.id);
+      setLocalError("");
     }
   }, [
     bot.id,
@@ -97,7 +99,6 @@ export function RealtimeConversation({
     initialMessageId,
     queuedInitialMessage
   ]);
-
   const approvalRevision = approvals
     .map((approval) => `${approval.executionId}:${approval.seq}`)
     .join(":");

@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 
 export async function renderComponent(content: ReactNode): Promise<{
   container: HTMLDivElement;
+  rerender: (content: ReactNode) => Promise<void>;
   unmount: () => Promise<void>;
 }> {
   const container = document.createElement("div");
@@ -12,6 +13,10 @@ export async function renderComponent(content: ReactNode): Promise<{
   await flushEffects();
   return {
     container,
+    rerender: async (next) => {
+      flushSync(() => root.render(next));
+      await flushEffects();
+    },
     unmount: async () => {
       flushSync(() => root.unmount());
     }
