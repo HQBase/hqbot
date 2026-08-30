@@ -306,6 +306,16 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     return this.sql<{ id: string }>`SELECT id FROM bots WHERE id = ${id}`.length > 0
   }
 
+  listBots(): BotTeammate[] {
+    const connectionRows = this.sql<Row>`SELECT * FROM connections ORDER BY created_at ASC`
+    const connections = new Map(
+      connectionRows.map((row) => [text(row, "bot_id"), publicConnection(row)]),
+    )
+    return this.sql<Row>`SELECT * FROM bots ORDER BY pinned DESC, created_at ASC`.map((row) =>
+      botFromRow(row, connections.get(text(row, "id")) ?? null),
+    )
+  }
+
   getBot(id: string): BotTeammate | null {
     const rows = this.sql<Row>`SELECT * FROM bots WHERE id = ${id}`
     if (!rows[0]) return null
@@ -593,13 +603,7 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
   }
 
   getSnapshot(botId?: string): WorkspaceSnapshot {
-    const connectionRows = this.sql<Row>`SELECT * FROM connections ORDER BY created_at ASC`
-    const connections = new Map(
-      connectionRows.map((row) => [text(row, "bot_id"), publicConnection(row)]),
-    )
-    const bots = this.sql<Row>`SELECT * FROM bots ORDER BY pinned DESC, created_at ASC`.map((row) =>
-      botFromRow(row, connections.get(text(row, "id")) ?? null),
-    )
+    const bots = this.listBots()
     const selectedBot = bots.find((candidate) => candidate.id === botId) ?? bots[0] ?? null
     const tasks = selectedBot
       ? this.sql<Row>`SELECT * FROM tasks WHERE bot_id = ${selectedBot.id}

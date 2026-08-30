@@ -2,6 +2,7 @@ import { getAgentByName } from "agents"
 
 import { HQBotAgent } from "./agent"
 import { defineBot } from "./domain/ai"
+import { mentionedTeammates } from "./domain/collaboration"
 import { contentTypeForUpload } from "./domain/files"
 import type { BotFile, BotRoutine, StoredBotConnection, WorkflowInput } from "./domain/types"
 import { decryptConnectionToken, encryptConnectionToken } from "./services/crypto"
@@ -453,11 +454,13 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     await agent.createChatTask(taskId, botId, prompt)
     const attachedFiles = await agent.attachFiles(botId, taskId, fileIds(body))
     const workflowPrompt = await promptWithFiles(env, prompt, attachedFiles)
+    const collaborators = mentionedTeammates(prompt, botId, await agent.listBots())
     const workflowId = await dispatch(env, {
       taskId,
       botId,
       source: "chat",
       prompt: workflowPrompt,
+      collaboratorIds: collaborators.map((candidate) => candidate.id),
     })
     return json({ taskId, workflowId }, 202)
   }

@@ -133,6 +133,7 @@ export interface WorkflowInput {
   connectionId?: string
   messageId?: string
   prompt?: string
+  collaboratorIds?: string[]
 }
 
 export interface BotDefinition {

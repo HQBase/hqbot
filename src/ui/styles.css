@@ -793,6 +793,33 @@ a:focus-visible {
   line-height: 1.5;
 }
 
+.mention-hints {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 12px 0;
+}
+
+.mention-hints > span {
+  margin-right: 2px;
+  color: #666;
+  font-size: 8px;
+}
+
+.mention-hints button {
+  border: 1px solid #2d2d2d;
+  border-radius: 999px;
+  background: #171717;
+  color: #858585;
+  padding: 4px 7px;
+  cursor: pointer;
+  font-size: 8px;
+}
+
+.mention-hints button:hover {
+  color: #ddd;
+}
+
 .attached-files {
   display: flex;
   gap: 6px;

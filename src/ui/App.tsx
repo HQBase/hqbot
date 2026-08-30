@@ -658,6 +658,25 @@ export function App() {
 
         <form className="composer" onSubmit={submitMessage}>
           {error ? <div className="composer-error">{error}</div> : null}
+          {selectedBot && snapshot.bots.some((bot) => bot.id !== selectedBot.id && !bot.hidden) ? (
+            <div className="mention-hints">
+              <span>Collaborate</span>
+              {snapshot.bots
+                .filter((bot) => bot.id !== selectedBot.id && !bot.hidden)
+                .slice(0, 4)
+                .map((bot) => (
+                  <button
+                    type="button"
+                    key={bot.id}
+                    onClick={() =>
+                      setPrompt((current) => `${current}${current ? " " : ""}@${bot.name} `)
+                    }
+                  >
+                    @{bot.name}
+                  </button>
+                ))}
+            </div>
+          ) : null}
           {attachedFiles.length > 0 ? (
             <div className="attached-files">
               {attachedFiles.map((file) => (

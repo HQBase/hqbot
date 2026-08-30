@@ -4,7 +4,7 @@ import { getAgentByName } from "agents"
 import type { HQBotAgent } from "./agent"
 import { needsReplyApproval } from "./domain/approval"
 import type { ResearchPlan, ResearchResult, WorkflowInput } from "./domain/types"
-import { planResearch, writeResult } from "./services/ai"
+import { planResearch, writeResult, writeSpecialistNote } from "./services/ai"
 import { researchWithBrowser } from "./services/browser"
 import { decryptConnectionToken } from "./services/crypto"
 import {
@@ -119,6 +119,46 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
         )
       })
 
+      const collaborators = input.collaboratorIds?.length
+        ? await step.do("load collaborators", async () => {
+            const ids = new Set(input.collaboratorIds)
+            return (await agent.listBots()).filter((candidate) => ids.has(candidate.id))
+          })
+        : []
+
+      const specialistNotes: string[] = []
+      for (const teammate of collaborators) {
+        const note = await step.do(
+          `consult ${teammate.id}`,
+          { retries: { limit: 2, delay: "5 seconds", backoff: "linear" }, timeout: "2 minutes" },
+          async () =>
+            writeSpecialistNote(
+              this.env.AI,
+              this.env.HQBOT_MODEL_ID,
+              this.env.HQBOT_FALLBACK_MODEL_ID,
+              prompt,
+              research.sources,
+              teammate,
+            ),
+        )
+        specialistNotes.push(`${teammate.name} (${teammate.title}):\n${note}`)
+      }
+
+      if (collaborators.length > 0) {
+        await step.do("show collaboration", async () => {
+          await agent.addActivity(
+            input.taskId,
+            "collaboration",
+            "Teammates consulted",
+            collaborators.map((candidate) => candidate.name).join(", "),
+          )
+        })
+      }
+
+      const teamPrompt = specialistNotes.length
+        ? `${prompt}\n\nSPECIALIST NOTES\n${specialistNotes.join("\n\n")}`
+        : prompt
+
       const result = await step.do(
         "write answer",
         { retries: { limit: 3, delay: "5 seconds", backoff: "exponential" }, timeout: "2 minutes" },
@@ -127,7 +167,7 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
             this.env.AI,
             this.env.HQBOT_MODEL_ID,
             this.env.HQBOT_FALLBACK_MODEL_ID,
-            prompt,
+            teamPrompt,
             research.sources,
           ),
       )
