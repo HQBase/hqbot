@@ -1,9 +1,12 @@
 import {
   ArrowUp,
   Bot,
+  CalendarClock,
   Check,
   ChevronRight,
   CircleAlert,
+  Copy,
+  FileText,
   Globe2,
   Inbox,
   KeyRound,
@@ -11,17 +14,31 @@ import {
   LoaderCircle,
   LockKeyhole,
   Monitor,
+  Paperclip,
+  Pause,
+  Pencil,
+  Pin,
+  Play,
   Plus,
   RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  Trash2,
   X,
 } from "lucide-react"
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react"
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
-import type { BotTask, BotTeammate, WorkspaceSnapshot } from "../domain/types"
+import type { BotFile, BotRoutine, BotTask, BotTeammate, WorkspaceSnapshot } from "../domain/types"
 
 const tokenKey = "hqbot-owner-token"
 const newAgentId = "__new_agent__"
@@ -30,7 +47,7 @@ const terminalStatuses = new Set(["completed", "failed"])
 async function api<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set("Authorization", `Bearer ${token}`)
-  if (init?.body) headers.set("Content-Type", "application/json")
+  if (typeof init?.body === "string") headers.set("Content-Type", "application/json")
   const response = await fetch(path, { ...init, headers })
   const body = (await response.json()) as T & { error?: string }
   if (!response.ok) throw new Error(body.error ?? `Request failed with status ${response.status}`)
@@ -52,6 +69,18 @@ function relativeTime(value: string): string {
   const minutes = Math.round(seconds / 60)
   if (minutes < 60) return `${minutes}m ago`
   return `${Math.round(minutes / 60)}h ago`
+}
+
+function formatInterval(minutes: number): string {
+  if (minutes % 1_440 === 0) {
+    const days = minutes / 1_440
+    return `${days} day${days === 1 ? "" : "s"}`
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60
+    return `${hours} hour${hours === 1 ? "" : "s"}`
+  }
+  return `${minutes} minutes`
 }
 
 function statusLabel(task: BotTask | null): string {
@@ -133,7 +162,14 @@ export function App() {
   const [polling, setPolling] = useState(false)
   const [approving, setApproving] = useState<string | null>(null)
   const [connectOpen, setConnectOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [routineOpen, setRoutineOpen] = useState(false)
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
+  const [memoryInput, setMemoryInput] = useState("")
+  const [savingMemory, setSavingMemory] = useState(false)
+  const [attachedFiles, setAttachedFiles] = useState<BotFile[]>([])
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const load = useCallback(
     async (requestedBotId?: string | null) => {
@@ -218,9 +254,13 @@ export function App() {
       } else {
         const created = await api<{ taskId: string }>(`/api/bots/${selectedBot.id}/tasks`, token, {
           method: "POST",
-          body: JSON.stringify({ prompt: value }),
+          body: JSON.stringify({
+            prompt: value,
+            fileIds: attachedFiles.map((file) => file.id),
+          }),
         })
         setPrompt("")
+        setAttachedFiles([])
         setSelectedTaskId(created.taskId)
         await load(selectedBot.id)
       }
@@ -257,6 +297,84 @@ export function App() {
     } finally {
       setApproving(null)
     }
+  }
+
+  async function addMemory(event: FormEvent) {
+    event.preventDefault()
+    if (!selectedBot || !memoryInput.trim()) return
+    setSavingMemory(true)
+    try {
+      await api(`/api/bots/${selectedBot.id}/memories`, token, {
+        method: "POST",
+        body: JSON.stringify({ content: memoryInput.trim() }),
+      })
+      setMemoryInput("")
+      await load(selectedBot.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Memory could not be saved")
+    } finally {
+      setSavingMemory(false)
+    }
+  }
+
+  async function deleteMemory(memoryId: string) {
+    if (!selectedBot) return
+    await api(`/api/bots/${selectedBot.id}/memories/${memoryId}`, token, { method: "DELETE" })
+    await load(selectedBot.id)
+  }
+
+  async function updateRoutine(routine: BotRoutine, active: boolean) {
+    if (!selectedBot) return
+    await api(`/api/bots/${selectedBot.id}/routines/${routine.id}`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    })
+    await load(selectedBot.id)
+  }
+
+  async function runRoutine(routine: BotRoutine) {
+    if (!selectedBot) return
+    const created = await api<{ taskId: string }>(
+      `/api/bots/${selectedBot.id}/routines/${routine.id}/run`,
+      token,
+      { method: "POST" },
+    )
+    setSelectedTaskId(created.taskId)
+    await load(selectedBot.id)
+  }
+
+  async function deleteRoutine(routineId: string) {
+    if (!selectedBot) return
+    await api(`/api/bots/${selectedBot.id}/routines/${routineId}`, token, { method: "DELETE" })
+    await load(selectedBot.id)
+  }
+
+  async function uploadFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!selectedBot || !file) return
+    setUploadingFile(true)
+    try {
+      const form = new FormData()
+      form.set("file", file)
+      const uploaded = await api<{ file: BotFile }>(`/api/bots/${selectedBot.id}/files`, token, {
+        method: "POST",
+        body: form,
+      })
+      setAttachedFiles((current) => [...current, uploaded.file].slice(-5))
+      await load(selectedBot.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The file could not be uploaded")
+    } finally {
+      setUploadingFile(false)
+    }
+  }
+
+  async function deleteFile(file: BotFile) {
+    if (!selectedBot) return
+    await api(`/api/bots/${selectedBot.id}/files/${file.id}`, token, { method: "DELETE" })
+    setAttachedFiles((current) => current.filter((candidate) => candidate.id !== file.id))
+    await load(selectedBot.id)
   }
 
   function lockWorkspace() {
@@ -300,6 +418,7 @@ export function App() {
             setSelectedBotId(newAgentId)
             setSelectedTaskId(null)
             setPrompt("")
+            setAttachedFiles([])
           }}
         >
           <Plus size={16} /> New teammate
@@ -308,30 +427,37 @@ export function App() {
         <nav className="roster" aria-label="AI teammates">
           <p className="nav-label">Teammates</p>
           <div className="bot-list">
-            {snapshot.bots.map((teammate) => {
-              const active = teammate.id === selectedBot?.id
-              return (
-                <button
-                  className={active ? "bot-row active" : "bot-row"}
-                  key={teammate.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedBotId(teammate.id)
-                    setSelectedTaskId(null)
-                    void load(teammate.id)
-                  }}
-                >
-                  <span className="avatar">{initials(teammate.name)}</span>
-                  <span>
-                    <strong>{teammate.name}</strong>
-                    <small>
-                      {teammate.connection ? teammate.connection.mailboxAddress : teammate.title}
-                    </small>
-                  </span>
-                  <span className="online-dot" />
-                </button>
-              )
-            })}
+            {snapshot.bots
+              .filter((teammate) => !teammate.hidden || teammate.id === selectedBot?.id)
+              .map((teammate) => {
+                const active = teammate.id === selectedBot?.id
+                return (
+                  <button
+                    className={active ? "bot-row active" : "bot-row"}
+                    key={teammate.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedBotId(teammate.id)
+                      setSelectedTaskId(null)
+                      setAttachedFiles([])
+                      void load(teammate.id)
+                    }}
+                  >
+                    <span className="avatar">{initials(teammate.name)}</span>
+                    <span>
+                      <strong>{teammate.name}</strong>
+                      <small>
+                        {teammate.connection ? teammate.connection.mailboxAddress : teammate.title}
+                      </small>
+                    </span>
+                    {teammate.pinned ? (
+                      <Pin className="bot-pin" size={12} />
+                    ) : (
+                      <span className="online-dot" />
+                    )}
+                  </button>
+                )
+              })}
           </div>
 
           {selectedBot ? <p className="nav-label tasks-label">Recent work</p> : null}
@@ -375,13 +501,18 @@ export function App() {
             <h1>{selectedBot?.name ?? "New teammate"}</h1>
           </div>
           {selectedBot ? (
-            <div className={`status-chip ${working ? "working" : ""}`}>
-              {working ? (
-                <LoaderCircle className="spin" size={14} />
-              ) : (
-                <span className="status-dot" />
-              )}
-              {statusLabel(selectedTask)}
+            <div className="conversation-actions">
+              <div className={`status-chip ${working ? "working" : ""}`}>
+                {working ? (
+                  <LoaderCircle className="spin" size={14} />
+                ) : (
+                  <span className="status-dot" />
+                )}
+                {statusLabel(selectedTask)}
+              </div>
+              <button type="button" onClick={() => setProfileOpen(true)} aria-label="Edit teammate">
+                <Pencil size={14} />
+              </button>
             </div>
           ) : null}
         </header>
@@ -527,6 +658,22 @@ export function App() {
 
         <form className="composer" onSubmit={submitMessage}>
           {error ? <div className="composer-error">{error}</div> : null}
+          {attachedFiles.length > 0 ? (
+            <div className="attached-files">
+              {attachedFiles.map((file) => (
+                <span key={file.id}>
+                  <FileText size={12} /> {file.name}
+                  <button
+                    type="button"
+                    onClick={() => void deleteFile(file)}
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <textarea
             aria-label={selectedBot ? `Message ${selectedBot.name}` : "Describe your new agent"}
             value={prompt}
@@ -541,9 +688,34 @@ export function App() {
           <div className="composer-actions">
             <span>
               {selectedBot ? (
-                <button className="add-context" type="button" onClick={() => setConnectOpen(true)}>
-                  <Plus size={14} /> Connect
-                </button>
+                <>
+                  <input
+                    ref={fileInput}
+                    className="file-input"
+                    type="file"
+                    onChange={(event) => void uploadFile(event)}
+                  />
+                  <button
+                    className="add-context"
+                    type="button"
+                    disabled={uploadingFile || attachedFiles.length >= 5}
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    {uploadingFile ? (
+                      <LoaderCircle className="spin" size={14} />
+                    ) : (
+                      <Paperclip size={14} />
+                    )}
+                    Attach
+                  </button>
+                  <button
+                    className="add-context"
+                    type="button"
+                    onClick={() => setConnectOpen(true)}
+                  >
+                    <Link2 size={14} /> Connect
+                  </button>
+                </>
               ) : (
                 <>
                   <Sparkles size={14} /> Creates a durable teammate
@@ -675,6 +847,138 @@ export function App() {
             </div>
           )}
         </section>
+
+        <section className="capability-card">
+          <div className="section-title">
+            <div>
+              <Sparkles size={15} />
+              <span>Memory</span>
+            </div>
+            <span className="count-badge">{snapshot.memories.length}</span>
+          </div>
+          {selectedBot ? (
+            <>
+              <div className="compact-list">
+                {snapshot.memories.length === 0 ? (
+                  <p className="empty-copy">Save stable facts and preferences for future work.</p>
+                ) : (
+                  snapshot.memories.map((memory) => (
+                    <div className="compact-row" key={memory.id}>
+                      <p>{memory.content}</p>
+                      <button
+                        type="button"
+                        onClick={() => void deleteMemory(memory.id)}
+                        aria-label="Forget this memory"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <form className="compact-form" onSubmit={addMemory}>
+                <input
+                  value={memoryInput}
+                  onChange={(event) => setMemoryInput(event.target.value)}
+                  placeholder={`What should ${selectedBot.name} remember?`}
+                  maxLength={500}
+                />
+                <button type="submit" disabled={savingMemory || !memoryInput.trim()}>
+                  {savingMemory ? <LoaderCircle className="spin" size={13} /> : <Plus size={13} />}
+                </button>
+              </form>
+            </>
+          ) : (
+            <p className="empty-copy padded-copy">Choose a teammate to manage memory.</p>
+          )}
+        </section>
+
+        <section className="capability-card">
+          <div className="section-title">
+            <div>
+              <CalendarClock size={15} />
+              <span>Routines</span>
+            </div>
+            {selectedBot ? (
+              <button type="button" onClick={() => setRoutineOpen(true)} aria-label="New routine">
+                <Plus size={14} />
+              </button>
+            ) : null}
+          </div>
+          <div className="compact-list routine-list">
+            {snapshot.routines.length === 0 ? (
+              <p className="empty-copy">
+                Schedule repeat work. The browser starts only when needed.
+              </p>
+            ) : (
+              snapshot.routines.map((routine) => (
+                <div className="routine-row" key={routine.id}>
+                  <div>
+                    <strong>{routine.name}</strong>
+                    <small>
+                      Every {formatInterval(routine.intervalMinutes)} ·{" "}
+                      {routine.active ? "On" : "Paused"}
+                    </small>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => void runRoutine(routine)}
+                      aria-label={`Run ${routine.name} now`}
+                    >
+                      <Play size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void updateRoutine(routine, !routine.active)}
+                      aria-label={
+                        routine.active ? `Pause ${routine.name}` : `Resume ${routine.name}`
+                      }
+                    >
+                      {routine.active ? <Pause size={12} /> : <RefreshCw size={12} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteRoutine(routine.id)}
+                      aria-label={`Delete ${routine.name}`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="capability-card">
+          <div className="section-title">
+            <div>
+              <FileText size={15} />
+              <span>Files</span>
+            </div>
+            <span className="count-badge">{snapshot.files.length}</span>
+          </div>
+          <div className="compact-list">
+            {snapshot.files.length === 0 ? (
+              <p className="empty-copy">Attach a file in chat to keep it with this teammate.</p>
+            ) : (
+              snapshot.files.slice(0, 5).map((file) => (
+                <div className="compact-row file-row" key={file.id}>
+                  <FileText size={13} />
+                  <p>{file.name}</p>
+                  <button
+                    type="button"
+                    onClick={() => void deleteFile(file)}
+                    aria-label={`Delete ${file.name}`}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       </aside>
 
       {connectOpen && selectedBot ? (
@@ -684,6 +988,29 @@ export function App() {
           onClose={() => setConnectOpen(false)}
           onConnected={async () => {
             setConnectOpen(false)
+            await load(selectedBot.id)
+          }}
+        />
+      ) : null}
+      {profileOpen && selectedBot ? (
+        <ProfileDialog
+          bot={selectedBot}
+          token={token}
+          onClose={() => setProfileOpen(false)}
+          onSaved={async (botId) => {
+            setProfileOpen(false)
+            setSelectedBotId(botId)
+            await load(botId)
+          }}
+        />
+      ) : null}
+      {routineOpen && selectedBot ? (
+        <RoutineDialog
+          bot={selectedBot}
+          token={token}
+          onClose={() => setRoutineOpen(false)}
+          onSaved={async () => {
+            setRoutineOpen(false)
             await load(selectedBot.id)
           }}
         />
@@ -724,6 +1051,252 @@ function NewAgentWelcome({ onSuggestion }: { onSuggestion: (value: string) => vo
           Research analyst <ArrowUp size={14} />
         </button>
       </div>
+    </div>
+  )
+}
+
+function ProfileDialog({
+  bot,
+  token,
+  onClose,
+  onSaved,
+}: {
+  bot: BotTeammate
+  token: string
+  onClose: () => void
+  onSaved: (botId: string) => Promise<void>
+}) {
+  const [name, setName] = useState(bot.name)
+  const [title, setTitle] = useState(bot.title)
+  const [description, setDescription] = useState(bot.description)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError("")
+    try {
+      await api(`/api/bots/${bot.id}`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ name, title, description }),
+      })
+      await onSaved(bot.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The profile could not be saved")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function updateFlags(input: { pinned?: boolean; hidden?: boolean }) {
+    setSaving(true)
+    try {
+      await api(`/api/bots/${bot.id}`, token, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+      await onSaved(bot.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The teammate could not be updated")
+      setSaving(false)
+    }
+  }
+
+  async function duplicate() {
+    setSaving(true)
+    try {
+      const created = await api<{ teammate: BotTeammate }>(`/api/bots/${bot.id}/duplicate`, token, {
+        method: "POST",
+      })
+      await onSaved(created.teammate.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The teammate could not be duplicated")
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="connection-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-title"
+      >
+        <header>
+          <div>
+            <span className="connection-logo">
+              <Bot size={20} />
+            </span>
+            <div>
+              <p className="eyebrow">Teammate profile</p>
+              <h2 id="profile-title">Edit {bot.name}</h2>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close profile dialog">
+            <X size={17} />
+          </button>
+        </header>
+        <form onSubmit={save}>
+          <label htmlFor="profile-name">Name</label>
+          <input
+            id="profile-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={80}
+            required
+          />
+          <label htmlFor="profile-title-input">Job</label>
+          <input
+            id="profile-title-input"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            maxLength={120}
+            required
+          />
+          <label htmlFor="profile-description">Description</label>
+          <textarea
+            id="profile-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={4}
+            maxLength={1000}
+            required
+          />
+          {error ? <p className="form-error">{error}</p> : null}
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />}
+            Save profile
+          </button>
+        </form>
+        <div className="profile-actions">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void updateFlags({ pinned: !bot.pinned })}
+          >
+            <Pin size={13} /> {bot.pinned ? "Unpin" : "Pin"}
+          </button>
+          <button type="button" disabled={saving} onClick={() => void duplicate()}>
+            <Copy size={13} /> Duplicate
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void updateFlags({ hidden: !bot.hidden })}
+          >
+            {bot.hidden ? <Play size={13} /> : <Pause size={13} />}
+            {bot.hidden ? "Restore" : "Archive"}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function RoutineDialog({
+  bot,
+  token,
+  onClose,
+  onSaved,
+}: {
+  bot: BotTeammate
+  token: string
+  onClose: () => void
+  onSaved: () => Promise<void>
+}) {
+  const [name, setName] = useState("")
+  const [prompt, setPrompt] = useState("")
+  const [hours, setHours] = useState("24")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError("")
+    try {
+      const intervalMinutes = Math.round(Number(hours) * 60)
+      await api(`/api/bots/${bot.id}/routines`, token, {
+        method: "POST",
+        body: JSON.stringify({ name, prompt, intervalMinutes }),
+      })
+      await onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The routine could not be saved")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="connection-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="routine-title"
+      >
+        <header>
+          <div>
+            <span className="connection-logo">
+              <CalendarClock size={20} />
+            </span>
+            <div>
+              <p className="eyebrow">Schedule work for {bot.name}</p>
+              <h2 id="routine-title">New routine</h2>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close routine dialog">
+            <X size={17} />
+          </button>
+        </header>
+        <p className="dialog-copy">
+          HQBot runs the task on Cloudflare. Browser Run starts only when the routine needs it.
+        </p>
+        <form onSubmit={save}>
+          <label htmlFor="routine-name">Name</label>
+          <input
+            id="routine-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Daily market brief"
+            maxLength={100}
+            required
+          />
+          <label htmlFor="routine-prompt">Task</label>
+          <textarea
+            id="routine-prompt"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Research the latest…"
+            rows={4}
+            maxLength={4000}
+            required
+          />
+          <label htmlFor="routine-hours">Repeat every (hours)</label>
+          <input
+            id="routine-hours"
+            type="number"
+            min="0.25"
+            max="720"
+            step="0.25"
+            value={hours}
+            onChange={(event) => setHours(event.target.value)}
+            required
+          />
+          {error ? <p className="form-error">{error}</p> : null}
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={saving || !name.trim() || !prompt.trim()}
+          >
+            {saving ? <LoaderCircle className="spin" size={15} /> : <CalendarClock size={15} />}
+            Create routine
+          </button>
+        </form>
+      </section>
     </div>
   )
 }

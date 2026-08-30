@@ -2,6 +2,7 @@ import { getAgentByName } from "agents"
 
 import { HQBotAgent } from "./agent"
 import { defineBot } from "./domain/ai"
+import { contentTypeForUpload } from "./domain/files"
 import type { BotFile, BotRoutine, StoredBotConnection, WorkflowInput } from "./domain/types"
 import { decryptConnectionToken, encryptConnectionToken } from "./services/crypto"
 import {
@@ -402,7 +403,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     }
     const id = crypto.randomUUID()
     const name = safeFileName(value.name)
-    const contentType = value.type || "application/octet-stream"
+    const contentType = contentTypeForUpload(name, value.type)
     const key = `files/${botId}/${id}/${name}`
     await env.ARTIFACTS.put(key, value.stream(), { httpMetadata: { contentType } })
     const file = await agent.createFile({ id, botId, key, name, contentType, size: value.size })
