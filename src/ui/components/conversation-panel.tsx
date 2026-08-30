@@ -42,12 +42,11 @@ export function ConversationPanel({
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader
         bot={null}
-        detailsOpen={controller.detailsOpen}
         showBack={showBack}
         status={controller.sending ? "Starting" : "Ready"}
         working={false}
         onBack={() => controller.setMobileChatOpen(false)}
-        onDetails={() => controller.setDetailsOpen(!controller.detailsOpen)}
+        onDetails={() => controller.setDetailsOpen(true)}
         onEdit={() => undefined}
         onStop={() => undefined}
       />
@@ -87,12 +86,11 @@ function ArchivedConversation({
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader
         bot={bot}
-        detailsOpen={controller.detailsOpen}
         showBack={showBack}
         status="Archived"
         working={false}
         onBack={() => controller.setMobileChatOpen(false)}
-        onDetails={() => controller.setDetailsOpen(!controller.detailsOpen)}
+        onDetails={() => controller.setDetailsOpen(true)}
         onEdit={() => controller.setDialog("profile")}
         onStop={() => undefined}
       />

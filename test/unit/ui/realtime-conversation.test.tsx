@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BotTeammate } from "../../../src/domain/types";
 import { RealtimeConversation } from "../../../src/ui/components/realtime-conversation";
 import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
-import { renderComponent } from "./render.tsx";
+import { interact, renderComponent } from "./render.tsx";
 
 const agent = vi.hoisted(() => ({
   pendingApprovals: vi.fn(async () => []),
@@ -264,6 +264,41 @@ describe("RealtimeConversation", () => {
     );
 
     expect(view.container.querySelector('[role="status"]')?.textContent).toContain("Recovering");
+    await view.unmount();
+  });
+
+  it("stops the visible stream and all durable teammate activity", async () => {
+    chat.isStreaming = true;
+    chat.status = "streaming";
+    const stopSelectedBot = vi.fn(async () => undefined);
+    const controller = {
+      detailsOpen: false,
+      error: "",
+      load: vi.fn(async () => undefined),
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] },
+      stopSelectedBot
+    } as unknown as WorkspaceController;
+    const view = await renderComponent(
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={() => undefined}
+      />
+    );
+
+    await interact(() =>
+      view.container
+        .querySelector<HTMLButtonElement>('button[aria-label="Stop task"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    );
+
+    expect(chat.stop).toHaveBeenCalledTimes(1);
+    expect(stopSelectedBot).toHaveBeenCalledTimes(1);
     await view.unmount();
   });
 

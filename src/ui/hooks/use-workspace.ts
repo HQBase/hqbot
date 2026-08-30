@@ -36,8 +36,8 @@ export function useWorkspace(onSignedOut: () => void) {
     text: string;
   } | null>(null);
   const [newTeammate, setNewTeammate] = useState(false);
-  const [mobileChatOpen, setMobileChatOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [mobileChatOpen, setMobileChatOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogName>(null);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -221,6 +221,39 @@ export function useWorkspace(onSignedOut: () => void) {
     }
   }
 
+  async function stopSelectedBot(): Promise<void> {
+    if (!selectedBot) return;
+    setError("");
+    try {
+      await api(`/api/bots/${selectedBot.id}/stop`, { method: "POST" });
+      await load(selectedBot.id);
+    } catch (cause) {
+      setError(errorMessage(cause, "The teammate could not be stopped"));
+      throw cause;
+    }
+  }
+
+  async function deleteSelectedBot(): Promise<void> {
+    if (!selectedBot) return;
+    const botId = selectedBot.id;
+    setError("");
+    try {
+      await api(`/api/bots/${botId}`, { method: "DELETE" });
+      if (pendingInitialMessageRef.current?.botId === botId) {
+        pendingInitialMessageRef.current = null;
+        setPendingInitialMessage(null);
+      }
+      selectedBotRef.current = null;
+      newTeammateRef.current = false;
+      setSelectedBotId(null);
+      setNewTeammate(false);
+      await load(null);
+    } catch (cause) {
+      setError(errorMessage(cause, "The teammate could not be deleted"));
+      throw cause;
+    }
+  }
+
   async function logout(): Promise<void> {
     try {
       await api("/api/auth/logout", { method: "POST" });
@@ -232,6 +265,7 @@ export function useWorkspace(onSignedOut: () => void) {
 
   return {
     beginNewTeammate,
+    deleteSelectedBot,
     deleteRoutine,
     detailsOpen,
     dialog,
@@ -256,6 +290,7 @@ export function useWorkspace(onSignedOut: () => void) {
     setMobileChatOpen,
     setModel,
     snapshot,
+    stopSelectedBot,
     takePendingInitialMessage
   };
 }

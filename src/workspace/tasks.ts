@@ -119,6 +119,12 @@ export class WorkspaceTasks {
       ORDER BY created_at DESC LIMIT 30`.map(taskFromRow);
   }
 
+  cancelBotTasks(botId: string): string[] {
+    const ids = this.sql<{ id: string }>`SELECT id FROM tasks WHERE bot_id = ${botId}
+      AND status NOT IN ('replying', 'cancelled', 'completed', 'failed')`;
+    return ids.filter(({ id }) => this.cancelTask(id)).map(({ id }) => id);
+  }
+
   listActivity(taskId: string): BotActivity[] {
     return this.sql<Row>`SELECT * FROM activity WHERE task_id = ${taskId}
       ORDER BY created_at ASC`.map(activityFromRow);

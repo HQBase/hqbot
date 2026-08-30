@@ -63,7 +63,6 @@ export function LabConversation({
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader
         bot={bot}
-        detailsOpen={false}
         showBack={showBack}
         status={status}
         working={mode === "reconnecting"}
@@ -132,7 +131,6 @@ export function StreamingConversation({ bot }: { bot: BotTeammate }) {
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader
         bot={bot}
-        detailsOpen={false}
         showBack={false}
         status={busy ? "Working" : "Ready"}
         working={busy}

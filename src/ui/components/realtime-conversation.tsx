@@ -176,20 +176,28 @@ export function RealtimeConversation({
     }
   }
 
+  async function stop(): Promise<void> {
+    setLocalError("");
+    try {
+      await Promise.all([chat.stop(), controller.stopSelectedBot()]);
+    } catch (cause) {
+      setLocalError(cause instanceof Error ? cause.message : "The teammate could not be stopped");
+    }
+  }
+
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader
         bot={bot}
-        detailsOpen={controller.detailsOpen}
         showBack={showBack}
         status={
           chat.isRecovering ? "Recovering" : busy ? "Working" : connectionError ? "Offline" : "Live"
         }
         working={busy}
         onBack={() => controller.setMobileChatOpen(false)}
-        onDetails={() => controller.setDetailsOpen(!controller.detailsOpen)}
+        onDetails={() => controller.setDetailsOpen(true)}
         onEdit={() => controller.setDialog("profile")}
-        onStop={() => void chat.stop()}
+        onStop={() => void stop()}
       />
       <div className="min-h-0 flex-1 overflow-y-auto bg-card/30">
         <div

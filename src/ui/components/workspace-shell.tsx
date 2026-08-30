@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { PiPlus, PiRobot } from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
@@ -10,7 +9,6 @@ import { ProfileDialog } from "./dialogs/profile-dialog";
 import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
 import { TeammateSidebar } from "./teammate-sidebar";
-import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
@@ -66,46 +64,32 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
         <div className="relative min-w-0 flex-1 overflow-hidden rounded-[24px] border border-divider bg-reader shadow-sm">
           <div className="flex h-full min-w-0">
             <ConversationPanel controller={controller} prompt={prompt} onPromptChange={setPrompt} />
-            {controller.detailsOpen ? (
-              <DetailsPanel controller={controller} onUseSkill={useSkill} />
-            ) : null}
+            <DetailsPanel controller={controller} onUseSkill={useSkill} />
           </div>
         </div>
       </div>
 
       <div className="flex h-full w-full flex-col bg-list lg:hidden">
-        {controller.mobileChatOpen ? (
-          <ConversationPanel
-            controller={controller}
-            prompt={prompt}
-            showBack
-            onPromptChange={setPrompt}
-          />
-        ) : (
-          <>
-            <header className="flex h-12 shrink-0 items-center gap-3 border-b border-divider bg-toolbar px-3">
-              <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <PiRobot />
-              </span>
-              <strong className="text-sm">HQBot</strong>
-              <div className="ml-auto flex gap-1">
-                <Button
-                  aria-label="New teammate"
-                  className="size-11"
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                  onClick={beginNewTeammate}
-                >
-                  <PiPlus />
-                </Button>
-              </div>
-            </header>
-            <div className="min-h-0 flex-1 p-2">{sidebar}</div>
-          </>
-        )}
+        <ConversationPanel
+          controller={controller}
+          prompt={prompt}
+          showBack
+          onPromptChange={setPrompt}
+        />
       </div>
 
+      <Sheet
+        open={mobileViewport && !controller.mobileChatOpen}
+        onOpenChange={(open) => controller.setMobileChatOpen(!open)}
+      >
+        <SheetContent
+          className="w-[min(92vw,20rem)] p-2 [&>button:last-child]:right-14 lg:hidden"
+          side="left"
+        >
+          <SheetTitle className="sr-only">Teammates</SheetTitle>
+          {sidebar}
+        </SheetContent>
+      </Sheet>
       <Sheet
         open={mobileViewport && controller.detailsOpen && controller.mobileChatOpen}
         onOpenChange={controller.setDetailsOpen}
@@ -138,6 +122,7 @@ function WorkspaceDialogs({ controller }: { controller: WorkspaceController }) {
         bot={bot}
         key={`profile-${bot.id}`}
         open={controller.dialog === "profile"}
+        onDeleted={() => controller.deleteSelectedBot()}
         onOpenChange={(open) => !open && close()}
         onSaved={async (botId) => controller.load(botId)}
       />

@@ -92,4 +92,79 @@ describe("workspace teammate lifecycle", () => {
     expect(snapshot.archivedBots).toEqual([expect.objectContaining({ id: "bot-1" })]);
     expect(snapshot.selectedBot).toMatchObject({ id: "bot-1", hidden: true });
   });
+
+  it("deletes teammate data and keeps overall usage anonymous", () => {
+    catalog.createBot(
+      "bot-1",
+      { name: "Research", title: "Researcher", description: "Finds evidence." },
+      "Research requests",
+      "@cf/zai-org/glm-5.3-flash",
+      2
+    );
+    const tasks = new WorkspaceTasks(sql);
+    tasks.createChatTask("task-1", "bot-1", "Research this");
+    tasks.recordUsage({
+      botId: "bot-1",
+      estimatedUsd: 0.01,
+      id: "usage-1",
+      service: "workers-ai",
+      taskId: "task-1"
+    });
+    catalog.createMemory("memory-1", "bot-1", "Remember this");
+    catalog.createFile({
+      botId: "bot-1",
+      contentType: "text/plain",
+      id: "file-1",
+      key: "files/bot-1/file-1/note.txt",
+      name: "note.txt",
+      size: 4
+    });
+    catalog.createSkill({
+      botId: "bot-1",
+      description: "Find facts",
+      id: "skill-1",
+      instructions: "Use primary sources",
+      name: "Research"
+    });
+    catalog.automations.createRoutine({
+      botId: "bot-1",
+      id: "routine-1",
+      intervalMinutes: 60,
+      name: "Daily brief",
+      nextRunAt: "2026-08-31T12:00:00.000Z",
+      prompt: "Prepare the brief"
+    });
+    catalog.connectHQBase({
+      botId: "bot-1",
+      id: "connection-1",
+      mailboxAddress: "hqbot@example.com",
+      mailboxId: "mailbox-1",
+      mailboxName: "HQBot",
+      origin: "https://hqbase.example.com",
+      tokenCiphertext: "ciphertext",
+      tokenIv: "iv"
+    });
+
+    expect(catalog.listBotArtifactKeys("bot-1")).toEqual(["files/bot-1/file-1/note.txt"]);
+    expect(catalog.deleteBot("bot-1")).toBe(true);
+    expect(catalog.deleteBot("bot-1")).toBe(false);
+    for (const table of [
+      "activity",
+      "bots",
+      "connections",
+      "files",
+      "memories",
+      "routines",
+      "skills",
+      "tasks"
+    ]) {
+      expect(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({
+        count: 0
+      });
+    }
+    expect(database.prepare("SELECT bot_id, task_id FROM usage_events").get()).toEqual({
+      bot_id: null,
+      task_id: null
+    });
+  });
 });

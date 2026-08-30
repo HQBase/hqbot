@@ -89,6 +89,11 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
   }
 
   const bot = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)$/u);
+  if (request.method === "DELETE" && bot?.[0]) {
+    return (await agent.deleteBot(bot[0]))
+      ? json({ deleted: true })
+      : json({ error: "Teammate not found" }, 404);
+  }
   if (request.method === "PATCH" && bot?.[0]) {
     const body = await readJson(request);
     const dailyBudgetUsd =
@@ -114,6 +119,13 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
       updated = await agent.setBotHidden(bot[0], body.hidden);
     }
     return updated ? json({ teammate: updated }) : json({ error: "Teammate not found" }, 404);
+  }
+
+  const stopBot = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/stop$/u);
+  if (request.method === "POST" && stopBot?.[0]) {
+    return (await agent.stopBot(stopBot[0]))
+      ? json({ stopped: true })
+      : json({ error: "Teammate not found" }, 404);
   }
 
   const duplicate = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/duplicate$/u);

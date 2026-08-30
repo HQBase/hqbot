@@ -180,6 +180,31 @@ export class WorkspaceCatalog {
       ORDER BY created_at DESC LIMIT 30`.map(fileFromRow);
   }
 
+  listBotArtifactKeys(botId: string): string[] {
+    const files = this.sql<{ object_key: string }>`SELECT object_key FROM files
+      WHERE bot_id = ${botId}`.map((row) => row.object_key);
+    const screenshots = this.sql<{ screenshot_key: string | null }>`SELECT screenshot_key FROM tasks
+      WHERE bot_id = ${botId} AND screenshot_key IS NOT NULL`.flatMap((row) =>
+      row.screenshot_key ? [row.screenshot_key] : []
+    );
+    return [...new Set([...files, ...screenshots])];
+  }
+
+  deleteBot(id: string): boolean {
+    if (!this.hasBot(id)) return false;
+    this.sql`UPDATE usage_events SET task_id = NULL
+      WHERE task_id IN (SELECT id FROM tasks WHERE bot_id = ${id})`;
+    this.sql`UPDATE usage_events SET bot_id = NULL WHERE bot_id = ${id}`;
+    this.sql`DELETE FROM activity WHERE task_id IN (SELECT id FROM tasks WHERE bot_id = ${id})`;
+    this.sql`DELETE FROM files WHERE bot_id = ${id}`;
+    this.sql`DELETE FROM tasks WHERE bot_id = ${id}`;
+    this.sql`DELETE FROM connections WHERE bot_id = ${id}`;
+    this.sql`DELETE FROM memories WHERE bot_id = ${id}`;
+    this.sql`DELETE FROM routines WHERE bot_id = ${id}`;
+    this.sql`DELETE FROM skills WHERE bot_id = ${id}`;
+    return this.sql<{ id: string }>`DELETE FROM bots WHERE id = ${id} RETURNING id`.length > 0;
+  }
+
   createSkill(input: {
     id: string;
     botId: string;

@@ -94,6 +94,49 @@ export class HQBotAgent extends WorkspaceAgentBase implements MailRealtimeHost {
     return this.catalog.getBot(id);
   }
 
+  async stopBot(id: string): Promise<boolean> {
+    const bot = this.catalog.getBot(id);
+    if (!bot) return false;
+    const taskIds = this.tasks.cancelBotTasks(id);
+    const peer = await getAgentByName<Env, HQBotTeammate>(this.env.HQBOT_TEAMMATE, id);
+    await peer.stopActivity(taskIds);
+    this.catalog.markInteraction(id, "Activity stopped", "idle");
+    this.changed();
+    return true;
+  }
+
+  async deleteBot(id: string): Promise<boolean> {
+    const bot = this.catalog.getBot(id);
+    if (!bot) return false;
+    const connection = this.getBotConnection(id);
+    const artifactKeys = this.catalog.listBotArtifactKeys(id);
+    this.catalog.archiveBot(id);
+    if (connection) this.mail.close(connection.id);
+
+    const taskIds = this.tasks.cancelBotTasks(id);
+    const peer = await getAgentByName<Env, HQBotTeammate>(this.env.HQBOT_TEAMMATE, id);
+    await peer.stopActivity(taskIds, "The owner deleted this teammate");
+    await this.deleteArtifactPrefix(`files/${id}/`);
+    await this.deleteArtifactPrefix(`teammates/${id}/`);
+    for (let index = 0; index < artifactKeys.length; index += 1_000) {
+      await this.env.ARTIFACTS.delete(artifactKeys.slice(index, index + 1_000));
+    }
+    await peer.destroySoon();
+
+    const deleted = this.catalog.deleteBot(id);
+    if (deleted) this.changed();
+    return deleted;
+  }
+
+  private async deleteArtifactPrefix(prefix: string): Promise<void> {
+    for (;;) {
+      const page = await this.env.ARTIFACTS.list({ limit: 1_000, prefix });
+      if (page.objects.length === 0) return;
+      await this.env.ARTIFACTS.delete(page.objects.map((object) => object.key));
+      if (!page.truncated) return;
+    }
+  }
+
   getStoredConnection(id: string): StoredBotConnection | null {
     return this.catalog.getBotConnection(id);
   }

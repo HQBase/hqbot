@@ -21,7 +21,7 @@ describe("archived teammate suspension", () => {
       })
     };
 
-    await suspendTeammateWork(host, ["task-1", "task-2"]);
+    await suspendTeammateWork(host, ["task-1", "task-2"], "The owner stopped this teammate");
 
     expect(events).toEqual([
       "task:task-1",
@@ -33,7 +33,7 @@ describe("archived teammate suspension", () => {
     expect(host.listSubmissions).toHaveBeenCalledWith({ status: ["pending", "running"] });
     expect(host.cancelSubmission).toHaveBeenCalledWith(
       "submission-1",
-      "The owner archived this teammate"
+      "The owner stopped this teammate"
     );
   });
 });

@@ -6,6 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "no_bundle": true,
   "rules": [{ "type": "ESModule", "globs": ["**/*.js", "**/*.mjs"] }],
+  "browser": { "binding": "BROWSER" },
+  "worker_loaders": [{ "binding": "LOADER" }],
   "durable_objects": {
     "bindings": [
       { "name": "HQBOT_AGENT", "class_name": "HQBotAgent" },
@@ -16,6 +18,7 @@
     { "tag": "v1", "new_sqlite_classes": ["HQBotAgent"] },
     { "tag": "v2", "new_sqlite_classes": ["HQBotTeammate"] }
   ],
+  "r2_buckets": [{ "binding": "ARTIFACTS", "bucket_name": "hqbot-test-artifacts" }],
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "vars": {
     "HQBOT_ID": "hqbot",

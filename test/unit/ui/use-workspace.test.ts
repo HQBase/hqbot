@@ -42,6 +42,20 @@ afterEach(() => {
 });
 
 describe("new teammate chat", () => {
+  it("starts with both mobile sidebars collapsed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ archivedBots: [], bots: [], realtime: { url: null } }))
+    );
+    const view = await renderComponent(createElement(WorkspaceHarness));
+
+    expect(controller().mobileChatOpen).toBe(true);
+    expect(controller().detailsOpen).toBe(false);
+    await view.unmount();
+  });
+
   it("uses the first message for the teammate and its first chat turn", async () => {
     const teammate = { id: "bot-1", name: "Teammate" };
     const fetchMock = vi
@@ -168,6 +182,64 @@ describe("teammate model", () => {
       })
     );
     expect(controller().selectedBot?.modelId).toBe(DEEPSEEK_FALLBACK_MODEL_ID);
+    await view.unmount();
+  });
+
+  it("stops all current activity for the selected teammate", async () => {
+    const bot = { id: "bot-1", name: "Teammate", modelId: GLM_PRIMARY_MODEL_ID };
+    const snapshot = {
+      archivedBots: [],
+      bots: [bot],
+      realtime: { url: null },
+      selectedBot: bot,
+      tasks: []
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(snapshot))
+      .mockResolvedValueOnce(jsonResponse({ stopped: true }))
+      .mockResolvedValueOnce(jsonResponse(snapshot));
+    vi.stubGlobal("fetch", fetchMock);
+    const view = await renderComponent(createElement(WorkspaceHarness));
+
+    await controller().stopSelectedBot();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/bots/bot-1/stop",
+      expect.objectContaining({ method: "POST" })
+    );
+    await view.unmount();
+  });
+
+  it("deletes the selected teammate and selects the next recent teammate", async () => {
+    const first = { id: "bot-1", name: "First", modelId: GLM_PRIMARY_MODEL_ID };
+    const next = { id: "bot-2", name: "Next", modelId: GLM_PRIMARY_MODEL_ID };
+    const initial = {
+      archivedBots: [],
+      bots: [first, next],
+      realtime: { url: null },
+      selectedBot: first,
+      tasks: []
+    };
+    const remaining = { ...initial, bots: [next], selectedBot: next };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(initial))
+      .mockResolvedValueOnce(jsonResponse({ deleted: true }))
+      .mockResolvedValueOnce(jsonResponse(remaining));
+    vi.stubGlobal("fetch", fetchMock);
+    const view = await renderComponent(createElement(WorkspaceHarness));
+
+    await controller().deleteSelectedBot();
+    await interact();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/bots/bot-1",
+      expect.objectContaining({ method: "DELETE" })
+    );
+    expect(controller().selectedBot?.id).toBe("bot-2");
     await view.unmount();
   });
 });

@@ -1,4 +1,4 @@
-import { PiInfo, PiPencil, PiStop, PiUsers } from "react-icons/pi";
+import { PiPencil, PiSidebarSimple, PiStop } from "react-icons/pi";
 
 import type { BotTeammate } from "../../domain/types";
 import { Badge } from "./ui/badge";
@@ -6,7 +6,6 @@ import { Button } from "./ui/button";
 
 export function ConversationHeader({
   bot,
-  detailsOpen,
   showBack,
   status,
   working,
@@ -16,7 +15,6 @@ export function ConversationHeader({
   onStop
 }: {
   bot: BotTeammate | null;
-  detailsOpen: boolean;
   showBack: boolean;
   status: string;
   working: boolean;
@@ -29,14 +27,14 @@ export function ConversationHeader({
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-divider bg-toolbar px-3 lg:px-4">
       {showBack ? (
         <Button
-          aria-label="Back to teammates"
+          aria-label="Open teammates sidebar"
           className="size-11 shrink-0 text-muted-foreground lg:hidden"
           size="icon"
           type="button"
           variant="ghost"
           onClick={onBack}
         >
-          <PiUsers />
+          <PiSidebarSimple />
         </Button>
       ) : null}
       <div className="min-w-0 flex-1">
@@ -65,13 +63,14 @@ export function ConversationHeader({
         </Button>
       ) : null}
       <Button
-        aria-label={detailsOpen ? "Hide teammate details" : "Show teammate details"}
+        aria-label="Open details sidebar"
+        className="lg:hidden"
         size="icon"
         type="button"
         variant="ghost"
         onClick={onDetails}
       >
-        <PiInfo />
+        <PiSidebarSimple className="rotate-180" />
       </Button>
     </header>
   );

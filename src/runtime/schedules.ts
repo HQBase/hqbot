@@ -12,14 +12,14 @@ export function teammateScheduledTasks(
   sweepBrowser: () => Promise<void>
 ): ThinkScheduledTasks {
   const tasks: ThinkScheduledTasks = {
-    "system:browser-sweep": {
+    system_browser_sweep: {
       schedule: "every 1 hour",
       handler: sweepBrowser
     }
   };
   for (const routine of routines) {
     if (!routine.active) continue;
-    tasks[`routine:${routine.id}`] = {
+    tasks[`routine_${routine.id}`] = {
       schedule: intervalSchedule(routine.intervalMinutes),
       prompt: `[hqbot:routine]\n${routine.name}\n\n${routine.prompt}`,
       metadata: { routineId: routine.id, source: "routine" }

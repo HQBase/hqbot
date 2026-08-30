@@ -285,6 +285,94 @@ describe("HQBot Worker authentication", () => {
     });
   });
 
+  it("stops all teammate activity and deletes its durable data", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const created = await post(
+      "/api/bots",
+      { brief: "Research this later", conversation: true },
+      session
+    );
+    const { teammate } = (await created.json()) as { teammate: { id: string } };
+    expect(
+      (
+        await post(
+          `/api/bots/${teammate.id}/messages/initial`,
+          { prompt: "Research this later" },
+          session
+        )
+      ).status
+    ).toBe(202);
+
+    const teammateStorage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: teammate.id });
+    await teammateStorage.exec(
+      "UPDATE cf_think_submissions SET status = 'pending', error_message = NULL, completed_at = NULL"
+    );
+
+    const stopped = await post(`/api/bots/${teammate.id}/stop`, undefined, session);
+    const stoppedBody = await stopped.clone().json();
+    expect(stopped.status, JSON.stringify(stoppedBody)).toBe(200);
+    expect(await stopped.json()).toEqual({ stopped: true });
+    expect(await teammateStorage.exec("SELECT status FROM cf_think_submissions")).toEqual([
+      { status: "aborted" }
+    ]);
+
+    const boundary = "hqbot-test-boundary";
+    const form = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="file"; filename="note.txt"',
+      "Content-Type: text/plain",
+      "",
+      "test",
+      `--${boundary}--`,
+      ""
+    ].join("\r\n");
+    const uploaded = await request(`/api/bots/${teammate.id}/files`, {
+      body: form,
+      headers: {
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        Cookie: session,
+        Origin: origin
+      },
+      method: "POST"
+    });
+    const uploadedBody = await uploaded.clone().json();
+    expect(uploaded.status, JSON.stringify(uploadedBody)).toBe(201);
+    const { file } = (await uploaded.json()) as { file: { key: string } };
+    expect(
+      (
+        await request(`/api/artifacts/${encodeURIComponent(file.key)}`, {
+          headers: { Cookie: session }
+        })
+      ).status
+    ).toBe(200);
+
+    const deleted = await request(`/api/bots/${teammate.id}`, {
+      headers: { Cookie: session, Origin: origin },
+      method: "DELETE"
+    });
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ deleted: true });
+    expect(
+      (
+        await request(`/api/artifacts/${encodeURIComponent(file.key)}`, {
+          headers: { Cookie: session }
+        })
+      ).status
+    ).toBe(404);
+    expect(
+      (
+        await request(`/agents/hqbot-teammate/${teammate.id}`, {
+          headers: { Cookie: session }
+        })
+      ).status
+    ).toBe(404);
+    expect(
+      await (await request("/api/snapshot", { headers: { Cookie: session } })).json()
+    ).toMatchObject({ bots: [], selectedBot: null });
+  });
+
   it("blocks new work for an archived teammate and still permits restore", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const created = await post("/api/bots", { brief: "Research product questions." }, session);

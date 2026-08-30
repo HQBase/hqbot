@@ -266,6 +266,20 @@ export class HQBotTeammate extends Think<Env> {
     this.resetTurnState();
   }
 
+  async stopActivity(taskIds: string[], reason = "The owner stopped this teammate"): Promise<void> {
+    await suspendTeammateWork(this, taskIds, reason);
+    await closeBrowserSession(this.browserRuntime);
+    this.resetTurnState();
+  }
+
+  async destroySoon(): Promise<void> {
+    await this.schedule(1, "destroyStorage", null, { idempotent: true });
+  }
+
+  async destroyStorage(): Promise<void> {
+    await this.destroy();
+  }
+
   settleBrowserSession(payload: BrowserSessionLease): Promise<void> {
     return settleBrowserLease(this.browserRuntime, payload, (leases) =>
       this.armBrowserLeases(leases)

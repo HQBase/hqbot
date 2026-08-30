@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { PiCheck, PiCopy, PiPause, PiPushPin } from "react-icons/pi";
+import { PiCheck, PiCopy, PiPause, PiPushPin, PiTrash } from "react-icons/pi";
 
 import type { BotTeammate } from "../../../domain/types";
 import { api, errorMessage } from "../../lib/api";
@@ -20,11 +20,13 @@ import { Textarea } from "../ui/textarea";
 export function ProfileDialog({
   bot,
   open,
+  onDeleted,
   onOpenChange,
   onSaved
 }: {
   bot: BotTeammate;
   open: boolean;
+  onDeleted: () => Promise<void>;
   onOpenChange: (open: boolean) => void;
   onSaved: (botId: string) => Promise<void>;
 }) {
@@ -34,6 +36,7 @@ export function ProfileDialog({
   const [dailyBudget, setDailyBudget] = useState(String(bot.dailyBudgetUsd));
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function update(input: Record<string, unknown>): Promise<boolean> {
     setPending(true);
@@ -69,6 +72,59 @@ export function ProfileDialog({
       setError(errorMessage(cause, "The teammate could not be duplicated"));
       setPending(false);
     }
+  }
+
+  async function remove(): Promise<void> {
+    setPending(true);
+    setError("");
+    try {
+      await onDeleted();
+      onOpenChange(false);
+    } catch (cause) {
+      setError(errorMessage(cause, "The teammate could not be deleted"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (confirmDelete) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-[min(92vw,480px)]">
+          <DialogHeader>
+            <DialogTitle>Delete {bot.name}?</DialogTitle>
+            <DialogDescription>
+              This removes its conversation, memory, files, routines, connections, and browser
+              state. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <DialogFooter>
+            <Button
+              disabled={pending}
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmDelete(false)}
+            >
+              Keep teammate
+            </Button>
+            <Button
+              disabled={pending}
+              type="button"
+              variant="destructive"
+              onClick={() => void remove()}
+            >
+              {pending ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <PiTrash data-icon="inline-start" />
+              )}
+              Delete teammate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (
@@ -155,6 +211,15 @@ export function ProfileDialog({
               onClick={() => void update({ hidden: !bot.hidden })}
             >
               <PiPause data-icon="inline-start" /> {bot.hidden ? "Restore" : "Archive"}
+            </Button>
+            <Button
+              disabled={pending}
+              size="sm"
+              type="button"
+              variant="destructive"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <PiTrash data-icon="inline-start" /> Delete
             </Button>
           </div>
           <DialogFooter>
