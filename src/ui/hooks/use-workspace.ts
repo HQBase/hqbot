@@ -32,7 +32,7 @@ export function useWorkspace(onSignedOut: () => void) {
   const [snapshot, setSnapshot] = useState<WorkspaceView | null>(null);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [pendingInitialMessage, setPendingInitialMessage] = useState<{
-    botId: string;
+    botId: string | null;
     text: string;
   } | null>(null);
   const [newTeammate, setNewTeammate] = useState(false);
@@ -121,6 +121,9 @@ export function useWorkspace(onSignedOut: () => void) {
     if (!value || sending) return false;
     setSending(true);
     setError("");
+    const creating = { botId: null, text: value };
+    pendingInitialMessageRef.current = creating;
+    setPendingInitialMessage(creating);
     try {
       const createdTeammate = await createTeammate(value);
       const pending = { botId: createdTeammate.id, text: value };
@@ -145,6 +148,8 @@ export function useWorkspace(onSignedOut: () => void) {
       void load(createdTeammate.id);
       return true;
     } catch (cause) {
+      pendingInitialMessageRef.current = null;
+      setPendingInitialMessage(null);
       setError(errorMessage(cause, "The message could not be sent"));
       return false;
     } finally {
@@ -158,13 +163,6 @@ export function useWorkspace(onSignedOut: () => void) {
     pendingInitialMessageRef.current = null;
     setPendingInitialMessage(null);
     return pending.text;
-  }, []);
-
-  const restorePendingInitialMessage = useCallback((botId: string, text: string): void => {
-    if (pendingInitialMessageRef.current) return;
-    const pending = { botId, text };
-    pendingInitialMessageRef.current = pending;
-    setPendingInitialMessage(pending);
   }, []);
 
   async function setRoutineActive(routine: BotRoutine, active: boolean): Promise<void> {
@@ -276,7 +274,6 @@ export function useWorkspace(onSignedOut: () => void) {
     newTeammate,
     pendingInitialMessage,
     realtimeStatus,
-    restorePendingInitialMessage,
     restoreSelectedBot,
     selectBot,
     selectedBot,

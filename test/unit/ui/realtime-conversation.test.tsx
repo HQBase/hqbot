@@ -157,7 +157,7 @@ describe("RealtimeConversation", () => {
     await view.unmount();
   });
 
-  it("sends a new teammate message once after the live agent is ready", async () => {
+  it("appends a new teammate message once after the live agent is ready", async () => {
     chat.messages = [];
     const takePendingInitialMessage = vi.fn(() => "hey how are you?");
     const controller = {
@@ -187,10 +187,7 @@ describe("RealtimeConversation", () => {
 
     expect(takePendingInitialMessage).toHaveBeenCalledTimes(1);
     expect(chat.sendMessage).toHaveBeenCalledTimes(1);
-    expect(chat.sendMessage).toHaveBeenCalledWith({
-      messageId: `chat:first:${teammate.id}`,
-      text: "hey how are you?"
-    });
+    expect(chat.sendMessage).toHaveBeenCalledWith({ text: "hey how are you?" });
     await view.unmount();
   });
 

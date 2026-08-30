@@ -75,9 +75,8 @@ export function RealtimeConversation({
       if (!text) return;
       setLocalError("");
       try {
-        await chat.sendMessage({ text, messageId: `chat:first:${bot.id}` });
+        await chat.sendMessage({ text });
       } catch (cause) {
-        controller.restorePendingInitialMessage(bot.id, text);
         setLocalError(cause instanceof Error ? cause.message : "The message could not be sent");
       }
     });
@@ -88,7 +87,6 @@ export function RealtimeConversation({
     agent.ready,
     bot.id,
     chat.sendMessage,
-    controller.restorePendingInitialMessage,
     controller.takePendingInitialMessage,
     queuedInitialMessage
   ]);
@@ -102,8 +100,7 @@ export function RealtimeConversation({
   }, [approvalRevision, chat.messages]);
 
   const pendingInitialMessage =
-    controller.pendingInitialMessage?.botId === bot.id &&
-    !chat.messages.some((message) => message.id === `chat:first:${bot.id}`)
+    controller.pendingInitialMessage?.botId === bot.id
       ? controller.pendingInitialMessage.text
       : null;
   const busy =

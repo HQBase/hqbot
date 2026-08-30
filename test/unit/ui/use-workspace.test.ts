@@ -86,6 +86,40 @@ describe("new teammate chat", () => {
     );
   });
 
+  it("exposes the first message before teammate creation finishes", async () => {
+    const teammate = { id: "bot-optimistic", name: "Teammate" };
+    const emptySnapshot = { archivedBots: [], bots: [], realtime: { url: null }, tasks: [] };
+    const created = Promise.withResolvers<Response>();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(emptySnapshot))
+      .mockReturnValueOnce(created.promise)
+      .mockResolvedValueOnce(
+        jsonResponse({ ...emptySnapshot, bots: [teammate], selectedBot: teammate })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const view = await renderComponent(createElement(WorkspaceHarness));
+
+    let result: Promise<boolean> | undefined;
+    await interact(() => {
+      result = controller().send("hey how are you?");
+    });
+    expect(controller().sending).toBe(true);
+    expect(controller().pendingInitialMessage).toEqual({
+      botId: null,
+      text: "hey how are you?"
+    });
+
+    created.resolve(jsonResponse({ teammate }, 201));
+    await expect(result).resolves.toBe(true);
+    await interact();
+    expect(controller().pendingInitialMessage).toEqual({
+      botId: teammate.id,
+      text: "hey how are you?"
+    });
+    await view.unmount();
+  });
+
   it("keeps the full message outside the profile and retries a lost response", async () => {
     const message = "a".repeat(2_500);
     const teammate = { id: "bot-2", name: "Teammate" };

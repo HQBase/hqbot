@@ -1,6 +1,7 @@
 import { PiArchive, PiArrowCounterClockwise } from "react-icons/pi";
 
 import type { WorkspaceController } from "../hooks/use-workspace";
+import { AgentMessage, ThinkingIndicator } from "./chat/agent-message";
 import { ChatComposer } from "./chat/chat-composer";
 import { NewTeammateWelcome } from "./chat/new-teammate-welcome";
 import { ConversationHeader } from "./conversation-header";
@@ -38,6 +39,9 @@ export function ConversationPanel({
     if (await controller.send(prompt)) onPromptChange("");
   }
 
+  const pendingMessage =
+    controller.pendingInitialMessage?.botId === null ? controller.pendingInitialMessage.text : null;
+
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader
@@ -51,14 +55,30 @@ export function ConversationPanel({
         onStop={() => undefined}
       />
       <div className="min-h-0 flex-1 overflow-y-auto bg-card/30">
-        <NewTeammateWelcome onSuggestion={onPromptChange} />
+        {pendingMessage ? (
+          <div
+            aria-label="New teammate conversation"
+            aria-relevant="additions"
+            className="mx-auto flex w-full max-w-[780px] flex-col gap-7 px-4 py-8 sm:px-8"
+            role="log"
+          >
+            <AgentMessage
+              name="You"
+              parts={[{ text: pendingMessage, type: "text" }]}
+              speaker="user"
+            />
+            <ThinkingIndicator name="Teammate" />
+          </div>
+        ) : (
+          <NewTeammateWelcome onSuggestion={onPromptChange} />
+        )}
       </div>
       <div className="shrink-0 bg-gradient-to-t from-reader via-reader to-reader/80 pt-2">
         <ChatComposer
           attachedFiles={[]}
           bot={null}
           error={controller.error}
-          prompt={prompt}
+          prompt={controller.sending ? "" : prompt}
           sending={controller.sending}
           teammates={[]}
           uploading={false}
