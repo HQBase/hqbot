@@ -95,6 +95,9 @@ describe("HQBot Worker authentication", () => {
     expect(await storage.exec("SELECT username FROM owner WHERE id = 'owner'")).toEqual([
       { username: owner.username }
     ]);
+    expect(await storage.exec("SELECT iterations FROM owner WHERE id = 'owner'")).toEqual([
+      { iterations: 100_000 }
+    ]);
 
     const snapshot = await request("/api/snapshot", { headers: { Cookie: bootstrapSession } });
     expect(snapshot.status).toBe(200);

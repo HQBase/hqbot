@@ -1,6 +1,6 @@
 import { now, type Sql } from "./sql";
 
-const PASSWORD_ITERATIONS = 210_000;
+const PASSWORD_ITERATIONS = 100_000;
 const SESSION_DAYS = 30;
 const LOGIN_WINDOW_MS = 15 * 60 * 1_000;
 const LOGIN_BLOCK_MS = 15 * 60 * 1_000;
