@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PiPlus, PiRobot, PiSignOut } from "react-icons/pi";
+import { PiPlus, PiRobot } from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
@@ -9,7 +9,6 @@ import { ConnectionDialog } from "./dialogs/connection-dialog";
 import { ProfileDialog } from "./dialogs/profile-dialog";
 import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
-import { QuickRail } from "./quick-rail";
 import { TeammateSidebar } from "./teammate-sidebar";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
@@ -49,17 +48,13 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
     controller.beginNewTeammate();
   }
 
-  function showDetails(section: "costs" | "routines"): void {
-    controller.setDetailsOpen(true);
-    window.requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView());
-  }
-
   const sidebar = (
     <TeammateSidebar
       archivedBots={snapshot.archivedBots}
       bots={snapshot.bots}
       selectedId={controller.selectedBot?.id ?? null}
       onCreate={beginNewTeammate}
+      onLogout={() => void controller.logout()}
       onSelect={selectBot}
     />
   );
@@ -67,10 +62,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
   return (
     <main className="relative flex h-screen h-[100dvh] touch-manipulation overflow-hidden bg-rail pt-[env(safe-area-inset-top)] text-foreground lg:p-2">
       <div className="hidden h-full w-full gap-2 lg:flex">
-        <div className="flex h-full w-[20rem] shrink-0">
-          <QuickRail onLogout={() => void controller.logout()} onNavigate={showDetails} />
-          {sidebar}
-        </div>
+        <div className="flex h-full w-[17rem] shrink-0">{sidebar}</div>
         <div className="relative min-w-0 flex-1 overflow-hidden rounded-[24px] border border-divider bg-reader shadow-sm">
           <div className="flex h-full min-w-0">
             <ConversationPanel controller={controller} prompt={prompt} onPromptChange={setPrompt} />
@@ -106,16 +98,6 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
                   onClick={beginNewTeammate}
                 >
                   <PiPlus />
-                </Button>
-                <Button
-                  aria-label="Sign out"
-                  className="size-11"
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                  onClick={() => void controller.logout()}
-                >
-                  <PiSignOut />
                 </Button>
               </div>
             </header>

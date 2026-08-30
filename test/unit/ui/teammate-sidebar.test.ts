@@ -37,6 +37,7 @@ describe("TeammateSidebar", () => {
           teammate("new", "Latest teammate", "2026-08-30T12:00:00.000Z")
         ],
         onCreate: vi.fn(),
+        onLogout: vi.fn(),
         onSelect: vi.fn(),
         selectedId: null
       })
@@ -45,6 +46,8 @@ describe("TeammateSidebar", () => {
     expect(html.indexOf("Latest teammate")).toBeLessThan(html.indexOf("Older teammate"));
     expect(html).not.toContain("Recent work");
     expect(html).toContain("Teammates");
+    expect(html).toContain("Appearance");
+    expect(html).toContain("Sign out");
   });
 
   it("keeps archived teammates in a separate restorable roster", () => {
@@ -57,6 +60,7 @@ describe("TeammateSidebar", () => {
         archivedBots: [archived],
         bots: [teammate("active", "Active teammate", "2026-08-30T12:00:00.000Z")],
         onCreate: vi.fn(),
+        onLogout: vi.fn(),
         onSelect: vi.fn(),
         selectedId: archived.id
       })

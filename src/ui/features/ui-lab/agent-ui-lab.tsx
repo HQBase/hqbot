@@ -105,6 +105,7 @@ function DesktopShell({ state }: { state: Exclude<LabState, "mobile"> }) {
           bots={labBots}
           selectedId={selected.id}
           onCreate={() => undefined}
+          onLogout={() => undefined}
           onSelect={setSelected}
         />
       </div>

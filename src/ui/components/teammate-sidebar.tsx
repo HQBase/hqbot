@@ -4,11 +4,15 @@ import {
   PiCaretDown,
   PiCaretRight,
   PiMagnifyingGlass,
+  PiMoon,
   PiPlus,
-  PiPushPinSimpleFill
+  PiPushPinSimpleFill,
+  PiSignOut,
+  PiSun
 } from "react-icons/pi";
 
 import type { BotTeammate } from "../../domain/types";
+import { useTheme } from "../features/theme/theme-provider";
 import { initials, relativeTime } from "../lib/format";
 import type { TeammateSummary } from "../types";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -20,14 +24,17 @@ export function TeammateSidebar({
   bots,
   selectedId,
   onCreate,
+  onLogout,
   onSelect
 }: {
   archivedBots: TeammateSummary[];
   bots: TeammateSummary[];
   selectedId: string | null;
   onCreate: () => void;
+  onLogout: () => void;
   onSelect: (bot: BotTeammate) => void;
 }) {
+  const { setTheme, theme } = useTheme();
   const [query, setQuery] = useState("");
   const [now, setNow] = useState(Date.now());
   const [archivedOpen, setArchivedOpen] = useState(() =>
@@ -124,6 +131,25 @@ export function TeammateSidebar({
       >
         <PiPlus data-icon="inline-start" /> New teammate
       </Button>
+      <div className="mt-2 grid grid-cols-2 gap-1 border-t border-divider px-1 pt-2">
+        <Button
+          aria-label={`Use ${theme === "dark" ? "light" : "dark"} appearance`}
+          className="h-9 justify-start px-2 text-xs text-muted-foreground"
+          type="button"
+          variant="ghost"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? <PiSun /> : <PiMoon />} Appearance
+        </Button>
+        <Button
+          className="h-9 justify-start px-2 text-xs text-muted-foreground"
+          type="button"
+          variant="ghost"
+          onClick={onLogout}
+        >
+          <PiSignOut /> Sign out
+        </Button>
+      </div>
     </aside>
   );
 }
