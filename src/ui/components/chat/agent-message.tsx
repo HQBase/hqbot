@@ -47,13 +47,45 @@ export function AgentMessage({
       >
         {!user ? <p className="mb-1.5 text-[11px] font-medium text-tertiary">{name}</p> : null}
         <div className="flex flex-col gap-2.5">
-          {parts.map((part) => (
+          {parts.map((part, index) => (
             <MessagePart
-              key={`${part.type}:${part.toolCallId ?? part.id ?? part.text ?? part.title ?? part.filename ?? part.url ?? part.state ?? "part"}`}
+              key={part.id ?? part.toolCallId ?? `${part.type}:${index}`}
               part={part}
               user={user}
             />
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ThinkingIndicator({
+  name,
+  recovering = false
+}: {
+  name: string;
+  recovering?: boolean;
+}) {
+  const label = recovering ? "Recovering" : "Thinking";
+  return (
+    <div aria-live="polite" className="flex max-w-[92%] gap-3" role="status">
+      <Avatar className="mt-1 size-7">
+        <AvatarFallback className="text-[10px] font-semibold">{initials(name)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="mb-1.5 text-[11px] font-medium text-tertiary">{name}</p>
+        <div className="flex h-6 items-center gap-2 text-xs text-muted-foreground">
+          <span>{label}</span>
+          <span aria-hidden="true" className="flex items-center gap-1">
+            {[0, 1, 2].map((index) => (
+              <i
+                className="hqbot-thinking-dot size-1 rounded-full bg-current"
+                key={index}
+                style={{ animationDelay: `${index * 160}ms` }}
+              />
+            ))}
+          </span>
         </div>
       </div>
     </div>

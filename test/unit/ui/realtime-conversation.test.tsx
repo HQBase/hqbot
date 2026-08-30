@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BotTeammate } from "../../../src/domain/types";
@@ -8,24 +9,26 @@ import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
 import { renderComponent } from "./render.tsx";
 
 const agent = vi.hoisted(() => ({
-  pendingApprovals: vi.fn(async () => [])
+  pendingApprovals: vi.fn(async () => []),
+  ready: Promise.resolve()
 }));
 const chat = vi.hoisted(() => ({
   connectionError: null,
   error: null,
   isRecovering: false,
   isStreaming: false,
+  isToolContinuation: false,
   messages: [
     { id: "user-1", role: "user", parts: [{ type: "text", text: "hey how are you?" }] },
     { id: "assistant-1", role: "assistant", parts: [{ type: "text", text: "I'm doing well." }] }
   ] as Array<{ id: string; role: "user" | "assistant"; parts: unknown[] }>,
-  sendMessage: vi.fn(),
+  sendMessage: vi.fn(async () => undefined),
   status: "ready",
   stop: vi.fn()
 }));
 
 vi.mock("agents/react", () => ({
-  useAgent: () => ({ connectionError: null, stub: agent })
+  useAgent: () => ({ connectionError: null, ready: agent.ready, stub: agent })
 }));
 vi.mock("@cloudflare/think/react", () => ({
   useAgentChat: () => chat
@@ -55,6 +58,10 @@ afterEach(() => {
     { id: "user-1", role: "user", parts: [{ type: "text", text: "hey how are you?" }] },
     { id: "assistant-1", role: "assistant", parts: [{ type: "text", text: "I'm doing well." }] }
   ];
+  chat.isRecovering = false;
+  chat.isStreaming = false;
+  chat.isToolContinuation = false;
+  chat.status = "ready";
 });
 
 describe("RealtimeConversation", () => {
@@ -121,10 +128,12 @@ describe("RealtimeConversation", () => {
       error: "",
       load: vi.fn(async () => undefined),
       pendingInitialMessage: { botId: teammate.id, text: "hey how are you?" },
+      restorePendingInitialMessage: vi.fn(),
       sending: true,
       setDetailsOpen: vi.fn(),
       setDialog: vi.fn(),
       setMobileChatOpen: vi.fn(),
+      takePendingInitialMessage: vi.fn(() => null),
       snapshot: { bots: [teammate] }
     } as unknown as WorkspaceController;
     const view = await renderComponent(
@@ -142,6 +151,119 @@ describe("RealtimeConversation", () => {
     expect(
       view.container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')?.disabled
     ).toBe(true);
+    await view.unmount();
+  });
+
+  it("sends a new teammate message once after the live agent is ready", async () => {
+    chat.messages = [];
+    const takePendingInitialMessage = vi.fn(() => "hey how are you?");
+    const controller = {
+      detailsOpen: true,
+      error: "",
+      load: vi.fn(async () => undefined),
+      pendingInitialMessage: { botId: teammate.id, text: "hey how are you?" },
+      restorePendingInitialMessage: vi.fn(),
+      sending: false,
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] },
+      takePendingInitialMessage
+    } as unknown as WorkspaceController;
+    const view = await renderComponent(
+      <StrictMode>
+        <RealtimeConversation
+          bot={teammate}
+          controller={controller}
+          prompt=""
+          showBack={false}
+          onPromptChange={() => undefined}
+        />
+      </StrictMode>
+    );
+
+    expect(takePendingInitialMessage).toHaveBeenCalledTimes(1);
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1);
+    expect(chat.sendMessage).toHaveBeenCalledWith({
+      messageId: `chat:first:${teammate.id}`,
+      text: "hey how are you?"
+    });
+    await view.unmount();
+  });
+
+  it("shows thinking before output and removes it for partial streamed text", async () => {
+    chat.messages = [{ id: "user-1", role: "user", parts: [{ type: "text", text: "Hello" }] }];
+    chat.status = "submitted";
+    const controller = {
+      detailsOpen: true,
+      error: "",
+      load: vi.fn(async () => undefined),
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] }
+    } as unknown as WorkspaceController;
+    const waiting = await renderComponent(
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={() => undefined}
+      />
+    );
+
+    expect(waiting.container.querySelector('[role="status"]')?.textContent).toContain("Thinking");
+    await waiting.unmount();
+
+    chat.messages = [
+      { id: "user-1", role: "user", parts: [{ type: "text", text: "Hello" }] },
+      { id: "assistant-1", role: "assistant", parts: [{ type: "text", text: "I am" }] }
+    ];
+    chat.status = "streaming";
+    chat.isStreaming = true;
+    const streaming = await renderComponent(
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={() => undefined}
+      />
+    );
+
+    expect(streaming.container.textContent).toContain("I am");
+    expect(
+      [...streaming.container.querySelectorAll('[role="status"]')].some((node) =>
+        node.textContent?.includes("Thinking")
+      )
+    ).toBe(false);
+    await streaming.unmount();
+  });
+
+  it("labels a durable stream recovery", async () => {
+    chat.messages = [];
+    chat.isRecovering = true;
+    const controller = {
+      detailsOpen: true,
+      error: "",
+      load: vi.fn(async () => undefined),
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] }
+    } as unknown as WorkspaceController;
+    const view = await renderComponent(
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={() => undefined}
+      />
+    );
+
+    expect(view.container.querySelector('[role="status"]')?.textContent).toContain("Recovering");
     await view.unmount();
   });
 

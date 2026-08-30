@@ -235,6 +235,31 @@
   max-width: 65ch;
 }
 
+@keyframes hqbot-thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.hqbot-thinking-dot {
+  animation: hqbot-thinking-dot 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hqbot-thinking-dot {
+    animation: none;
+    opacity: 0.65;
+  }
+}
+
 .message-markdown {
   min-width: 0;
   overflow-wrap: anywhere;

@@ -5,7 +5,7 @@ import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "reac
 
 import type { BotTeammate } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
-import { AgentMessage, type AgentPart } from "./chat/agent-message";
+import { AgentMessage, type AgentPart, ThinkingIndicator } from "./chat/agent-message";
 import { ApprovalCard } from "./chat/approval-card";
 import { ChatComposer, type ComposerFile } from "./chat/chat-composer";
 import { ConversationHeader } from "./conversation-header";
@@ -66,20 +66,62 @@ export function RealtimeConversation({
     void controller.load(bot.id);
   }, [bot.id, chat.status, controller.load, refreshApprovals]);
 
-  const lastMessageId = chat.messages.at(-1)?.id;
+  const queuedInitialMessage = controller.pendingInitialMessage?.botId === bot.id;
+  useEffect(() => {
+    if (!queuedInitialMessage) return;
+    let active = true;
+    void agent.ready.then(async () => {
+      if (!active) return;
+      const text = controller.takePendingInitialMessage(bot.id);
+      if (!text) return;
+      setLocalError("");
+      try {
+        await chat.sendMessage({ text, messageId: `chat:first:${bot.id}` });
+      } catch (cause) {
+        controller.restorePendingInitialMessage(bot.id, text);
+        setLocalError(cause instanceof Error ? cause.message : "The message could not be sent");
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [
+    agent.ready,
+    bot.id,
+    chat.sendMessage,
+    controller.restorePendingInitialMessage,
+    controller.takePendingInitialMessage,
+    queuedInitialMessage
+  ]);
+
   const approvalRevision = approvals.map((approval) => approval.executionId).join(":");
   useEffect(() => {
-    if (lastMessageId || approvalRevision) endRef.current?.scrollIntoView({ block: "end" });
-  }, [approvalRevision, lastMessageId]);
+    if (chat.messages.length > 0 || approvalRevision)
+      endRef.current?.scrollIntoView({ block: "end" });
+  }, [approvalRevision, chat.messages]);
 
-  const busy = chat.isStreaming || chat.isRecovering || chat.status === "submitted";
-  const composerBusy = busy || controller.sending;
-  const connectionError = chat.connectionError?.message ?? agent.connectionError?.message ?? "";
   const pendingInitialMessage =
     controller.pendingInitialMessage?.botId === bot.id &&
     !chat.messages.some((message) => message.id === `chat:first:${bot.id}`)
       ? controller.pendingInitialMessage.text
       : null;
+  const busy =
+    chat.isStreaming ||
+    chat.isRecovering ||
+    chat.isToolContinuation ||
+    chat.status === "submitted" ||
+    Boolean(pendingInitialMessage);
+  const composerBusy = busy || controller.sending;
+  const connectionError = chat.connectionError?.message ?? agent.connectionError?.message ?? "";
+  const lastMessage = chat.messages.at(-1);
+  const lastAssistantHasOutput =
+    lastMessage?.role === "assistant" &&
+    lastMessage.parts.some((part) => {
+      if (part.type === "text" || part.type === "reasoning")
+        return "text" in part && Boolean(part.text?.trim());
+      return part.type.startsWith("tool-") || part.type === "dynamic-tool";
+    });
+  const showThinking = Boolean(pendingInitialMessage) || (busy && !lastAssistantHasOutput);
   const loadingEmpty =
     chat.messages.length === 0 &&
     !pendingInitialMessage &&
@@ -189,6 +231,9 @@ export function RealtimeConversation({
               />
             ) : null
           )}
+          {showThinking ? (
+            <ThinkingIndicator name={bot.name} recovering={chat.isRecovering} />
+          ) : null}
           {approvals.map((approval) => (
             <ApprovalCard
               description={approval.descriptor.summary}

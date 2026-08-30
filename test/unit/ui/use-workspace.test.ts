@@ -100,7 +100,7 @@ describe("new teammate chat", () => {
     }
   });
 
-  it("keeps a failed first-message error through later snapshot loads", async () => {
+  it("selects the new teammate before the live chat sends the first message", async () => {
     const teammate = { id: "bot-3", name: "Teammate" };
     const emptySnapshot = { archivedBots: [], bots: [], realtime: { url: null }, tasks: [] };
     const teammateSnapshot = {
@@ -112,19 +112,21 @@ describe("new teammate chat", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse(emptySnapshot))
       .mockResolvedValueOnce(jsonResponse({ teammate }, 201))
-      .mockResolvedValueOnce(jsonResponse({ error: "Think is unavailable" }, 503))
-      .mockResolvedValueOnce(jsonResponse(teammateSnapshot))
       .mockResolvedValueOnce(jsonResponse(teammateSnapshot));
     vi.stubGlobal("fetch", fetchMock);
     const view = await renderComponent(createElement(WorkspaceHarness));
 
-    await expect(controller().send("hey how are you?")).resolves.toBe(false);
+    await expect(controller().send("hey how are you?")).resolves.toBe(true);
     await interact();
-    expect(view.container.textContent).toBe("Think is unavailable");
-
-    await controller().load("bot-3");
-    await interact();
-    expect(view.container.textContent).toBe("Think is unavailable");
+    expect(controller().selectedBot?.id).toBe("bot-3");
+    expect(controller().pendingInitialMessage).toEqual({
+      botId: "bot-3",
+      text: "hey how are you?"
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/messages/initial"))).toBe(
+      false
+    );
     await view.unmount();
   });
 });
