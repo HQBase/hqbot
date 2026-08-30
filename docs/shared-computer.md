@@ -16,10 +16,9 @@ HQBot opens browser tools only when a task needs web research. Live View opens o
 selects **Open Live View**. The **Stop** action closes the browser session, which stops more Browser
 Run time from this session.
 
-The current autonomous tools are for browser research and page control. A teammate cannot use a
-browser tool to approve its own HQBase reply. The reply remains a separate durable approval action.
-Keep sensitive accounts signed out unless you intend the teammate to use them. HQBot does not add
-a general approval gate to website actions today.
+The current browser tools are for research and page control. Keep sensitive accounts signed out
+unless you intend the teammate to use them. HQBot does not add a general approval gate to website
+actions today.
 
 R2 holds teammate files and review artifacts. The live stream is not saved as a video.
 

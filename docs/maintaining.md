@@ -35,8 +35,9 @@ file size, and the production build. A source file over 300 lines needs review. 
 - Tag the Worker version with the exact Git SHA.
 - If code changes after live proof, deploy and prove the new SHA again.
 
-For live proof, send one real email to a dedicated HQBase mailbox. Record only safe IDs, times, the
-Git SHA, Worker version, source links, and cost estimate. Do not record credentials or mail content.
+For live proof, connect a dedicated remote MCP server and complete one useful tool-backed task.
+Record only safe IDs, times, the Git SHA, Worker version, source links, and cost estimate. Do not
+record credentials, prompts, or tool results.
 
 Keep HQBot documentation in this repository. Do not add HQBot copy to HQBase public documentation,
 the HQBase website, or HQBase marketing pages.

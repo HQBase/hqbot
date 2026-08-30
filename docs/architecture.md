@@ -8,14 +8,14 @@ flowchart LR
   Teammate --> AI[Workers AI]
   Teammate --> Browser[Browser Run]
   Teammate --> R2[R2 workspace]
-  Workspace <-->|Event socket and REST journal| HQBase[HQBase]
+  Teammate <-->|MCP| Tools[Connected tools]
+  Trigger[Future signed inbound adapter] -.-> Workspace
 ```
 
-HQBot is a separate AGPL repository. It runs in the owner's Cloudflare account. HQBase remains the
-mail system.
+HQBot is a separate AGPL repository. It runs in the owner's Cloudflare account.
 
-The workspace Durable Object owns the first owner, sessions, teammate list, HQBase connections,
-mail tasks, and cost summaries. Each teammate has one Think Durable Object for chat, memory, tools,
+The workspace Durable Object owns the first owner, sessions, teammate list, tasks, and cost
+summaries. Each teammate has one Think Durable Object for chat, memory, MCP connections, tools,
 files, routines, and durable turn state.
 
 ## How a turn runs
@@ -27,31 +27,35 @@ flowchart TD
   Route -->|Research| Research[Use Browser Run tools]
   Route -->|Contains @Name| Delegate[Ask active peers for bounded read-only work]
   Delegate --> Direct
-  Route -->|HQBase mail| Mail[Research and draft reply]
-  Mail --> Pause[Durable approval pause]
-  Pause -->|Approve| Send[Reply through HQBase]
-  Pause -->|Reject| Draft[Keep as draft]
+  Route -->|Connected service| Discover[Find the right MCP tool]
+  Discover --> Approve[Owner approves exact input]
+  Approve --> Call[Call the tool]
 ```
 
-Think fibers keep long turns durable. Agent task queues move inbound mail into the correct
-teammate. Agent schedules renew HQBase event access, retry a connection, run routines, and clean up
-browser sessions.
+Think fibers keep long turns durable. Agent task queues run background work. Agent schedules run
+routines and clean up browser sessions.
 
 HQBot does not use Cloudflare Workflows or cron triggers.
+
+MCP is the flexible tool boundary. A compatible server describes its own tools, so HQBot discovers
+them without a built-in integration list. Inbound triggers are different and are not included
+today. A future signed webhook or channel adapter must validate the sender, stop replays, and map
+the event to a teammate task.
 
 ## Teammate lifecycle
 
 ```mermaid
-flowchart LR
-  Active[Active teammate] -->|Archive| Stop[Cancel tasks and browser]
-  Stop --> Pause[Pause routines]
-  Pause --> Disconnect[Remove HQBase connection]
-  Disconnect --> Archived[Archived roster]
+flowchart TD
+  Active[Active teammate] -->|Stop activity| Stop[Cancel tasks and browser]
+  Stop --> Idle[Keep chat and settings]
+  Active -->|Archive| Archived[Pause routines and hide from active roster]
   Archived -->|Restore| Active
+  Active -->|Delete| Delete[Remove teammate state and files]
+  Archived -->|Delete| Delete
 ```
 
-Restoring a teammate does not restart its old routines or mailbox connection. The owner chooses
-what to reconnect and resume.
+Stopping activity keeps the teammate. Deleting it is permanent and does not delete data in a
+connected external service.
 
 ## Cloudflare services
 

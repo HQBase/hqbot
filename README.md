@@ -26,7 +26,7 @@ flowchart LR
   Bot --> AI[Workers AI]
   Bot --> Browser[Browser Run and Live View]
   Bot --> Files[R2]
-  Workspace <-->|Events and Mail API v2| Mail[HQBase]
+  Bot <-->|MCP| Tools[Connected tools]
 ```
 
 ## What it does
@@ -37,14 +37,14 @@ flowchart LR
 - Runs durable work with Think fibers, Agent task queues, and Agent schedules.
 - Uses GLM-5.3 Flash first, with DeepSeek V4 Flash as a fallback.
 - Shows the real Browser Run tab through Live View. It does not reload a screenshot each second.
-- Receives HQBase mail in realtime through the existing event and Mail API v2 interfaces.
-- Pauses before an HQBase reply and waits for the owner to approve or reject it.
+- Connects to compatible remote MCP servers and discovers their tools at run time.
+- Leaves inbound events to a separate future signed webhook or channel layer.
 - Shows estimated model and browser cost by task, teammate, and overall use, plus raw Durable
-  Object, Agent schedule, task, R2 file, and shared realtime footprints.
-- Archives safely: active work stops, routines pause, and the HQBase connection is removed.
+  Object, Agent schedule, task, and R2 file footprints.
+- Stops active work on request and can delete a teammate with its saved state and files.
 
-HQBot does not use Cloudflare Workflows or cron triggers. HQBase remains the mail system. HQBot does
-not copy its mail storage or delivery code.
+HQBot does not use Cloudflare Workflows or cron triggers. MCP connections add tools that a teammate
+can call. They do not make external events wake HQBot by themselves.
 
 ## Install
 
@@ -55,7 +55,7 @@ flowchart LR
   Code --> Open[Open HQBot]
   Open --> Owner[Claim the first owner]
   Owner --> Team[Create a teammate]
-  Team --> Connect[Connect HQBase]
+  Team --> Connect[Connect tools if needed]
 ```
 
 Select **Deploy to Cloudflare**, choose your Cloudflare account, and choose a private setup code of
@@ -63,10 +63,12 @@ at least 24 characters. Open the deployed address and use that code once to clai
 and password. Later visits use the owner account and a secure HTTP-only cookie. Normal sign-in does
 not use a login token.
 
-To connect mail, give one teammate your HQBase workspace URL and a mailbox agent credential with
-the smallest access that the job needs. HQBot encrypts the credential before it stores it.
+To add tools, give one teammate a compatible remote MCP server URL. Complete OAuth or add a bearer
+token only when the server needs it. HQBot reads the server's tool list, so it does not need a fixed
+integration inventory.
 
 See [Install HQBot](docs/install.md) for the short setup guide.
+See [Connect tools](docs/connections.md) for the connection model.
 
 ## Cost view
 
@@ -83,8 +85,8 @@ A revision is not complete until every item passes:
 - [ ] A clean Git SHA is deployed and shown by the live service.
 - [ ] First-owner setup, login, realtime chat, and Live View work on Cloudflare.
 - [ ] Cost estimates appear after real model and browser use.
-- [ ] A real inbound HQBase email wakes HQBot, starts Browser Run research, pauses for approval, and
-      sends one useful reply through HQBase after approval.
+- [ ] A deployed teammate connects to a real remote MCP server, discovers its tools, and completes
+      one useful tool-backed task.
 
 The last item must use the deployed service. Mocks do not count.
 
@@ -96,7 +98,7 @@ pnpm cf:typegen
 pnpm dev
 ```
 
-Run the HQBase-style gates before each deploy:
+Run the repository gates before each deploy:
 
 ```sh
 pnpm check

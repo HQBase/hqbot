@@ -8,13 +8,13 @@ flowchart LR
   Resources --> Open[Open HQBot]
   Open --> Owner[Create first owner]
   Owner --> Bot[Create a teammate]
-  Bot --> Mail[Connect HQBase]
+  Bot --> Tools[Connect tools if needed]
 ```
 
 ## What you need
 
 - A Cloudflare account that can use Workers AI and Browser Run.
-- An HQBase workspace if the teammate will handle mail.
+- A compatible remote MCP server if the teammate needs connected tools.
 
 ## Setup
 
@@ -24,7 +24,8 @@ flowchart LR
 4. Open the new HQBot address.
 5. Use the setup code once. Create the owner with a name and a password of at least 12 characters.
 6. Create a teammate.
-7. To add mail, open **Connect**, then enter the HQBase URL and mailbox agent credential.
+7. To add tools, open **Connect**, then enter the remote MCP server URL and its required
+   authorization.
 
 The setup code prevents another visitor from claiming a new installation. HQBot uses it only for
 the first owner claim. HQBot stores a password hash, not the password. Login uses a secure
@@ -36,5 +37,5 @@ Worker Loader, R2, and version metadata bindings.
 ## Install proof
 
 Do not call the install path complete until the button works from a clean Cloudflare account and a
-real HQBase email completes the full approved-reply flow. See the release checklist in the
-[README](../README.md#release-gate).
+deployed teammate completes one useful task through a real remote MCP server. See the release
+checklist in the [README](../README.md#release-gate).
