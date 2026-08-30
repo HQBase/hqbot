@@ -47,4 +47,6 @@ closes or times out. Cloudflare account allowances and concurrent-browser overag
 to one teammate, so the Cloudflare dashboard and bill stay authoritative.
 
 Model and Browser Run prices can change. Update the rate table and its tests before a release when
-Cloudflare changes a price.
+Cloudflare changes a price. Check the current
+[Workers AI prices](https://developers.cloudflare.com/workers-ai/platform/pricing/) and
+[Browser Run prices](https://developers.cloudflare.com/browser-run/pricing/).

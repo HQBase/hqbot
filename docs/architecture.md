@@ -25,6 +25,8 @@ flowchart TD
   Message[New message] --> Route{What does it need?}
   Route -->|Simple chat| Direct[Answer with no browser]
   Route -->|Research| Research[Use Browser Run tools]
+  Route -->|Contains @Name| Delegate[Ask active peers for bounded read-only work]
+  Delegate --> Direct
   Route -->|HQBase mail| Mail[Research and draft reply]
   Mail --> Pause[Durable approval pause]
   Pause -->|Approve| Send[Reply through HQBase]
@@ -36,6 +38,20 @@ teammate. Agent schedules renew HQBase event access, retry a connection, run rou
 browser sessions.
 
 HQBot does not use Cloudflare Workflows or cron triggers.
+
+## Teammate lifecycle
+
+```mermaid
+flowchart LR
+  Active[Active teammate] -->|Archive| Stop[Cancel tasks and browser]
+  Stop --> Pause[Pause routines]
+  Pause --> Disconnect[Remove HQBase connection]
+  Disconnect --> Archived[Archived roster]
+  Archived -->|Restore| Active
+```
+
+Restoring a teammate does not restart its old routines or mailbox connection. The owner chooses
+what to reconnect and resume.
 
 ## Cloudflare services
 

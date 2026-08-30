@@ -32,6 +32,7 @@ flowchart LR
 ## What it does
 
 - Keeps each teammate's chat, memory, skills, files, routines, and task history.
+- Lets one teammate delegate bounded, read-only work to active peers with `@Name`.
 - Answers simple chat directly. It opens browser tools only when the request needs research.
 - Runs durable work with Think fibers, Agent task queues, and Agent schedules.
 - Uses GLM-5.3 Flash first, with DeepSeek V4 Flash as a fallback.
@@ -40,6 +41,7 @@ flowchart LR
 - Pauses before an HQBase reply and waits for the owner to approve or reject it.
 - Shows estimated model and browser cost by task, teammate, and overall use, plus raw Durable
   Object, Agent schedule, task, R2 file, and shared realtime footprints.
+- Archives safely: active work stops, routines pause, and the HQBase connection is removed.
 
 HQBot does not use Cloudflare Workflows or cron triggers. HQBase remains the mail system. HQBot does
 not copy its mail storage or delivery code.
