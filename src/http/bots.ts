@@ -1,5 +1,6 @@
 import { defineBot } from "../domain/ai";
 import { contentTypeForUpload } from "../domain/files";
+import { ARCHIVED_TEAMMATE_ERROR } from "../domain/lifecycle";
 import type { BotFile } from "../domain/types";
 import {
   cleanString,
@@ -7,6 +8,7 @@ import {
   optionalString,
   pathMatch,
   readJson,
+  requireActiveTeammate,
   teammate,
   workspace
 } from "./common";
@@ -122,6 +124,7 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
   if (request.method === "POST" && task?.[0]) {
     const selected = await agent.getBot(task[0]);
     if (!selected) return json({ error: "Teammate not found" }, 404);
+    if (selected.hidden) return json({ error: ARCHIVED_TEAMMATE_ERROR }, 409);
     const snapshot = await agent.getSnapshot(task[0]);
     const globalBudget = numberSetting(env.HQBOT_GLOBAL_DAILY_BUDGET_USD, 5);
     if (
@@ -157,7 +160,8 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
 
   const files = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/files$/u);
   if (request.method === "POST" && files?.[0]) {
-    if (!(await agent.hasBot(files[0]))) return json({ error: "Teammate not found" }, 404);
+    const unavailable = await requireActiveTeammate(agent, files[0]);
+    if (unavailable) return unavailable;
     const form = await request.formData();
     const value = form.get("file");
     if (!value || typeof value === "string") return json({ error: "file is required" }, 400);

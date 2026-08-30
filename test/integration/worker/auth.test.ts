@@ -203,4 +203,77 @@ describe("HQBot Worker authentication", () => {
       }
     });
   });
+
+  it("blocks new work for an archived teammate and still permits restore", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const created = await post("/api/bots", { brief: "Research product questions." }, session);
+    const { teammate } = (await created.json()) as { teammate: { id: string } };
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    const now = new Date().toISOString();
+    await storage.exec("UPDATE bots SET hidden = 1 WHERE id = ?", teammate.id);
+    await storage.exec(
+      `INSERT INTO routines (
+        id, bot_id, name, prompt, interval_minutes, active, next_run_at, created_at, updated_at
+      ) VALUES (?, ?, 'Daily brief', 'Prepare a brief', 60, 0, ?, ?, ?)`,
+      "routine-1",
+      teammate.id,
+      now,
+      now,
+      now
+    );
+    await storage.exec(
+      `INSERT INTO tasks (
+        id, bot_id, source, status, prompt, created_at, updated_at
+      ) VALUES ('email-task', ?, 'email', 'awaiting_approval', 'Draft a reply', ?, ?)`,
+      teammate.id,
+      now,
+      now
+    );
+
+    const blocked = [
+      post(`/api/bots/${teammate.id}/tasks`, { prompt: "Research this" }, session),
+      post(`/api/bots/${teammate.id}/files`, { file: "ignored" }, session),
+      post(`/api/bots/${teammate.id}/memories`, { content: "Remember this" }, session),
+      post(
+        `/api/bots/${teammate.id}/skills`,
+        { name: "Research", description: "Find facts", instructions: "Use primary sources" },
+        session
+      ),
+      post(
+        `/api/bots/${teammate.id}/routines`,
+        { name: "New brief", prompt: "Prepare it", intervalMinutes: 60 },
+        session
+      ),
+      post(`/api/bots/${teammate.id}/routines/routine-1/run`, undefined, session),
+      request(`/api/bots/${teammate.id}/routines/routine-1`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: session, Origin: origin },
+        body: JSON.stringify({ active: true })
+      }),
+      post(
+        `/api/bots/${teammate.id}/connections/hqbase`,
+        { origin: "https://hqbase.example.com", token: "mailbox-token" },
+        session
+      ),
+      post("/api/tasks/email-task/approval", { approved: true }, session),
+      request(`/api/bots/${teammate.id}/live-view`, { headers: { Cookie: session } })
+    ];
+
+    for (const response of await Promise.all(blocked)) {
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({
+        error: "Restore this teammate before you start new work"
+      });
+    }
+
+    const restored = await request(`/api/bots/${teammate.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: session, Origin: origin },
+      body: JSON.stringify({ hidden: false })
+    });
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toMatchObject({ teammate: { id: teammate.id, hidden: false } });
+  });
 });

@@ -1,6 +1,14 @@
 import { encryptConnectionToken } from "../services/crypto";
 import { canHandleMail, listMailboxes } from "../services/mail";
-import { cleanString, json, pathMatch, readJson, teammate, workspace } from "./common";
+import {
+  cleanString,
+  json,
+  pathMatch,
+  readJson,
+  requireActiveTeammate,
+  teammate,
+  workspace
+} from "./common";
 
 function canonicalOrigin(value: string): string {
   const url = new URL(value);
@@ -27,7 +35,8 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
 
   const memories = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/memories$/u);
   if (request.method === "POST" && memories?.[0]) {
-    if (!(await agent.hasBot(memories[0]))) return json({ error: "Teammate not found" }, 404);
+    const unavailable = await requireActiveTeammate(agent, memories[0]);
+    if (unavailable) return unavailable;
     const body = await readJson(request);
     const memory = await agent.createMemory(
       crypto.randomUUID(),
@@ -46,7 +55,8 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
 
   const skills = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/skills$/u);
   if (request.method === "POST" && skills?.[0]) {
-    if (!(await agent.hasBot(skills[0]))) return json({ error: "Teammate not found" }, 404);
+    const unavailable = await requireActiveTeammate(agent, skills[0]);
+    if (unavailable) return unavailable;
     const body = await readJson(request);
     try {
       const skill = await agent.createSkill({
@@ -71,7 +81,8 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
 
   const routines = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/routines$/u);
   if (request.method === "POST" && routines?.[0]) {
-    if (!(await agent.hasBot(routines[0]))) return json({ error: "Teammate not found" }, 404);
+    const unavailable = await requireActiveTeammate(agent, routines[0]);
+    if (unavailable) return unavailable;
     const body = await readJson(request);
     const intervalMinutes = Number(body.intervalMinutes);
     if (!Number.isInteger(intervalMinutes) || intervalMinutes < 15 || intervalMinutes > 43_200) {
@@ -91,6 +102,8 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
 
   const run = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/routines\/([^/]+)\/run$/u);
   if (request.method === "POST" && run?.[0] && run[1]) {
+    const unavailable = await requireActiveTeammate(agent, run[0]);
+    if (unavailable) return unavailable;
     const routine = (await agent.listRoutines(run[0])).find((item) => item.id === run[1]);
     if (!routine) return json({ error: "Routine not found" }, 404);
     const taskId = crypto.randomUUID();
@@ -108,6 +121,10 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
   if (routine?.[0] && routine[1] && request.method === "PATCH") {
     const body = await readJson(request);
     if (typeof body.active !== "boolean") return json({ error: "active is required" }, 400);
+    if (body.active) {
+      const unavailable = await requireActiveTeammate(agent, routine[0]);
+      if (unavailable) return unavailable;
+    }
     const updated = await agent.setRoutineActive(routine[1], routine[0], body.active);
     if (!updated) return json({ error: "Routine not found" }, 404);
     await (await teammate(env, routine[0])).reconcileScheduledTasks();
@@ -123,7 +140,8 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
 
   const connection = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/connections\/hqbase$/u);
   if (request.method === "POST" && connection?.[0]) {
-    if (!(await agent.hasBot(connection[0]))) return json({ error: "Teammate not found" }, 404);
+    const unavailable = await requireActiveTeammate(agent, connection[0]);
+    if (unavailable) return unavailable;
     const body = await readJson(request);
     const origin = canonicalOrigin(cleanString(body, "origin", 500));
     const token = cleanString(body, "token", 2_000);
@@ -166,6 +184,10 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
     if (typeof body.approved !== "boolean") {
       return json({ error: "approved must be true or false" }, 400);
     }
+    if (body.approved) {
+      const unavailable = await requireActiveTeammate(agent, task.botId);
+      if (unavailable) return unavailable;
+    }
     const peer = await teammate(env, task.botId);
     const executionId = await peer.replyApprovalForTask(task.id);
     if (!executionId) return json({ error: "This task is not waiting for approval" }, 409);
@@ -177,6 +199,8 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
 
   const liveView = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/live-view$/u);
   if (request.method === "GET" && liveView?.[0]) {
+    const unavailable = await requireActiveTeammate(agent, liveView[0]);
+    if (unavailable) return unavailable;
     return json({ liveView: await (await teammate(env, liveView[0])).getLiveView("tab") });
   }
   if (request.method === "DELETE" && liveView?.[0]) {

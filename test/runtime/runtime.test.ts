@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { estimateModelUsage } from "../../src/runtime/costs";
 import { createHQBotModel } from "../../src/runtime/models";
 import { activeTools, routeTurn } from "../../src/runtime/routing";
-import { createSubmittedTaskMessage, finishTeammateResponse } from "../../src/runtime/turn";
+import {
+  createSubmittedTaskMessage,
+  finishTeammateResponse,
+  prepareTeammateTurn
+} from "../../src/runtime/turn";
 import {
   DEEPSEEK_FALLBACK_MODEL_ID,
   GLM_PRIMARY_MODEL_ID,
@@ -128,6 +132,33 @@ describe("durable task submission", () => {
       metadata: { turnMetadata: metadata },
       parts: [{ type: "text", text: expect.stringContaining("Task ID: task-1") }]
     });
+  });
+
+  it("does not mark an archived teammate as working", async () => {
+    const markInteraction = vi.fn();
+    const workspaceAgent = {
+      checkSpendPolicy: vi.fn(async () => ({
+        allowed: false,
+        reason: "Restore this teammate before you start new work"
+      })),
+      getBot: vi.fn(async () => null),
+      getBotConnection: vi.fn(async () => null),
+      listBots: vi.fn(async () => []),
+      listMemories: vi.fn(async () => []),
+      listSkills: vi.fn(async () => []),
+      markInteraction
+    } as unknown as WorkspaceAgentRpc;
+
+    await expect(
+      prepareTeammateTurn({
+        botId: "archived",
+        browserTools: [],
+        context: { body: {}, messages: [] } as never,
+        maxSteps: 1,
+        workspaceAgent
+      })
+    ).rejects.toThrow("Restore this teammate before you start new work");
+    expect(markInteraction).not.toHaveBeenCalled();
   });
 });
 

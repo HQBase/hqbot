@@ -1,3 +1,4 @@
+import { ARCHIVED_TEAMMATE_ERROR } from "../domain/lifecycle";
 import type { SpendPolicyDto } from "../runtime/types";
 import type { WorkspaceCatalog } from "./catalog";
 import type { WorkspaceTasks } from "./tasks";
@@ -16,6 +17,7 @@ export function checkSpendPolicy(
 ): SpendPolicyDto {
   const bot = catalog.getBot(botId);
   if (!bot) return { allowed: false, reason: "The teammate is not available" };
+  if (bot.hidden) return { allowed: false, reason: ARCHIVED_TEAMMATE_ERROR };
   const costs = tasks.getCosts(botId, taskId);
   if (costs.overall.estimatedUsd >= positiveNumber(env.HQBOT_GLOBAL_DAILY_BUDGET_USD, 5)) {
     return { allowed: false, reason: "The overall daily cost budget has been reached" };

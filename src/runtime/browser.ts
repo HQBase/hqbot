@@ -23,6 +23,7 @@ export type { BrowserSessionLease } from "./browser-meter";
 export const BROWSER_KEEP_ALIVE_MS = 120_000;
 
 export interface MeteredBrowserRuntime extends BrowserRuntime {
+  assertAvailable: () => Promise<void>;
   meter: MeteredBrowserSessionStore;
 }
 
@@ -77,7 +78,11 @@ export function createTeammateBrowserRuntime(
       maxChars: 20_000
     }
   });
-  return { ...runtime, meter };
+  const assertAvailable = async () => {
+    const policy = await workspaceAgent.checkSpendPolicy(teammateId, currentTaskId());
+    if (!policy.allowed) throw new Error(policy.reason ?? "The teammate is not available");
+  };
+  return { ...runtime, assertAvailable, meter };
 }
 
 export async function openBrowserLiveView(
@@ -85,6 +90,7 @@ export async function openBrowserLiveView(
   mode: LiveViewMode,
   arm: (leases: BrowserSessionLease[]) => Promise<void>
 ) {
+  await runtime.assertAvailable();
   const view = (await runtime.connector.liveView({ mode })) ?? null;
   await runtime.meter.flush();
   if (view) await arm(await runtime.meter.touch(null, view.sessionId));
@@ -97,6 +103,7 @@ export async function keepBrowserLiveViewAlive(
   taskId: string | null,
   arm: (leases: BrowserSessionLease[]) => Promise<void>
 ): Promise<boolean> {
+  await runtime.assertAvailable();
   const info = await runtime.connector.sessionInfo();
   await runtime.meter.flush();
   if (!info || info.sessionId !== sessionId) return false;

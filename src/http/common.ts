@@ -1,6 +1,7 @@
 import { getAgentByName } from "agents";
 
 import type { HQBotAgent } from "../agent";
+import { ARCHIVED_TEAMMATE_ERROR } from "../domain/lifecycle";
 import type { HQBotTeammate } from "../teammate";
 
 export const sessionCookieName = "__Host-hqbot_session";
@@ -22,6 +23,15 @@ export function workspace(env: Env): Promise<DurableObjectStub<HQBotAgent>> {
 
 export function teammate(env: Env, botId: string): Promise<DurableObjectStub<HQBotTeammate>> {
   return getAgentByName<Env, HQBotTeammate>(env.HQBOT_TEAMMATE, botId);
+}
+
+export async function requireActiveTeammate(
+  agent: DurableObjectStub<HQBotAgent>,
+  botId: string
+): Promise<Response | null> {
+  const bot = await agent.getBot(botId);
+  if (!bot) return json({ error: "Teammate not found" }, 404);
+  return bot.hidden ? json({ error: ARCHIVED_TEAMMATE_ERROR }, 409) : null;
 }
 
 export function cookieValue(request: Request, name = sessionCookieName): string | null {

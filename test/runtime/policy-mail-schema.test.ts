@@ -40,6 +40,7 @@ function message(overrides: Partial<MessageDetail> = {}): MessageDetail {
 
 interface PolicyInput {
   botExists?: boolean;
+  hidden?: boolean;
   overall?: number;
   bot?: number;
   task?: number;
@@ -57,7 +58,10 @@ function policy(input: PolicyInput = {}) {
     HQBOT_DAILY_TASK_LIMIT: input.taskLimit ?? "50"
   } as Parameters<typeof checkSpendPolicy>[0];
   const catalog = {
-    getBot: () => (input.botExists === false ? null : { dailyBudgetUsd: input.botBudget ?? 2 })
+    getBot: () =>
+      input.botExists === false
+        ? null
+        : { dailyBudgetUsd: input.botBudget ?? 2, hidden: input.hidden ?? false }
   } as unknown as Parameters<typeof checkSpendPolicy>[1];
   const tasks = {
     getCosts: () => ({
@@ -74,6 +78,7 @@ function policy(input: PolicyInput = {}) {
 describe("spend policy", () => {
   it.each([
     [{ botExists: false }, "The teammate is not available"],
+    [{ hidden: true }, "Restore this teammate before you start new work"],
     [{ overall: 5 }, "The overall daily cost budget has been reached"],
     [{ bot: 2 }, "The teammate daily cost budget has been reached"],
     [{ task: 1 }, "The task cost budget has been reached"],

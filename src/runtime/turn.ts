@@ -110,10 +110,10 @@ export async function prepareTeammateTurn(input: PrepareTeammateTurnInput): Prom
     input.workspaceAgent.listMemories(input.botId),
     input.workspaceAgent.listSkills(input.botId),
     input.workspaceAgent.getBotConnection(input.botId),
-    input.workspaceAgent.checkSpendPolicy(input.botId, typeof taskId === "string" ? taskId : null),
-    input.workspaceAgent.markInteraction(input.botId, occurredAt)
+    input.workspaceAgent.checkSpendPolicy(input.botId, typeof taskId === "string" ? taskId : null)
   ]);
   if (!spendPolicy.allowed) throw new Error(spendPolicy.reason ?? "The cost budget was reached");
+  await input.workspaceAgent.markInteraction(input.botId, occurredAt);
 
   const collaborators = delegated
     ? []
