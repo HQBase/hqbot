@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { PiLink, PiShieldCheck } from "react-icons/pi";
+import { PiLink, PiPlugsConnected, PiShieldCheck } from "react-icons/pi";
 
 import type { BotTeammate } from "../../../domain/types";
 import { api, errorMessage } from "../../lib/api";
@@ -49,6 +49,70 @@ export function ConnectionDialog({
     } finally {
       setPending(false);
     }
+  }
+
+  async function disconnect(): Promise<void> {
+    setPending(true);
+    setError("");
+    try {
+      await api(`/api/bots/${bot.id}/connections/hqbase`, { method: "DELETE" });
+      await onChanged();
+      onOpenChange(false);
+    } catch (cause) {
+      setError(errorMessage(cause, "HQBase could not disconnect"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (bot.connection) {
+    const status =
+      bot.connection.realtimeStatus === "connected"
+        ? "Connected"
+        : bot.connection.realtimeStatus === "connecting"
+          ? "Connecting"
+          : "Reconnecting";
+
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-[min(92vw,520px)]">
+          <DialogHeader>
+            <DialogTitle>HQBase connection</DialogTitle>
+            <DialogDescription>
+              {bot.name} receives new mail from this mailbox in realtime.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+            <ConnectionRow label="Mailbox" value={bot.connection.mailboxAddress} />
+            <ConnectionRow label="HQBase" value={bot.connection.origin} />
+            <ConnectionRow label="Status" value={status} />
+          </div>
+          {error ? <FieldError>{error}</FieldError> : null}
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <PiPlugsConnected /> Disconnecting stops new mail work. It does not delete mail.
+          </p>
+          <DialogFooter>
+            <Button
+              disabled={pending}
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Close
+            </Button>
+            <Button
+              disabled={pending}
+              type="button"
+              variant="destructive"
+              onClick={() => void disconnect()}
+            >
+              {pending ? <Spinner data-icon="inline-start" /> : null}
+              Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (
@@ -110,5 +174,14 @@ export function ConnectionDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ConnectionRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[5rem_1fr] gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate text-right font-medium">{value}</span>
+    </div>
   );
 }

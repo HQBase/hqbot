@@ -1,7 +1,14 @@
 import type { ComponentType, ReactNode } from "react";
 import { PiCalendar, PiFile, PiLink, PiPlus, PiSparkle } from "react-icons/pi";
 
-import type { BotFile, BotMemory, BotRoutine, BotSkill, BotTeammate } from "../../../domain/types";
+import type {
+  BotConnection,
+  BotFile,
+  BotMemory,
+  BotRoutine,
+  BotSkill,
+  BotTeammate
+} from "../../../domain/types";
 import { formatInterval } from "../../lib/format";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -29,6 +36,10 @@ export function ResourcesPanel({
   onNewSkill: () => void;
   onUseSkill: (skill: BotSkill) => void;
 }) {
+  const connectionStatus = bot.connection
+    ? realtimeConnectionLabel(bot.connection.realtimeStatus)
+    : null;
+
   return (
     <div className="flex flex-col gap-3">
       <Card className="shadow-none">
@@ -41,8 +52,13 @@ export function ResourcesPanel({
               {bot.connection?.mailboxAddress ?? "No mailbox connected"}
             </CardDescription>
           </div>
-          {bot.connection ? (
-            <Badge>On</Badge>
+          {connectionStatus ? (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{connectionStatus}</Badge>
+              <Button size="sm" type="button" variant="ghost" onClick={onConnect}>
+                Manage
+              </Button>
+            </div>
           ) : (
             <Button size="sm" type="button" variant="outline" onClick={onConnect}>
               Connect
@@ -133,6 +149,12 @@ export function ResourcesPanel({
       ) : null}
     </div>
   );
+}
+
+export function realtimeConnectionLabel(status: BotConnection["realtimeStatus"]): string {
+  if (status === "connected") return "Connected";
+  if (status === "connecting") return "Connecting";
+  return "Reconnecting";
 }
 
 function ResourceCard({
