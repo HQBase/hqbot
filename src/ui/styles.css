@@ -235,6 +235,120 @@
   max-width: 65ch;
 }
 
+.message-markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.message-markdown > :first-child {
+  margin-top: 0;
+}
+
+.message-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.message-markdown :where(p, ul, ol, pre, table, blockquote) {
+  margin-block: 0.75rem;
+}
+
+.message-markdown :where(h1, h2, h3, h4) {
+  margin-block: 1rem 0.35rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.message-markdown h1 {
+  font-size: 1.25rem;
+}
+
+.message-markdown h2 {
+  font-size: 1.1rem;
+}
+
+.message-markdown :where(h3, h4) {
+  font-size: 1rem;
+}
+
+.message-markdown :where(ul, ol) {
+  padding-left: 1.25rem;
+}
+
+.message-markdown ul {
+  list-style: disc;
+}
+
+.message-markdown ol {
+  list-style: decimal;
+}
+
+.message-markdown li + li {
+  margin-top: 0.25rem;
+}
+
+.message-markdown a {
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--foreground) / 0.35);
+  text-underline-offset: 0.2em;
+}
+
+.message-markdown :not(pre) > code {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.3rem;
+  background: hsl(var(--muted));
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+}
+
+.message-markdown pre {
+  overflow-x: auto;
+  border: 1px solid hsl(var(--divider-subtle));
+  border-radius: 0.65rem;
+  background: hsl(var(--muted));
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.message-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.message-markdown :where(th, td) {
+  border: 1px solid hsl(var(--divider-subtle));
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-markdown th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+}
+
+.message-markdown blockquote {
+  border-left: 2px solid hsl(var(--border));
+  padding-left: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.message-markdown-user a {
+  text-decoration-color: currentColor;
+}
+
+.message-markdown-user :where(:not(pre) > code, pre, th) {
+  border-color: rgb(255 255 255 / 0.25);
+  background: rgb(255 255 255 / 0.12);
+}
+
+.message-markdown-user :where(th, td, blockquote) {
+  border-color: rgb(255 255 255 / 0.25);
+}
+
 @media (max-width: 767px) {
   [data-slot="dialog-content"] {
     --dialog-safe-top: max(1rem, calc(env(safe-area-inset-top) + 0.75rem));

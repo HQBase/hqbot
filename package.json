@@ -71,6 +71,8 @@
     "ai": "7.0.85",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "micromark": "4.0.2",
+    "micromark-extension-gfm": "3.0.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-icons": "5.7.0",

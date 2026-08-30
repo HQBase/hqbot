@@ -4,6 +4,7 @@ import { initials } from "../../lib/format";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Card, CardContent } from "../ui/card";
+import { MarkdownText } from "./markdown-text";
 
 export type AgentPart = {
   id?: string;
@@ -61,7 +62,7 @@ export function AgentMessage({
 
 function MessagePart({ part, user }: { part: AgentPart; user: boolean }) {
   if (part.type === "text") {
-    return <p className="whitespace-pre-wrap text-[14px] leading-6">{part.text}</p>;
+    return <MarkdownText text={part.text ?? ""} user={user} />;
   }
   if (part.type === "reasoning") {
     return (

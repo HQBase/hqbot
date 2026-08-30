@@ -1,0 +1,20 @@
+import { micromark } from "micromark";
+import { gfm, gfmHtml } from "micromark-extension-gfm";
+
+import { cn } from "../../lib/cn";
+
+export function MarkdownText({ text, user = false }: { text: string; user?: boolean }) {
+  const html = micromark(text, {
+    extensions: [gfm()],
+    htmlExtensions: [gfmHtml()]
+  });
+
+  return (
+    <div
+      className={cn("message-markdown text-[14px] leading-6", user && "message-markdown-user")}
+      // Micromark escapes raw HTML and removes unsafe link protocols by default.
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: the Markdown compiler returns safe HTML
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
