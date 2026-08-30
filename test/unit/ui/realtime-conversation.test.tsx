@@ -286,6 +286,57 @@ describe("RealtimeConversation", () => {
     await view.unmount();
   });
 
+  it("automatically retries an uncertain first message with the same identity", async () => {
+    chat.messages = [];
+    submitInitialMessage
+      .mockRejectedValueOnce(
+        new InitialMessageAdmissionUnknownError(new TypeError("The response was lost"))
+      )
+      .mockResolvedValueOnce(undefined);
+    let retry: (() => void) | null = null;
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    const timer = vi.spyOn(window, "setTimeout").mockImplementation((handler, timeout, ...args) => {
+      if (timeout === 1_000) {
+        retry = () => {
+          if (typeof handler === "function") handler(...args);
+        };
+        return 1;
+      }
+      return nativeSetTimeout(handler, timeout, ...args);
+    });
+    const controller = {
+      detailsOpen: true,
+      error: "",
+      load: vi.fn(async () => undefined),
+      pendingInitialMessage: { botId: teammate.id, text: "hey how are you?" },
+      sending: false,
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] },
+      takePendingInitialMessage: vi.fn(() => null)
+    } as unknown as WorkspaceController;
+    const view = await renderComponent(
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={() => undefined}
+      />
+    );
+
+    expect(retry).not.toBeNull();
+    retry?.();
+    await interact();
+
+    expect(submitInitialMessage).toHaveBeenCalledTimes(2);
+    expect(submitInitialMessage).toHaveBeenNthCalledWith(1, teammate.id, "hey how are you?");
+    expect(submitInitialMessage).toHaveBeenNthCalledWith(2, teammate.id, "hey how are you?");
+    timer.mockRestore();
+    await view.unmount();
+  });
+
   it("shows thinking before output and removes it for partial streamed text", async () => {
     chat.messages = [{ id: "user-1", role: "user", parts: [{ type: "text", text: "Hello" }] }];
     chat.status = "submitted";

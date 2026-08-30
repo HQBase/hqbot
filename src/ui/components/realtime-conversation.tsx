@@ -5,7 +5,7 @@ import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "reac
 
 import type { BotTeammate } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
-import { InitialMessageAdmissionUnknownError, submitInitialMessage } from "../lib/initial-message";
+import * as initialMessage from "../lib/initial-message";
 import { integrationActionDetails, type TeammateIntegrationClient } from "../lib/mcp";
 import { AgentMessage, type AgentPart, ThinkingIndicator } from "./chat/agent-message";
 import { ApprovalCard } from "./chat/approval-card";
@@ -13,7 +13,6 @@ import { ChatComposer, type ComposerFile } from "./chat/chat-composer";
 import { ConversationHeader } from "./conversation-header";
 
 type LocalFile = ComposerFile & { file: File };
-
 export function RealtimeConversation({
   bot,
   controller,
@@ -36,6 +35,7 @@ export function RealtimeConversation({
   const [resolving, setResolving] = useState<string | null>(null);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [localError, setLocalError] = useState("");
+  const [initialRetry, setInitialRetry] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const initialSubmissionRef = useRef<string | null>(null);
   const refreshApprovals = useCallback(async () => {
@@ -54,6 +54,7 @@ export function RealtimeConversation({
   useEffect(() => {
     if (!queuedInitialMessage) return;
     let active = true;
+    let retryTimer: number | undefined;
     void (async () => {
       try {
         await agent.ready;
@@ -62,14 +63,19 @@ export function RealtimeConversation({
         if (!text) return;
         initialSubmissionRef.current = bot.id;
         setLocalError("");
-        await submitInitialMessage(bot.id, text);
+        await initialMessage.submitInitialMessage(bot.id, text);
       } catch (cause) {
         if (!active) return;
-        initialSubmissionRef.current = null;
-        if (cause instanceof InitialMessageAdmissionUnknownError) {
+        if (cause instanceof initialMessage.InitialMessageAdmissionUnknownError) {
           setLocalError(cause.message);
+          retryTimer = initialMessage.scheduleInitialMessageRetry(initialRetry, () => {
+            initialSubmissionRef.current = null;
+            setInitialRetry((current) => current + 1);
+          });
           return;
         }
+        initialSubmissionRef.current = null;
+        setInitialRetry(0);
         const text = controller.takePendingInitialMessage(bot.id);
         if (text) onPromptChange(text);
         setLocalError(cause instanceof Error ? cause.message : "The message could not be sent");
@@ -77,12 +83,14 @@ export function RealtimeConversation({
     })();
     return () => {
       active = false;
+      window.clearTimeout(retryTimer);
     };
   }, [
     agent.ready,
     bot.id,
     controller.pendingInitialMessage,
     controller.takePendingInitialMessage,
+    initialRetry,
     onPromptChange,
     queuedInitialMessage
   ]);
@@ -91,6 +99,7 @@ export function RealtimeConversation({
     if (queuedInitialMessage && chat.messages.some((message) => message.id === initialMessageId)) {
       controller.takePendingInitialMessage(bot.id);
       setLocalError("");
+      setInitialRetry(0);
     }
   }, [
     bot.id,
@@ -106,7 +115,6 @@ export function RealtimeConversation({
     if (chat.messages.length > 0 || approvalRevision)
       endRef.current?.scrollIntoView({ block: "end" });
   }, [approvalRevision, chat.messages]);
-
   const pendingInitialMessage =
     controller.pendingInitialMessage?.botId === bot.id &&
     !chat.messages.some((message) => message.id === initialMessageId)
@@ -135,7 +143,6 @@ export function RealtimeConversation({
     !pendingInitialMessage &&
     approvals.length === 0 &&
     (chat.status !== "ready" || chat.isRecovering);
-
   async function send(): Promise<void> {
     const text = prompt.trim();
     if (!text || composerBusy) return;
@@ -151,7 +158,6 @@ export function RealtimeConversation({
       setLocalError(cause instanceof Error ? cause.message : "The message could not be sent");
     }
   }
-
   function upload(event: ChangeEvent<HTMLInputElement>): void {
     const selected = [...(event.target.files ?? [])];
     event.target.value = "";
@@ -168,7 +174,6 @@ export function RealtimeConversation({
       ].slice(0, 5)
     );
   }
-
   async function resolveApproval(approval: PendingAction, approved: boolean): Promise<void> {
     setResolving(approval.executionId);
     setLocalError("");
@@ -183,7 +188,6 @@ export function RealtimeConversation({
       setResolving(null);
     }
   }
-
   async function stop(): Promise<void> {
     setLocalError("");
     try {
@@ -192,7 +196,6 @@ export function RealtimeConversation({
       setLocalError(cause instanceof Error ? cause.message : "The teammate could not be stopped");
     }
   }
-
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader

@@ -164,6 +164,24 @@ describe("new teammate chat", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("restores a retry that stopped before its message was applied", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        accepted: false,
+        submissionId: "first:bot-2",
+        status: "aborted",
+        error: "The model stopped before the message started",
+        messageApplied: false
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(submitInitialMessage("bot-2", "hey")).rejects.toThrow(
+      "The model stopped before the message started"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("selects the new teammate before the live chat sends the first message", async () => {
     const teammate = { id: "bot-3", name: "Teammate" };
     const emptySnapshot = { archivedBots: [], bots: [], realtime: { url: null }, tasks: [] };
