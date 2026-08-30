@@ -178,7 +178,7 @@ export function meteredBrowserBinding(
   browser: BrowserBinding & QuickActionBinding,
   taskId: () => string | null,
   record: (sample: BrowserUsageSample) => Promise<void>,
-  eventId: () => string = crypto.randomUUID
+  eventId: () => string = () => crypto.randomUUID()
 ): BrowserBinding & QuickActionBinding {
   return {
     fetch: (input, init) => browser.fetch(input, init),

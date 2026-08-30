@@ -78,6 +78,30 @@ describe("Browser Run metering", () => {
     });
   });
 
+  it("keeps the runtime crypto receiver when it creates a usage identity", async () => {
+    const record = vi.fn();
+    const browser = meteredBrowserBinding(
+      {
+        fetch: vi.fn(),
+        quickAction: vi.fn().mockResolvedValue(
+          new Response("{}", {
+            headers: { "X-Browser-Ms-Used": "25" },
+            status: 200
+          })
+        )
+      },
+      () => null,
+      record
+    );
+
+    await expect(
+      browser.quickAction("links", { url: "https://example.com" })
+    ).resolves.toBeInstanceOf(Response);
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: expect.stringMatching(/^browser-quick:/u) })
+    );
+  });
+
   it("counts one reusable session through an explicit Live View close", async () => {
     let now = 1_000;
     const delegate = new MemorySessionStore();
