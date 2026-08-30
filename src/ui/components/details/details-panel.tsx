@@ -27,7 +27,6 @@ export function DetailsPanel({
           computer={snapshot.computer}
           key={selectedBot.id}
           task={selectedTask}
-          onStop={() => void controller.stopComputer()}
         />
         <CostPanel
           budgetUsd={selectedBot.dailyBudgetUsd}

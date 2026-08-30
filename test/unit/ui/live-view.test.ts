@@ -6,23 +6,25 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiveView } from "../../../src/ui/components/details/live-view";
 import { interact, renderComponent } from "./render.tsx";
 
-const liveAgent = vi.hoisted(() => ({
-  closeLiveView: vi.fn(),
-  getLiveView: vi.fn()
+const liveAgents = vi.hoisted(() => ({
+  "bot-1": { closeLiveView: vi.fn(), getLiveView: vi.fn() },
+  "bot-2": { closeLiveView: vi.fn(), getLiveView: vi.fn() }
 }));
 
 vi.mock("agents/react", () => ({
-  useAgent: () => ({ stub: liveAgent })
+  useAgent: ({ name }: { name: keyof typeof liveAgents }) => ({ stub: liveAgents[name] })
 }));
 
 afterEach(() => {
-  liveAgent.closeLiveView.mockReset();
-  liveAgent.getLiveView.mockReset();
+  for (const agent of Object.values(liveAgents)) {
+    agent.closeLiveView.mockReset();
+    agent.getLiveView.mockReset();
+  }
 });
 
 describe("LiveView", () => {
   it("does not request a browser session until the owner clicks", async () => {
-    liveAgent.getLiveView.mockResolvedValue({
+    liveAgents["bot-1"].getLiveView.mockResolvedValue({
       targets: [{ pageUrl: "https://example.com", url: "https://live.example.com" }]
     });
     const view = await renderComponent(
@@ -35,23 +37,47 @@ describe("LiveView", () => {
           updatedAt: null,
           url: null
         },
-        onStop: vi.fn(),
         task: null
       })
     );
 
-    expect(liveAgent.getLiveView).not.toHaveBeenCalled();
+    expect(liveAgents["bot-1"].getLiveView).not.toHaveBeenCalled();
     const openButton = [...view.container.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("Open Live View")
     );
     expect(openButton).toBeDefined();
 
     await interact(() => openButton?.click());
-    expect(liveAgent.getLiveView).toHaveBeenCalledOnce();
-    expect(liveAgent.getLiveView).toHaveBeenCalledWith("tab");
+    expect(liveAgents["bot-1"].getLiveView).toHaveBeenCalledOnce();
+    expect(liveAgents["bot-1"].getLiveView).toHaveBeenCalledWith("tab");
     expect(view.container.querySelector("iframe")?.getAttribute("src")).toBe(
       "https://live.example.com"
     );
+    await view.unmount();
+  });
+
+  it("stops only the selected teammate browser session", async () => {
+    const view = await renderComponent(
+      createElement(LiveView, {
+        botId: "bot-2",
+        computer: {
+          active: true,
+          expiresAt: null,
+          screenshotKey: null,
+          updatedAt: null,
+          url: "https://example.com"
+        },
+        task: null
+      })
+    );
+    const stopButton = [...view.container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Stop")
+    );
+
+    await interact(() => stopButton?.click());
+
+    expect(liveAgents["bot-2"].closeLiveView).toHaveBeenCalledOnce();
+    expect(liveAgents["bot-1"].closeLiveView).not.toHaveBeenCalled();
     await view.unmount();
   });
 });

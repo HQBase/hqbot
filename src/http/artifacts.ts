@@ -1,4 +1,4 @@
-import { json, teammate, workspace } from "./common";
+import { json } from "./common";
 
 export async function handleArtifacts(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
@@ -26,23 +26,4 @@ export async function handleArtifacts(request: Request, env: Env): Promise<Respo
   if (key.startsWith("files/")) headers.set("Content-Disposition", "attachment");
   headers.set("X-Content-Type-Options", "nosniff");
   return new Response(object.body, { headers });
-}
-
-export async function handleLegacyComputer(request: Request, env: Env): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (request.method !== "POST" || url.pathname !== "/api/computer/stop") return null;
-  const agent = await workspace(env);
-  const snapshot = await agent.getSnapshot();
-  if (snapshot.selectedBot) {
-    await (await teammate(env, snapshot.selectedBot.id)).closeLiveView();
-  }
-  await agent.saveComputerState({
-    sessionId: null,
-    url: null,
-    screenshotKey: null,
-    expiresAt: null,
-    cookiesCiphertext: null,
-    cookiesIv: null
-  });
-  return json({ computer: { active: false } });
 }

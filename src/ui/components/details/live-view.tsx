@@ -22,13 +22,11 @@ interface LiveViewAgent {
 export function LiveView({
   computer,
   botId,
-  task,
-  onStop
+  task
 }: {
   computer: LiveComputer;
   botId: string;
   task: BotTask | null;
-  onStop: () => void;
 }) {
   const agent = useAgent<LiveViewAgent, unknown>({ agent: "HQBOT_TEAMMATE", name: botId });
   const [liveTarget, setLiveTarget] = useState<LiveViewResult["targets"][number] | null>(null);
@@ -57,7 +55,6 @@ export function LiveView({
   async function stop(): Promise<void> {
     await agent.stub.closeLiveView();
     setLiveTarget(null);
-    onStop();
   }
 
   return (

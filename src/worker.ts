@@ -1,7 +1,7 @@
 import { routeAgentRequest } from "agents";
 
 import { HQBotAgent } from "./agent";
-import { handleArtifacts, handleLegacyComputer } from "./http/artifacts";
+import { handleArtifacts } from "./http/artifacts";
 import { handleAuth } from "./http/auth";
 import { handleBots } from "./http/bots";
 import { json, requireOwner, requireSameOrigin, workspace } from "./http/common";
@@ -58,7 +58,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (unauthorized) return unauthorized;
   const crossOrigin = requireSameOrigin(request);
   if (crossOrigin) return crossOrigin;
-  for (const handler of [handleBots, handleResources, handleArtifacts, handleLegacyComputer]) {
+  for (const handler of [handleBots, handleResources, handleArtifacts]) {
     const response = await handler(request, env);
     if (response) return response;
   }

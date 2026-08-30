@@ -105,15 +105,6 @@ export function useWorkspace(onSignedOut: () => void) {
     }
   }
 
-  async function stopComputer(): Promise<void> {
-    try {
-      await api("/api/computer/stop", { method: "POST" });
-      await load();
-    } catch (cause) {
-      setError(errorMessage(cause, "The computer could not stop"));
-    }
-  }
-
   async function logout(): Promise<void> {
     try {
       await api("/api/auth/logout", { method: "POST" });
@@ -142,8 +133,7 @@ export function useWorkspace(onSignedOut: () => void) {
     setDialog,
     setError,
     setMobileChatOpen,
-    snapshot,
-    stopComputer
+    snapshot
   };
 }
 
