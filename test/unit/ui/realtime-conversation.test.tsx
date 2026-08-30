@@ -9,6 +9,7 @@ import { RealtimeConversation } from "../../../src/ui/components/realtime-conver
 import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
 import { interact, renderComponent } from "./render.tsx";
 
+const submitInitialMessage = vi.hoisted(() => vi.fn(async () => undefined));
 const agent = vi.hoisted(() => ({
   approveIntegrationAction: vi.fn(async () => undefined),
   listIntegrationApprovals: vi.fn<() => Promise<PendingAction[]>>(async () => []),
@@ -35,6 +36,10 @@ vi.mock("agents/react", () => ({
 }));
 vi.mock("@cloudflare/think/react", () => ({
   useAgentChat: () => chat
+}));
+vi.mock("../../../src/ui/hooks/use-workspace", async (importOriginal) => ({
+  ...(await importOriginal()),
+  submitInitialMessage
 }));
 
 const teammate = {
@@ -65,6 +70,7 @@ afterEach(() => {
   chat.isStreaming = false;
   chat.isToolContinuation = false;
   chat.status = "ready";
+  submitInitialMessage.mockResolvedValue(undefined);
 });
 
 describe("RealtimeConversation", () => {
@@ -131,7 +137,6 @@ describe("RealtimeConversation", () => {
       error: "",
       load: vi.fn(async () => undefined),
       pendingInitialMessage: { botId: teammate.id, text: "hey how are you?" },
-      restorePendingInitialMessage: vi.fn(),
       sending: true,
       setDetailsOpen: vi.fn(),
       setDialog: vi.fn(),
@@ -157,7 +162,7 @@ describe("RealtimeConversation", () => {
     await view.unmount();
   });
 
-  it("appends a new teammate message once after the live agent is ready", async () => {
+  it("durably submits a new teammate message once after the live agent is ready", async () => {
     chat.messages = [];
     const takePendingInitialMessage = vi.fn(() => "hey how are you?");
     const controller = {
@@ -165,7 +170,6 @@ describe("RealtimeConversation", () => {
       error: "",
       load: vi.fn(async () => undefined),
       pendingInitialMessage: { botId: teammate.id, text: "hey how are you?" },
-      restorePendingInitialMessage: vi.fn(),
       sending: false,
       setDetailsOpen: vi.fn(),
       setDialog: vi.fn(),
@@ -185,9 +189,45 @@ describe("RealtimeConversation", () => {
       </StrictMode>
     );
 
-    expect(takePendingInitialMessage).toHaveBeenCalledTimes(1);
-    expect(chat.sendMessage).toHaveBeenCalledTimes(1);
-    expect(chat.sendMessage).toHaveBeenCalledWith({ text: "hey how are you?" });
+    expect(submitInitialMessage).toHaveBeenCalledTimes(1);
+    expect(submitInitialMessage).toHaveBeenCalledWith(teammate.id, "hey how are you?");
+    expect(takePendingInitialMessage).not.toHaveBeenCalled();
+    expect(chat.sendMessage).not.toHaveBeenCalled();
+    await view.unmount();
+  });
+
+  it("restores the first message when durable submission fails", async () => {
+    chat.messages = [];
+    submitInitialMessage.mockRejectedValueOnce(new Error("The connection was lost"));
+    const takePendingInitialMessage = vi.fn(() => "hey how are you?");
+    const onPromptChange = vi.fn();
+    const controller = {
+      detailsOpen: true,
+      error: "",
+      load: vi.fn(async () => undefined),
+      pendingInitialMessage: { botId: teammate.id, text: "hey how are you?" },
+      sending: false,
+      setDetailsOpen: vi.fn(),
+      setDialog: vi.fn(),
+      setMobileChatOpen: vi.fn(),
+      snapshot: { bots: [teammate] },
+      takePendingInitialMessage
+    } as unknown as WorkspaceController;
+    const view = await renderComponent(
+      <RealtimeConversation
+        bot={teammate}
+        controller={controller}
+        prompt=""
+        showBack={false}
+        onPromptChange={onPromptChange}
+      />
+    );
+
+    expect(takePendingInitialMessage).toHaveBeenCalledWith(teammate.id);
+    expect(onPromptChange).toHaveBeenCalledWith("hey how are you?");
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(
+      "The connection was lost"
+    );
     await view.unmount();
   });
 
