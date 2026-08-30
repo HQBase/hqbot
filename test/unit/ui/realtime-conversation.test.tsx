@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BotTeammate } from "../../../src/domain/types";
 import { RealtimeConversation } from "../../../src/ui/components/realtime-conversation";
 import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
-import { InitialMessageAdmissionUnknownError } from "../../../src/ui/lib/initial-message";
+import * as initialMessageModule from "../../../src/ui/lib/initial-message";
 import { interact, renderComponent } from "./render.tsx";
 
 const submitInitialMessage = vi.hoisted(() => vi.fn(async () => undefined));
@@ -235,7 +235,9 @@ describe("RealtimeConversation", () => {
   it("keeps an uncertain first message until its fixed-ID broadcast arrives", async () => {
     chat.messages = [];
     submitInitialMessage.mockRejectedValueOnce(
-      new InitialMessageAdmissionUnknownError(new TypeError("The response was lost"))
+      new initialMessageModule.InitialMessageAdmissionUnknownError(
+        new TypeError("The response was lost")
+      )
     );
     const takePendingInitialMessage = vi.fn(() => "hey how are you?");
     const onPromptChange = vi.fn();
@@ -290,20 +292,18 @@ describe("RealtimeConversation", () => {
     chat.messages = [];
     submitInitialMessage
       .mockRejectedValueOnce(
-        new InitialMessageAdmissionUnknownError(new TypeError("The response was lost"))
+        new initialMessageModule.InitialMessageAdmissionUnknownError(
+          new TypeError("The response was lost")
+        )
       )
       .mockResolvedValueOnce(undefined);
-    let retry: (() => void) | null = null;
-    const nativeSetTimeout = window.setTimeout.bind(window);
-    const timer = vi.spyOn(window, "setTimeout").mockImplementation((handler, timeout, ...args) => {
-      if (timeout === 1_000) {
-        retry = () => {
-          if (typeof handler === "function") handler(...args);
-        };
+    let retry: (() => void) | undefined;
+    const timer = vi
+      .spyOn(initialMessageModule, "scheduleInitialMessageRetry")
+      .mockImplementation((_attempt, callback) => {
+        retry = callback;
         return 1;
-      }
-      return nativeSetTimeout(handler, timeout, ...args);
-    });
+      });
     const controller = {
       detailsOpen: true,
       error: "",
@@ -326,8 +326,8 @@ describe("RealtimeConversation", () => {
       />
     );
 
-    expect(retry).not.toBeNull();
-    retry?.();
+    if (!retry) throw new Error("The retry was not scheduled");
+    retry();
     await interact();
 
     expect(submitInitialMessage).toHaveBeenCalledTimes(2);
