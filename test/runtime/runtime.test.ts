@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { estimateModelUsage } from "../../src/runtime/costs";
 import { createHQBotModel } from "../../src/runtime/models";
 import { activeTools, routeTurn } from "../../src/runtime/routing";
-import { finishTeammateResponse } from "../../src/runtime/turn";
+import { createSubmittedTaskMessage, finishTeammateResponse } from "../../src/runtime/turn";
 import {
   DEEPSEEK_FALLBACK_MODEL_ID,
   GLM_PRIMARY_MODEL_ID,
@@ -111,6 +111,23 @@ describe("turn routing", () => {
 
     expect(route).toBe("direct");
     expect(tools).toEqual(["delegate_to_teammates"]);
+  });
+});
+
+describe("durable task submission", () => {
+  it("carries server task metadata into Think lifecycle hooks", () => {
+    const { message, metadata } = createSubmittedTaskMessage({
+      taskId: "task-1",
+      source: "email",
+      prompt: "Research this request"
+    });
+
+    expect(metadata).toEqual({ taskId: "task-1", source: "email" });
+    expect(message).toMatchObject({
+      id: "task:task-1",
+      metadata: { turnMetadata: metadata },
+      parts: [{ type: "text", text: expect.stringContaining("Task ID: task-1") }]
+    });
   });
 });
 

@@ -196,6 +196,11 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     this.changed();
   }
 
+  setTaskSubmission(taskId: string, submissionId: string): void {
+    this.tasks.setSubmission(taskId, submissionId);
+    this.changed();
+  }
+
   checkSpendPolicy(
     botId: string,
     taskId: string | null

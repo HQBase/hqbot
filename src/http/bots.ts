@@ -138,6 +138,7 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
       source: "chat",
       prompt: await promptWithFiles(env, prompt, files)
     });
+    await agent.setTaskSubmission(taskId, submission.submissionId);
     return json({ taskId, submissionId: submission.submissionId }, 202);
   }
 

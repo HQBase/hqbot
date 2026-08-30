@@ -100,6 +100,7 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
       source: "chat",
       prompt: routine.prompt
     });
+    await agent.setTaskSubmission(taskId, submission.submissionId);
     return json({ taskId, submissionId: submission.submissionId }, 202);
   }
 

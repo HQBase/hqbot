@@ -11,7 +11,7 @@ import {
 } from "@cloudflare/think";
 import type { BrowserRuntime } from "@cloudflare/think/tools/browser";
 import { callable, getAgentByName } from "agents";
-import type { LanguageModel, ToolSet, UIMessage } from "ai";
+import type { LanguageModel, ToolSet } from "ai";
 
 import {
   clearPendingReplyApprovals,
@@ -26,7 +26,12 @@ import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
 import { routeTurn } from "./runtime/routing";
 import { intervalSchedule } from "./runtime/schedules";
 import { createTeammateActions, REPLY_PERMISSION } from "./runtime/teammate-actions";
-import { finishTeammateResponse, prepareTeammateTurn, safeTaskId } from "./runtime/turn";
+import {
+  createSubmittedTaskMessage,
+  finishTeammateResponse,
+  prepareTeammateTurn,
+  safeTaskId
+} from "./runtime/turn";
 import {
   type DelegatedTaskInput,
   type DelegatedTaskResult,
@@ -147,15 +152,17 @@ export class HQBotTeammate extends Think<Env> {
   }
 
   async onChatResponse(result: ChatResponseResult): Promise<void> {
-    const taskId = this.activeTurnMetadata?.taskId;
-    const source = this.activeTurnMetadata?.source;
+    const metadata =
+      this.activeTurnMetadata ?? (await this.inspectSubmission(result.requestId))?.metadata;
+    const taskId = metadata?.taskId;
+    const source = metadata?.source;
     const replyApproval =
       source === "email" && typeof taskId === "string"
         ? findReplyApproval(await this.pendingApprovals(), { taskId })
         : null;
     await finishTeammateResponse({
       botId: this.name,
-      metadata: this.activeTurnMetadata,
+      metadata,
       replyApproval,
       result,
       workspaceAgent: this.workspaceAgent
@@ -201,20 +208,12 @@ export class HQBotTeammate extends Think<Env> {
   async submitTask(
     input: TeammateTaskSubmission
   ): Promise<{ accepted: boolean; submissionId: string }> {
-    const taskId = safeTaskId(input.taskId);
-    const prompt = input.prompt.trim().slice(0, 100_000);
-    if (prompt.length === 0) throw new Error("Task prompt is required");
-    const text =
-      input.source === "email" ? `[hqbot:email]\nTask ID: ${taskId}\n\n${prompt}` : prompt;
-    const message: UIMessage = {
-      id: `task:${taskId}`,
-      role: "user",
-      parts: [{ type: "text", text }]
-    };
+    const { message, metadata } = createSubmittedTaskMessage(input);
+    const taskId = metadata.taskId;
     const result = await this.submitMessages([message], {
       submissionId: taskId,
       idempotencyKey: `task:${taskId}`,
-      metadata: { taskId, source: input.source },
+      metadata,
       channel: "web"
     });
     return { accepted: result.accepted, submissionId: result.submissionId };

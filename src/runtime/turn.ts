@@ -1,10 +1,11 @@
 import type { ChatResponseResult, TurnConfig, TurnContext } from "@cloudflare/think";
+import type { UIMessage } from "ai";
 
 import { mentionedTeammates } from "../domain/collaboration";
 import type { ReplyApproval } from "./approval";
 import { delegationInstructions } from "./collaboration";
 import { activeTools, latestUserText, routeTurn, teammateInstructions } from "./routing";
-import type { WorkspaceAgentRpc } from "./types";
+import type { TeammateTaskSubmission, WorkspaceAgentRpc } from "./types";
 
 interface PrepareTeammateTurnInput {
   botId: string;
@@ -19,6 +20,28 @@ export function safeTaskId(value: string): string {
   const taskId = value.trim();
   if (taskId.length === 0 || taskId.length > 200) throw new Error("Invalid task ID");
   return taskId;
+}
+
+export function createSubmittedTaskMessage(input: TeammateTaskSubmission): {
+  message: UIMessage;
+  metadata: { taskId: string; source: TeammateTaskSubmission["source"] };
+} {
+  const taskId = safeTaskId(input.taskId);
+  const prompt = input.prompt.trim().slice(0, 100_000);
+  if (prompt.length === 0) throw new Error("Task prompt is required");
+  const text = input.source === "email" ? `[hqbot:email]\nTask ID: ${taskId}\n\n${prompt}` : prompt;
+  const metadata = { taskId, source: input.source };
+  return {
+    message: {
+      id: `task:${taskId}`,
+      role: "user",
+      parts: [{ type: "text", text }],
+      // The current Think submitMessages path stores options.metadata in its
+      // ledger but does not stamp it on the message used by lifecycle hooks.
+      metadata: { turnMetadata: metadata }
+    },
+    metadata
+  };
 }
 
 function responseText(result: ChatResponseResult): string {
