@@ -5,27 +5,13 @@ import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "reac
 
 import type { BotTeammate } from "../../domain/types";
 import { submitInitialMessage, type WorkspaceController } from "../hooks/use-workspace";
+import { integrationActionDetails, type TeammateIntegrationClient } from "../lib/mcp";
 import { AgentMessage, type AgentPart, ThinkingIndicator } from "./chat/agent-message";
 import { ApprovalCard } from "./chat/approval-card";
 import { ChatComposer, type ComposerFile } from "./chat/chat-composer";
 import { ConversationHeader } from "./conversation-header";
 
-interface TeammateAgentClient {
-  readonly state: unknown;
-  approveIntegrationAction(executionId: string): Promise<unknown>;
-  listIntegrationApprovals(): Promise<PendingAction[]>;
-  rejectIntegrationAction(executionId: string, seq: number): Promise<boolean>;
-}
-
 type LocalFile = ComposerFile & { file: File };
-
-export function integrationActionDetails(action: PendingAction): string {
-  try {
-    return JSON.stringify(action.args, null, 2).slice(0, 8_000);
-  } catch {
-    return "Action details are not available.";
-  }
-}
 
 export function RealtimeConversation({
   bot,
@@ -40,7 +26,7 @@ export function RealtimeConversation({
   showBack: boolean;
   onPromptChange: (value: string) => void;
 }) {
-  const agent = useAgent<TeammateAgentClient, unknown>({
+  const agent = useAgent<TeammateIntegrationClient, unknown>({
     agent: "HQBOT_TEAMMATE",
     name: bot.id
   });

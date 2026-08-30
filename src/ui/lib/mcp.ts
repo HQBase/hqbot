@@ -1,4 +1,12 @@
+import type { PendingAction } from "@cloudflare/codemode";
 import type { MCPServersState } from "agents";
+
+export interface TeammateIntegrationClient {
+  readonly state: unknown;
+  approveIntegrationAction(executionId: string): Promise<unknown>;
+  listIntegrationApprovals(): Promise<PendingAction[]>;
+  rejectIntegrationAction(executionId: string, seq: number): Promise<boolean>;
+}
 
 export interface McpConnection {
   authUrl: string | null;
@@ -36,4 +44,12 @@ export function mcpStatusLabel(status: McpConnection["status"]): string {
   if (status === "authenticating") return "Authorization needed";
   if (status === "failed") return "Failed";
   return "Connecting";
+}
+
+export function integrationActionDetails(action: PendingAction): string {
+  try {
+    return JSON.stringify(action.args, null, 2).slice(0, 8_000);
+  } catch {
+    return "Action details are not available.";
+  }
 }
