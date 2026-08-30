@@ -1,0 +1,64 @@
+{
+  "name": "hqbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source AI teammates on customer-owned Cloudflare infrastructure.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && WRANGLER_LOG_PATH=.wrangler/wrangler.log vite build",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -b",
+    "format": "biome format --write .",
+    "code:check": "biome check .",
+    "cf:typegen": "WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler types",
+    "deploy": "pnpm build && WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler deploy",
+    "deploy:dry-run": "pnpm build && WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler deploy --dry-run",
+    "check": "pnpm code:check && pnpm test && pnpm typecheck && pnpm deploy:dry-run",
+    "hqbot": "node scripts/install.mjs"
+  },
+  "cloudflare": {
+    "bindings": {
+      "AI": {
+        "description": "Workers AI plans and writes each Bot task."
+      },
+      "BROWSER": {
+        "description": "Browser Run gives each task a real cloud browser."
+      },
+      "ARTIFACTS": {
+        "description": "R2 stores browser screenshots and reviewable task artifacts."
+      },
+      "HQBOT_AGENT": {
+        "description": "A Durable Object stores the Bot profile, transcript, tasks, and activity."
+      },
+      "HQBOT_WORKFLOW": {
+        "description": "A Workflow runs durable research and reply tasks."
+      },
+      "ASSETS": {
+        "description": "Worker Static Assets serves the HQBot web app."
+      }
+    }
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "1.4.0",
+    "agents": "0.21.0",
+    "lucide-react": "1.33.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.3",
+    "@cloudflare/vite-plugin": "1.53.1",
+    "@cloudflare/workers-types": "5.20260823.1",
+    "@types/node": "26.0.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.1.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.125.0"
+  }
+}
