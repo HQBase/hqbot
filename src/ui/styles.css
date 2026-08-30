@@ -672,6 +672,74 @@ a:focus-visible {
   font-size: 11px;
 }
 
+.approval-card {
+  margin-top: 10px;
+  border: 1px solid #353535;
+  border-radius: 12px;
+  background: #151515;
+  padding: 12px;
+}
+
+.approval-card > div {
+  display: flex;
+  align-items: center;
+}
+
+.approval-card > div:first-child {
+  gap: 9px;
+}
+
+.approval-card svg {
+  color: #cfcfcf;
+}
+
+.approval-card span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.approval-card strong {
+  font-size: 11px;
+}
+
+.approval-card small {
+  color: #7f7f7f;
+  font-size: 9px;
+}
+
+.approval-card > div:last-child {
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.approval-card button {
+  min-height: 30px;
+  border: 1px solid #343434;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #bdbdbd;
+  padding: 6px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.approval-card .approve-button {
+  border-color: #e5e5e5;
+  background: #ededed;
+  color: #111;
+}
+
+.approval-card button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .composer {
   position: sticky;
   bottom: 18px;

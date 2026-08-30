@@ -61,6 +61,7 @@ function statusLabel(task: BotTask | null): string {
       queued: "Queued",
       working: "Planning",
       researching: "Researching",
+      awaiting_approval: "Needs approval",
       replying: "Replying",
       completed: "Complete",
       failed: "Needs attention",
@@ -130,6 +131,7 @@ export function App() {
   const [error, setError] = useState("")
   const [sending, setSending] = useState(false)
   const [polling, setPolling] = useState(false)
+  const [approving, setApproving] = useState<string | null>(null)
   const [connectOpen, setConnectOpen] = useState(false)
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
 
@@ -238,6 +240,22 @@ export function App() {
       setError(cause instanceof Error ? cause.message : "Inbox check failed")
     } finally {
       setPolling(false)
+    }
+  }
+
+  async function resolveApproval(taskId: string, approved: boolean) {
+    setApproving(taskId)
+    setError("")
+    try {
+      await api(`/api/tasks/${taskId}/approval`, token, {
+        method: "POST",
+        body: JSON.stringify({ approved }),
+      })
+      await load(selectedBot?.id)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The approval could not be recorded")
+    } finally {
+      setApproving(null)
     }
   }
 
@@ -448,10 +466,47 @@ export function App() {
                           <span className="mini-avatar">{initials(selectedBot.name)}</span>
                           {selectedBot.name}
                           <span>
-                            {task.replyMessageId ? "sent through HQBase" : "finished work"}
+                            {task.replyMessageId
+                              ? "sent through HQBase"
+                              : task.status === "awaiting_approval"
+                                ? "draft reply"
+                                : "finished work"}
                           </span>
                         </div>
                         <p>{task.result}</p>
+                      </div>
+                    ) : null}
+                    {task.status === "awaiting_approval" ? (
+                      <div className="approval-card">
+                        <div>
+                          <ShieldCheck size={17} />
+                          <span>
+                            <strong>Approve this reply?</strong>
+                            <small>HQBot will send it through the connected HQBase mailbox.</small>
+                          </span>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            disabled={approving === task.id}
+                            onClick={() => void resolveApproval(task.id, false)}
+                          >
+                            Keep as draft
+                          </button>
+                          <button
+                            className="approve-button"
+                            type="button"
+                            disabled={approving === task.id}
+                            onClick={() => void resolveApproval(task.id, true)}
+                          >
+                            {approving === task.id ? (
+                              <LoaderCircle className="spin" size={14} />
+                            ) : (
+                              <ArrowUp size={14} />
+                            )}
+                            Send reply
+                          </button>
+                        </div>
                       </div>
                     ) : null}
                     {task.error ? (

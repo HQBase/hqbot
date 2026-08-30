@@ -1,5 +1,12 @@
 export type TaskSource = "chat" | "email"
-export type TaskStatus = "queued" | "working" | "researching" | "replying" | "completed" | "failed"
+export type TaskStatus =
+  | "queued"
+  | "working"
+  | "researching"
+  | "awaiting_approval"
+  | "replying"
+  | "completed"
+  | "failed"
 
 export interface BotConnection {
   id: string

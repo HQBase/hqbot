@@ -210,6 +210,23 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     return json({ teammate }, 201)
   }
 
+  const approvalMatch = /^\/api\/tasks\/([^/]+)\/approval$/u.exec(url.pathname)
+  if (request.method === "POST" && approvalMatch?.[1]) {
+    const taskId = decodeURIComponent(approvalMatch[1])
+    const task = await agent.getTask(taskId)
+    if (!task) return json({ error: "Task not found" }, 404)
+    if (task.status !== "awaiting_approval" || !task.workflowId) {
+      return json({ error: "This task is not waiting for approval" }, 409)
+    }
+    const body = await readJson(request)
+    if (typeof body.approved !== "boolean") {
+      return json({ error: "approved must be true or false" }, 400)
+    }
+    const instance = await env.HQBOT_WORKFLOW.get(task.workflowId)
+    await instance.sendEvent({ type: "approval", payload: { approved: body.approved } })
+    return json({ accepted: true })
+  }
+
   const connectionMatch = /^\/api\/bots\/([^/]+)\/connections\/hqbase$/u.exec(url.pathname)
   if (request.method === "POST" && connectionMatch?.[1]) {
     return connectHQBase(request, env, decodeURIComponent(connectionMatch[1]))

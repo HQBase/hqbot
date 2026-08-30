@@ -307,6 +307,31 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     this.sql`UPDATE tasks SET status = ${status}, updated_at = ${now()} WHERE id = ${taskId}`
   }
 
+  getTask(taskId: string): BotTask | null {
+    const rows = this.sql<Row>`SELECT * FROM tasks WHERE id = ${taskId}`
+    return rows[0] ? taskFromRow(rows[0]) : null
+  }
+
+  requestReplyApproval(taskId: string, result: string): void {
+    this.sql`UPDATE tasks SET status = 'awaiting_approval', result = ${result},
+      updated_at = ${now()} WHERE id = ${taskId}`
+    this.addActivity(
+      taskId,
+      "approval",
+      "Reply needs approval",
+      "Review the draft before HQBot sends it through HQBase.",
+    )
+  }
+
+  recordReplyDecision(taskId: string, approved: boolean): void {
+    this.addActivity(
+      taskId,
+      approved ? "approved" : "denied",
+      approved ? "Reply approved" : "Reply kept as a draft",
+      approved ? "The approved reply can now be sent." : "Nothing was sent.",
+    )
+  }
+
   addActivity(taskId: string, phase: string, title: string, detail: string | null = null): void {
     const id = `${taskId}:${phase}`
     this.sql`INSERT OR IGNORE INTO activity (id, task_id, phase, title, detail, created_at)

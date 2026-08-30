@@ -2,6 +2,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { getAgentByName } from "agents"
 
 import type { HQBotAgent } from "./agent"
+import { needsReplyApproval } from "./domain/approval"
 import type { ResearchPlan, ResearchResult, WorkflowInput } from "./domain/types"
 import { planResearch, writeResult } from "./services/ai"
 import { researchWithBrowser } from "./services/browser"
@@ -125,7 +126,22 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
       )
 
       let replyMessageId: string | null = null
-      if (input.source === "email" && this.env.HQBOT_AUTO_REPLY === "true") {
+      let sendReply = input.source === "email"
+      if (needsReplyApproval(input.source, this.env.HQBOT_AUTO_REPLY === "true")) {
+        await step.do("request reply approval", async () => {
+          await agent.requestReplyApproval(input.taskId, result)
+        })
+        const decision = await step.waitForEvent<{ approved: boolean }>("wait for reply approval", {
+          type: "approval",
+          timeout: "7 days",
+        })
+        sendReply = decision.payload.approved
+        await step.do("record reply decision", async () => {
+          await agent.recordReplyDecision(input.taskId, sendReply)
+        })
+      }
+
+      if (sendReply) {
         await step.do("prepare reply", async () => {
           await agent.setStatus(input.taskId, "replying")
           await agent.addActivity(
