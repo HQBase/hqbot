@@ -28,10 +28,20 @@ describe("AI UI lab boundary", () => {
     );
 
     expect(main).toContain("import.meta.env.DEV");
+    expect(main).toContain('window.location.pathname === "/__ui"');
+    expect(main).toContain('window.location.pathname.startsWith("/__ui/")');
     expect(main).toContain('import("./features/ui-lab/agent-ui-lab")');
     expect(productionSources.join("\n")).not.toContain("@shadcn/helpers");
-    expect(await readFile(join(labDirectory, "agent-ui-lab.tsx"), "utf8")).toContain(
-      "@shadcn/helpers/ai-sdk"
+    const labSources = await Promise.all(
+      (await sourceFiles(labDirectory)).map((path) => readFile(path, "utf8"))
     );
+    expect(labSources.join("\n")).toContain("@shadcn/helpers/ai-sdk");
+  });
+
+  it("provides one command for the local lab", async () => {
+    const packageJson = JSON.parse(
+      await readFile(join(uiRoot, "..", "..", "package.json"), "utf8")
+    );
+    expect(packageJson.scripts["dev:ui"]).toBe("vite --open /__ui");
   });
 });

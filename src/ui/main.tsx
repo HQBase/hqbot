@@ -8,7 +8,9 @@ import { ThemeProvider } from "./features/theme/theme-provider";
 import "./styles.css";
 
 async function loadRootComponent(): Promise<ComponentType> {
-  if (import.meta.env.DEV && window.location.pathname === "/__ui/agents") {
+  const uiLab =
+    window.location.pathname === "/__ui" || window.location.pathname.startsWith("/__ui/");
+  if (import.meta.env.DEV && uiLab) {
     return (await import("./features/ui-lab/agent-ui-lab")).AgentUiLab;
   }
   return (await import("./App")).App;

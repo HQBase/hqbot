@@ -8,6 +8,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "vite",
+    "dev:ui": "vite --open /__ui",
     "build": "tsc -b && vite build",
     "test": "pnpm test:unit && pnpm test:integration",
     "test:unit": "vitest run --config vitest.config.ts",
