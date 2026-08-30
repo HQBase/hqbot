@@ -36,6 +36,10 @@ describe("workspace cost snapshot", () => {
         estimated_usd REAL NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE bots (id TEXT PRIMARY KEY);
+      CREATE TABLE routines (bot_id TEXT NOT NULL, active INTEGER NOT NULL);
+      CREATE TABLE tasks (bot_id TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE files (bot_id TEXT NOT NULL, size INTEGER NOT NULL);
     `);
     tasks = new WorkspaceTasks(sqlFor(database));
   });
@@ -48,6 +52,13 @@ describe("workspace cost snapshot", () => {
     insert.run("ai-a", "bot-a", "task-a", "workers-ai", 120, 30, 0.01, today);
     insert.run("browser-a", "bot-a", "task-a", "browser", 45, 0, 0.02, today);
     insert.run("ai-b", "bot-b", "task-b", "workers-ai", 80, 20, 0.03, today);
+    database.exec(`
+      INSERT INTO bots VALUES ('bot-a'), ('bot-b');
+      INSERT INTO routines VALUES ('bot-a', 1), ('bot-a', 1), ('bot-b', 1), ('bot-b', 0);
+      INSERT INTO tasks VALUES ('bot-a', '${today}'), ('bot-b', '${today}'),
+        ('bot-b', '2020-01-01T00:00:00.000Z');
+      INSERT INTO files VALUES ('bot-a', 100), ('bot-a', 200), ('bot-b', 300);
+    `);
 
     const costs = tasks.getCosts("bot-a", "task-a", {
       durableObjectGbSecondsPerDay: 10_800,
@@ -72,7 +83,23 @@ describe("workspace cost snapshot", () => {
     expect(costs.platform).toEqual({
       durableObjectGbSecondsPerDay: 10_800,
       hqbaseRealtimeConnections: 2,
-      selectedBotHqbaseRealtime: true
+      selectedBotHqbaseRealtime: true,
+      resources: {
+        overall: {
+          durableObjects: 3,
+          agentSchedules: 5,
+          taskSubmissionsToday: 2,
+          r2FileObjects: 3,
+          r2FileBytes: 600
+        },
+        selectedBot: {
+          durableObjects: 1,
+          agentSchedules: 3,
+          taskSubmissionsToday: 1,
+          r2FileObjects: 2,
+          r2FileBytes: 300
+        }
+      }
     });
   });
 
@@ -88,7 +115,23 @@ describe("workspace cost snapshot", () => {
       platform: {
         durableObjectGbSecondsPerDay: 0,
         hqbaseRealtimeConnections: 0,
-        selectedBotHqbaseRealtime: false
+        selectedBotHqbaseRealtime: false,
+        resources: {
+          overall: {
+            durableObjects: 1,
+            agentSchedules: 0,
+            taskSubmissionsToday: 0,
+            r2FileObjects: 0,
+            r2FileBytes: 0
+          },
+          selectedBot: {
+            durableObjects: 0,
+            agentSchedules: 0,
+            taskSubmissionsToday: 0,
+            r2FileObjects: 0,
+            r2FileBytes: 0
+          }
+        }
       }
     });
   });

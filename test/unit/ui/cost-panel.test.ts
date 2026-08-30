@@ -16,7 +16,23 @@ function snapshot(selectedBotHqbaseRealtime: boolean): CostSnapshot {
     platform: {
       durableObjectGbSecondsPerDay: 1234.5678,
       hqbaseRealtimeConnections: 2,
-      selectedBotHqbaseRealtime
+      selectedBotHqbaseRealtime,
+      resources: {
+        overall: {
+          durableObjects: 4,
+          agentSchedules: 8,
+          taskSubmissionsToday: 10,
+          r2FileObjects: 12,
+          r2FileBytes: 4_096
+        },
+        selectedBot: {
+          durableObjects: 1,
+          agentSchedules: 3,
+          taskSubmissionsToday: 4,
+          r2FileObjects: 5,
+          r2FileBytes: 2_048
+        }
+      }
     },
     selectedBot: { estimatedUsd: 0.15, inputUnits: 0, outputUnits: 0 },
     selectedTask: { estimatedUsd: 0.01, inputUnits: 0, outputUnits: 0 },
@@ -66,5 +82,18 @@ describe("CostPanel", () => {
     expect(connected).toContain("Raw usage before account allowances");
     expect(disconnected).not.toContain("HQBase realtime");
     expect(disconnected).not.toContain("GB-s/day");
+  });
+
+  it("shows raw Cloudflare resources for the teammate and overall workspace", () => {
+    const html = renderCostPanel(snapshot(true));
+
+    expect(html).toContain("Raw Cloudflare footprint");
+    expect(html).toContain("Tracked, not billing");
+    expect(html).toContain("Durable Objects");
+    expect(html).toContain("Agent schedules");
+    expect(html).toContain("Tasks today");
+    expect(html).toContain("Tracked R2 files");
+    expect(html).toContain("5 · 2 KiB");
+    expect(html).toContain("12 · 4 KiB");
   });
 });

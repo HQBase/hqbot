@@ -126,7 +126,23 @@ export function AgentUiLab() {
             platform: {
               durableObjectGbSecondsPerDay: 1728.42,
               hqbaseRealtimeConnections: 2,
-              selectedBotHqbaseRealtime: true
+              selectedBotHqbaseRealtime: true,
+              resources: {
+                overall: {
+                  durableObjects: 4,
+                  agentSchedules: 8,
+                  taskSubmissionsToday: 10,
+                  r2FileObjects: 12,
+                  r2FileBytes: 4_096
+                },
+                selectedBot: {
+                  durableObjects: 1,
+                  agentSchedules: 3,
+                  taskSubmissionsToday: 4,
+                  r2FileObjects: 5,
+                  r2FileBytes: 2_048
+                }
+              }
             }
           }}
         />

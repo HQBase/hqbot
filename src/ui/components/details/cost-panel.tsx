@@ -17,6 +17,7 @@ export function CostPanel({
 }) {
   const usage = budgetUsd > 0 ? (costs.selectedBot.estimatedUsd / budgetUsd) * 100 : 0;
   const services = costs.services.selectedBot;
+  const resources = costs.platform.resources;
   return (
     <Card className="scroll-mt-3 shadow-none" id="costs">
       <CardHeader className="flex-row items-start justify-between gap-3 p-4 pb-3">
@@ -25,7 +26,7 @@ export function CostPanel({
             <PiCoin /> Estimated cost
           </CardTitle>
           <CardDescription className="text-xs">
-            Updated from metered Cloudflare events.
+            AI and browser estimates with tracked resource counts.
           </CardDescription>
         </div>
         <Badge variant="outline">Live</Badge>
@@ -54,6 +55,40 @@ export function CostPanel({
           label="Browser"
           value={services.browser.estimatedUsd}
         />
+        <div className="border-t border-divider pt-3 text-[11px]">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <strong className="font-medium text-foreground">Raw Cloudflare footprint</strong>
+            <span className="text-muted-foreground">Tracked, not billing</span>
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 gap-y-1.5">
+            <span />
+            <span className="text-right text-muted-foreground">Teammate</span>
+            <span className="text-right text-muted-foreground">Overall</span>
+            <FootprintRow
+              label="Durable Objects"
+              overall={resources.overall.durableObjects.toLocaleString()}
+              selected={resources.selectedBot.durableObjects.toLocaleString()}
+            />
+            <FootprintRow
+              label="Agent schedules"
+              overall={resources.overall.agentSchedules.toLocaleString()}
+              selected={resources.selectedBot.agentSchedules.toLocaleString()}
+            />
+            <FootprintRow
+              label="Tasks today"
+              overall={resources.overall.taskSubmissionsToday.toLocaleString()}
+              selected={resources.selectedBot.taskSubmissionsToday.toLocaleString()}
+            />
+            <FootprintRow
+              label="Tracked R2 files"
+              overall={formatFiles(resources.overall.r2FileObjects, resources.overall.r2FileBytes)}
+              selected={formatFiles(
+                resources.selectedBot.r2FileObjects,
+                resources.selectedBot.r2FileBytes
+              )}
+            />
+          </div>
+        </div>
         {costs.platform.selectedBotHqbaseRealtime ? (
           <div className="flex items-start justify-between gap-3 border-t border-divider pt-3 text-[11px]">
             <span>
@@ -101,6 +136,35 @@ function ServiceCost({ detail, label, value }: { detail: string; label: string; 
       <strong className="font-medium tabular-nums">{currency(value)}</strong>
     </div>
   );
+}
+
+function FootprintRow({
+  label,
+  overall,
+  selected
+}: {
+  label: string;
+  overall: string;
+  selected: string;
+}) {
+  return (
+    <>
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="text-right font-medium tabular-nums">{selected}</strong>
+      <strong className="text-right font-medium tabular-nums">{overall}</strong>
+    </>
+  );
+}
+
+function formatFiles(objects: number, bytes: number): string {
+  return `${objects.toLocaleString()} · ${formatBytes(bytes)}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1_024) return `${bytes.toLocaleString()} B`;
+  if (bytes < 1_048_576)
+    return `${(bytes / 1_024).toLocaleString(undefined, { maximumFractionDigits: 1 })} KiB`;
+  return `${(bytes / 1_048_576).toLocaleString(undefined, { maximumFractionDigits: 1 })} MiB`;
 }
 
 function formatGbSeconds(value: number): string {

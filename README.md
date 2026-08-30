@@ -38,8 +38,8 @@ flowchart LR
 - Shows the real Browser Run tab through Live View. It does not reload a screenshot each second.
 - Receives HQBase mail in realtime through the existing event and Mail API v2 interfaces.
 - Pauses before an HQBase reply and waits for the owner to approve or reject it.
-- Shows estimated model and browser cost by task, teammate, and overall use, plus the raw shared
-  realtime Durable Object footprint.
+- Shows estimated model and browser cost by task, teammate, and overall use, plus raw Durable
+  Object, Agent schedule, task, R2 file, and shared realtime footprints.
 
 HQBot does not use Cloudflare Workflows or cron triggers. HQBase remains the mail system. HQBot does
 not copy its mail storage or delivery code.

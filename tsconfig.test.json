@@ -27,6 +27,7 @@
     "src/workspace/catalog.ts",
     "src/workspace/mail-realtime.ts",
     "src/workspace/migrations.ts",
+    "src/workspace/platform-footprint.ts",
     "src/workspace/sql.ts",
     "src/workspace/snapshot.ts",
     "src/workspace/tasks.ts",

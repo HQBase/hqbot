@@ -166,6 +166,14 @@ export interface CostServiceTotals {
   workersAi: CostTotal;
 }
 
+export interface CloudflareResourceFootprint {
+  durableObjects: number;
+  agentSchedules: number;
+  taskSubmissionsToday: number;
+  r2FileObjects: number;
+  r2FileBytes: number;
+}
+
 export interface CostSnapshot {
   overall: CostTotal;
   selectedBot: CostTotal;
@@ -180,6 +188,10 @@ export interface CostSnapshot {
     durableObjectGbSecondsPerDay: number;
     hqbaseRealtimeConnections: number;
     selectedBotHqbaseRealtime: boolean;
+    resources: {
+      overall: CloudflareResourceFootprint;
+      selectedBot: CloudflareResourceFootprint;
+    };
   };
 }
 

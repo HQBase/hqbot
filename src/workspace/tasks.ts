@@ -7,6 +7,7 @@ import type {
   TaskStatus,
   UsageInput
 } from "../domain/types";
+import { readCloudflareResourceFootprint } from "./platform-footprint";
 import { activityFromRow, now, number, type Row, type Sql, taskFromRow } from "./sql";
 
 function startOfUtcDay(): string {
@@ -36,7 +37,9 @@ function serviceTotals(rows: Row[]): CostServiceTotals {
   return totals;
 }
 
-const emptyPlatform: CostSnapshot["platform"] = {
+type RealtimePlatform = Omit<CostSnapshot["platform"], "resources">;
+
+const emptyPlatform: RealtimePlatform = {
   durableObjectGbSecondsPerDay: 0,
   hqbaseRealtimeConnections: 0,
   selectedBotHqbaseRealtime: false
@@ -215,7 +218,7 @@ export class WorkspaceTasks {
   getCosts(
     botId?: string | null,
     taskId?: string | null,
-    platform: CostSnapshot["platform"] = emptyPlatform
+    platform: RealtimePlatform = emptyPlatform
   ): CostSnapshot {
     const dayStartedAt = startOfUtcDay();
     const overall = this.sql<Row>`SELECT
@@ -269,7 +272,10 @@ export class WorkspaceTasks {
         selectedBot: serviceTotals(botServices),
         selectedTask: serviceTotals(taskServices)
       },
-      platform
+      platform: {
+        ...platform,
+        resources: readCloudflareResourceFootprint(this.sql, botId, dayStartedAt)
+      }
     };
   }
 }
