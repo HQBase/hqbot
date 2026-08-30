@@ -3,7 +3,7 @@ import { getAgentByName } from "agents"
 
 import type { HQBotAgent } from "./agent"
 import { needsReplyApproval } from "./domain/approval"
-import type { ResearchPlan, ResearchResult, WorkflowInput } from "./domain/types"
+import type { BotSkill, ResearchPlan, ResearchResult, WorkflowInput } from "./domain/types"
 import { planResearch, writeResult, writeSpecialistNote } from "./services/ai"
 import { researchWithBrowser } from "./services/browser"
 import { decryptConnectionToken, decryptSecret } from "./services/crypto"
@@ -68,7 +68,9 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
         agent.listMemories(input.botId),
       )
       const skill = input.skillId
-        ? await step.do("load skill", async () => agent.getSkill(input.skillId ?? "", input.botId))
+        ? await step.do<BotSkill | null>("load skill", async () =>
+            agent.getSkill(input.skillId ?? "", input.botId),
+          )
         : null
       const rememberedPrompt = memories.length
         ? `${rawPrompt}\n\nTeammate memory:\n${memories.map((memory) => `- ${memory.content}`).join("\n")}`
@@ -197,7 +199,7 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
 
       let replyMessageId: string | null = null
       let sendReply = input.source === "email"
-      if (needsReplyApproval(input.source, this.env.HQBOT_AUTO_REPLY === "true")) {
+      if (needsReplyApproval(input.source, String(this.env.HQBOT_AUTO_REPLY) === "true")) {
         await step.do("request reply approval", async () => {
           await agent.requestReplyApproval(input.taskId, result)
         })

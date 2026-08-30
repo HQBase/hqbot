@@ -12,5 +12,5 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/ui/**/*.ts", "src/ui/**/*.tsx", "src/domain/types.ts"]
+  "include": ["src/ui/**/*.ts", "src/ui/**/*.tsx", "src/domain/skills.ts", "src/domain/types.ts"]
 }
