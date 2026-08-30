@@ -132,6 +132,7 @@ export interface BotActivity {
 
 export interface WorkspaceSnapshot {
   bots: BotTeammate[];
+  archivedBots: BotTeammate[];
   selectedBot: BotTeammate | null;
   tasks: BotTask[];
   activeTask: BotTask | null;

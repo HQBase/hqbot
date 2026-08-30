@@ -14,6 +14,7 @@ import type {
 } from "../domain/types";
 import type { ModelUsageDto, ResourceUsageDto } from "../runtime/types";
 import { WorkspaceAuth } from "./auth";
+import type { WorkspaceAutomations } from "./automations";
 import { checkSpendPolicy, positiveNumber } from "./budgets";
 import { WorkspaceCatalog } from "./catalog";
 import { migrateWorkspace } from "./migrations";
@@ -131,24 +132,24 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     return deleted;
   }
 
-  createRoutine(input: Parameters<WorkspaceCatalog["createRoutine"]>[0]): BotRoutine {
-    const routine = this.catalog.createRoutine(input);
+  createRoutine(input: Parameters<WorkspaceAutomations["createRoutine"]>[0]): BotRoutine {
+    const routine = this.catalog.automations.createRoutine(input);
     this.changed();
     return routine;
   }
 
   listRoutines(botId: string): BotRoutine[] {
-    return this.catalog.listRoutines(botId);
+    return this.catalog.automations.listRoutines(botId);
   }
 
   setRoutineActive(id: string, botId: string, active: boolean): BotRoutine | null {
-    const routine = this.catalog.setRoutineActive(id, botId, active);
+    const routine = this.catalog.automations.setRoutineActive(id, botId, active);
     if (routine) this.changed();
     return routine;
   }
 
   deleteRoutine(id: string, botId: string): boolean {
-    const deleted = this.catalog.deleteRoutine(id, botId);
+    const deleted = this.catalog.automations.deleteRoutine(id, botId);
     if (deleted) this.changed();
     return deleted;
   }

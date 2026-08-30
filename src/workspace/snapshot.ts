@@ -14,7 +14,9 @@ export function readWorkspaceSnapshot(
   botId?: string
 ): WorkspaceSnapshot {
   const bots = catalog.listBots();
-  const selectedBot = bots.find((candidate) => candidate.id === botId) ?? bots[0] ?? null;
+  const archivedBots = catalog.listArchivedBots();
+  const selectedBot =
+    [...bots, ...archivedBots].find((candidate) => candidate.id === botId) ?? bots[0] ?? null;
   const tasks = selectedBot ? taskStore.listTasks(selectedBot.id) : [];
   const activeTask = tasks.find((task) => !terminal(task.status)) ?? tasks[0] ?? null;
   const computer = catalog.getComputerState();
@@ -23,12 +25,13 @@ export function readWorkspaceSnapshot(
     .filter((connection) => connection.realtimeStatus === "connected");
   return {
     bots,
+    archivedBots,
     selectedBot,
     tasks,
     activeTask,
     activity: activeTask ? taskStore.listActivity(activeTask.id) : [],
     memories: selectedBot ? catalog.listMemories(selectedBot.id) : [],
-    routines: selectedBot ? catalog.listRoutines(selectedBot.id) : [],
+    routines: selectedBot ? catalog.automations.listRoutines(selectedBot.id) : [],
     files: selectedBot ? catalog.listFiles(selectedBot.id) : [],
     skills: selectedBot ? catalog.listSkills(selectedBot.id) : [],
     computer: {

@@ -3,12 +3,12 @@ import type {
   BotDefinition,
   BotFile,
   BotMemory,
-  BotRoutine,
   BotSkill,
   BotTeammate,
   StoredBotConnection,
   StoredComputerState
 } from "../domain/types";
+import { WorkspaceAutomations } from "./automations";
 import {
   botFromRow,
   computerFromRow,
@@ -17,7 +17,6 @@ import {
   now,
   publicConnection,
   type Row,
-  routineFromRow,
   type Sql,
   skillFromRow,
   storedConnection,
@@ -25,7 +24,11 @@ import {
 } from "./sql";
 
 export class WorkspaceCatalog {
-  constructor(private readonly sql: Sql) {}
+  readonly automations: WorkspaceAutomations;
+
+  constructor(private readonly sql: Sql) {
+    this.automations = new WorkspaceAutomations(sql);
+  }
 
   createBot(
     id: string,
@@ -49,12 +52,20 @@ export class WorkspaceCatalog {
   }
 
   listBots(): BotTeammate[] {
+    return this.listBotsByVisibility(false);
+  }
+
+  listArchivedBots(): BotTeammate[] {
+    return this.listBotsByVisibility(true);
+  }
+
+  private listBotsByVisibility(hidden: boolean): BotTeammate[] {
     const connectionRows = this.sql<Row>`SELECT * FROM connections ORDER BY created_at ASC`;
     const connections = new Map(
       connectionRows.map((row) => [text(row, "bot_id"), publicConnection(row)])
     );
     return this.sql<Row>`SELECT * FROM bots
-      WHERE hidden = 0
+      WHERE hidden = ${hidden ? 1 : 0}
       ORDER BY pinned DESC, COALESCE(last_interacted_at, created_at) DESC`.map((row) =>
       botFromRow(row, connections.get(text(row, "id")) ?? null)
     );
@@ -94,6 +105,14 @@ export class WorkspaceCatalog {
     return this.getBot(id);
   }
 
+  archiveBot(id: string): BotTeammate | null {
+    const bot = this.updateBot(id, { hidden: true });
+    if (!bot) return null;
+    this.automations.pauseBotRoutines(id);
+    this.disconnectHQBase(id);
+    return this.getBot(id);
+  }
+
   markInteraction(id: string, message: string, status: BotTeammate["status"] = "idle"): void {
     const timestamp = now();
     this
@@ -116,43 +135,6 @@ export class WorkspaceCatalog {
   deleteMemory(id: string, botId: string): boolean {
     return (
       this.sql<{ id: string }>`DELETE FROM memories WHERE id = ${id} AND bot_id = ${botId}
-        RETURNING id`.length > 0
-    );
-  }
-
-  createRoutine(input: {
-    id: string;
-    botId: string;
-    name: string;
-    prompt: string;
-    intervalMinutes: number;
-    nextRunAt: string;
-  }): BotRoutine {
-    const timestamp = now();
-    this.sql`INSERT INTO routines (
-      id, bot_id, name, prompt, interval_minutes, active, next_run_at, created_at, updated_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, ${input.name}, ${input.prompt}, ${input.intervalMinutes}, 1,
-      ${input.nextRunAt}, ${timestamp}, ${timestamp}
-    )`;
-    return { ...input, active: true, createdAt: timestamp, updatedAt: timestamp };
-  }
-
-  listRoutines(botId: string): BotRoutine[] {
-    return this.sql<Row>`SELECT * FROM routines WHERE bot_id = ${botId}
-      ORDER BY created_at ASC`.map(routineFromRow);
-  }
-
-  setRoutineActive(id: string, botId: string, active: boolean): BotRoutine | null {
-    this.sql`UPDATE routines SET active = ${active ? 1 : 0}, updated_at = ${now()}
-      WHERE id = ${id} AND bot_id = ${botId}`;
-    const row = this.sql<Row>`SELECT * FROM routines WHERE id = ${id} AND bot_id = ${botId}`[0];
-    return row ? routineFromRow(row) : null;
-  }
-
-  deleteRoutine(id: string, botId: string): boolean {
-    return (
-      this.sql<{ id: string }>`DELETE FROM routines WHERE id = ${id} AND bot_id = ${botId}
         RETURNING id`.length > 0
     );
   }

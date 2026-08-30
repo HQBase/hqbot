@@ -31,6 +31,14 @@ interface DelegatedTaskDependencies {
   run(prompt: string, signal: AbortSignal): Promise<DelegatedTurnResult>;
 }
 
+interface DelegationPeer {
+  runDelegatedTask(input: DelegatedTaskInput): Promise<DelegatedTaskResult>;
+}
+
+interface DelegationNamespace {
+  getByName(name: string): unknown;
+}
+
 function safeReport(target: NamedTeammate, result: DelegatedTaskResult): DelegatedTaskResult {
   return {
     botId: target.id,
@@ -116,4 +124,11 @@ export async function executeDelegatedTask(
     throw new Error("The teammate did not complete the delegated task");
   }
   return safeReport(target, { botId: target.id, name: target.name, report });
+}
+
+export function teammateDelegator(teammates: DelegationNamespace, requesterId: string) {
+  return async (target: WorkspaceTeammateDto, task: string): Promise<DelegatedTaskResult> => {
+    const teammate = teammates.getByName(target.id) as DelegationPeer;
+    return teammate.runDelegatedTask({ requesterId, task });
+  };
 }

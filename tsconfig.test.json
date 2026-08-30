@@ -22,6 +22,7 @@
     "src/services/crypto.ts",
     "src/services/mail.ts",
     "src/runtime/**/*.ts",
+    "src/workspace/automations.ts",
     "src/workspace/auth.ts",
     "src/workspace/budgets.ts",
     "src/workspace/catalog.ts",

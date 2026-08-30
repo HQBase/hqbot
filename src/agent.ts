@@ -1,6 +1,6 @@
 import { getAgentByName } from "agents";
 
-import type { BotConnection, StoredBotConnection } from "./domain/types";
+import type { BotConnection, BotTeammate, StoredBotConnection } from "./domain/types";
 import { STALE_REPLY_APPROVAL_ERROR } from "./runtime/approval";
 import type {
   SendApprovedReplyInput,
@@ -69,6 +69,29 @@ export class HQBotAgent extends WorkspaceAgentBase implements MailRealtimeHost {
     if (connection) this.mail.close(connection.id);
     if (deleted) this.changed();
     return deleted;
+  }
+
+  async setBotHidden(id: string, hidden: boolean): Promise<BotTeammate | null> {
+    const current = this.catalog.getBot(id);
+    if (!current || current.hidden === hidden) return current;
+    const connection = hidden ? this.getBotConnection(id) : null;
+    const updated = hidden
+      ? this.catalog.archiveBot(id)
+      : this.catalog.updateBot(id, { hidden: false });
+    if (!updated || !hidden) {
+      if (updated) this.changed();
+      return updated;
+    }
+
+    if (connection) this.mail.close(connection.id);
+    const cancelledTaskIds = this.tasks
+      .listTasks(id)
+      .filter((task) => this.tasks.cancelTask(task.id))
+      .map((task) => task.id);
+    const peer = await getAgentByName<Env, HQBotTeammate>(this.env.HQBOT_TEAMMATE, id);
+    await peer.suspend(cancelledTaskIds);
+    this.changed();
+    return this.catalog.getBot(id);
   }
 
   getStoredConnection(id: string): StoredBotConnection | null {

@@ -8,7 +8,7 @@ import {
   type TurnContext,
   Workspace
 } from "@cloudflare/think";
-import { callable, getAgentByName } from "agents";
+import { callable } from "agents";
 import type { LanguageModel, ToolSet } from "ai";
 
 import {
@@ -27,11 +27,12 @@ import {
   scheduleBrowserLeases,
   settleBrowserLease
 } from "./runtime/browser";
-import { executeDelegatedTask } from "./runtime/collaboration";
+import { executeDelegatedTask, teammateDelegator } from "./runtime/collaboration";
 import { estimateModelUsage, identifyModel } from "./runtime/costs";
 import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
 import { routeTurn } from "./runtime/routing";
 import { teammateScheduledTasks } from "./runtime/schedules";
+import { suspendTeammateWork } from "./runtime/suspension";
 import { createTeammateActions, REPLY_PERMISSION } from "./runtime/teammate-actions";
 import {
   createSubmittedTaskMessage,
@@ -91,7 +92,6 @@ export class HQBotTeammate extends Think<Env> {
     });
     return this.model;
   }
-
   getTools(): ToolSet {
     return this.browserRuntime.tools;
   }
@@ -99,16 +99,9 @@ export class HQBotTeammate extends Think<Env> {
     return createTeammateActions({
       botId: this.name,
       workspaceAgent: this.workspaceAgent,
-      delegate: async (target, task) => {
-        const teammate = await getAgentByName<Env, HQBotTeammate>(
-          this.env.HQBOT_TEAMMATE,
-          target.id
-        );
-        return teammate.runDelegatedTask({ requesterId: this.name, task });
-      }
+      delegate: teammateDelegator(this.env.HQBOT_TEAMMATE, this.name)
     });
   }
-
   authorizeTurn(ctx: TurnContext): ActionAuthorizationDecision {
     const route = routeTurn({
       messages: ctx.messages,
@@ -262,6 +255,13 @@ export class HQBotTeammate extends Think<Env> {
       pending: this.pendingApprovals(),
       reject: (executionId) => super.rejectExecution(executionId, "The owner stopped this task")
     });
+    await closeBrowserSession(this.browserRuntime);
+    this.resetTurnState();
+  }
+
+  @callable()
+  async suspend(taskIds: string[]): Promise<void> {
+    await suspendTeammateWork(this, taskIds);
     await closeBrowserSession(this.browserRuntime);
     this.resetTurnState();
   }

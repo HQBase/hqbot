@@ -89,14 +89,16 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
     ) {
       return json({ error: "dailyBudgetUsd must be from 0.1 to 50" }, 400);
     }
-    const updated = await agent.updateBot(bot[0], {
+    let updated = await agent.updateBot(bot[0], {
       name: optionalString(body, "name", 80),
       title: optionalString(body, "title", 120),
       description: optionalString(body, "description", 1_000),
       pinned: typeof body.pinned === "boolean" ? body.pinned : undefined,
-      hidden: typeof body.hidden === "boolean" ? body.hidden : undefined,
       dailyBudgetUsd
     });
+    if (updated && typeof body.hidden === "boolean") {
+      updated = await agent.setBotHidden(bot[0], body.hidden);
+    }
     return updated ? json({ teammate: updated }) : json({ error: "Teammate not found" }, 404);
   }
 
