@@ -1,0 +1,170 @@
+import type { LanguageModel, LanguageModelUsage, ModelMessage } from "ai";
+import { describe, expect, it, vi } from "vitest";
+
+import { estimateModelUsage } from "../../src/runtime/costs";
+import { createHQBotModel } from "../../src/runtime/models";
+import { activeTools, routeTurn } from "../../src/runtime/routing";
+import {
+  DEEPSEEK_FALLBACK_MODEL_ID,
+  GLM_PRIMARY_MODEL_ID,
+  type HQBotModelId
+} from "../../src/runtime/types";
+
+function userMessage(text: string): ModelMessage[] {
+  return [{ role: "user", content: text }];
+}
+
+function usage(): LanguageModelUsage {
+  return {
+    inputTokens: 1_000,
+    inputTokenDetails: {
+      noCacheTokens: 800,
+      cacheReadTokens: 200,
+      cacheWriteTokens: 0
+    },
+    outputTokens: 100,
+    outputTokenDetails: {
+      textTokens: 80,
+      reasoningTokens: 20
+    },
+    totalTokens: 1_100
+  };
+}
+
+describe("turn routing", () => {
+  const browserTools = ["browser_execute", "browser_markdown"];
+
+  it("keeps ordinary chat direct and tool-free", () => {
+    const route = routeTurn({ messages: userMessage("Help me name this project") });
+
+    expect(route).toBe("direct");
+    expect(activeTools(route, browserTools)).toEqual([]);
+  });
+
+  it("activates browser tools for research", () => {
+    const route = routeTurn({
+      messages: userMessage("Research the latest Cloudflare Agents changes")
+    });
+    const tools = activeTools(route, browserTools);
+
+    expect(route).toBe("research");
+    expect(tools).toContain("browser_execute");
+    expect(tools).toContain("read");
+    expect(tools).not.toContain("send_hqbase_reply");
+  });
+
+  it("keeps email research read-only and activates the reply approval tool", () => {
+    const route = routeTurn({
+      messages: userMessage("Please answer this request"),
+      metadata: { source: "email" }
+    });
+    const tools = activeTools(route, browserTools);
+
+    expect(route).toBe("email");
+    expect(tools).toContain("browser_markdown");
+    expect(tools).not.toContain("browser_execute");
+    expect(tools).not.toContain("write");
+    expect(tools).toContain("send_hqbase_reply");
+  });
+
+  it("does not browse for a model identity question", () => {
+    const route = routeTurn({ messages: userMessage("That's awesome. Which model are you?") });
+    const tools = activeTools(route, browserTools);
+
+    expect(route).toBe("direct");
+    expect(tools).not.toContain("browser_execute");
+    expect(tools).not.toContain("browser_markdown");
+  });
+
+  it("keeps delegated research read-only and disables another delegation", () => {
+    const route = routeTurn({
+      messages: userMessage("[hqbot:email] Research the latest changes"),
+      body: { delegation: true }
+    });
+    const tools = activeTools(route, browserTools, { readOnly: true });
+
+    expect(route).toBe("research");
+    expect(tools).toContain("browser_markdown");
+    expect(tools).toContain("read");
+    expect(tools).not.toContain("browser_execute");
+    expect(tools).not.toContain("write");
+    expect(tools).not.toContain("edit");
+    expect(tools).not.toContain("send_hqbase_reply");
+    expect(tools).not.toContain("delegate_to_teammates");
+  });
+
+  it("activates delegation without forcing browser research", () => {
+    const route = routeTurn({ messages: userMessage("Ask @Reviewer to check this draft") });
+    const tools = activeTools(route, browserTools, { canDelegate: true });
+
+    expect(route).toBe("direct");
+    expect(tools).toEqual(["delegate_to_teammates"]);
+  });
+});
+
+describe("model cost estimates", () => {
+  it.each([
+    { model: GLM_PRIMARY_MODEL_ID, expectedMicroUsd: 176 },
+    { model: DEEPSEEK_FALLBACK_MODEL_ID, expectedMicroUsd: 487 }
+  ])("prices cached and uncached tokens for $model", ({ model, expectedMicroUsd }) => {
+    const estimate = estimateModelUsage({
+      botId: "researcher",
+      taskId: "task-1",
+      model,
+      usage: usage(),
+      occurredAt: "2026-08-30T12:00:00.000Z"
+    });
+
+    expect(estimate).toMatchObject({
+      model,
+      inputTokens: 1_000,
+      cachedInputTokens: 200,
+      outputTokens: 100,
+      reasoningTokens: 20,
+      estimatedCostMicroUsd: expectedMicroUsd
+    });
+  });
+});
+
+describe("model fallback", () => {
+  it("uses DeepSeek when GLM rejects before generation", async () => {
+    type V4Model = Extract<LanguageModel, { specificationVersion: "v4" }>;
+    const result = {
+      content: [{ type: "text" as const, text: "Fallback worked" }],
+      finishReason: { unified: "stop" as const, raw: "stop" },
+      usage: {
+        inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 1, text: 1, reasoning: 0 }
+      },
+      warnings: []
+    };
+    const primaryGenerate = vi.fn(async () => {
+      throw new Error("GLM unavailable");
+    });
+    const fallbackGenerate = vi.fn(async () => result);
+    const model = (id: HQBotModelId, generate: V4Model["doGenerate"]): V4Model => ({
+      specificationVersion: "v4",
+      provider: "test",
+      modelId: id,
+      supportedUrls: {},
+      doGenerate: generate,
+      doStream: async () => {
+        throw new Error("Not used by this test");
+      }
+    });
+    const models = {
+      [GLM_PRIMARY_MODEL_ID]: model(GLM_PRIMARY_MODEL_ID, primaryGenerate),
+      [DEEPSEEK_FALLBACK_MODEL_ID]: model(DEEPSEEK_FALLBACK_MODEL_ID, fallbackGenerate)
+    };
+    const attempts: HQBotModelId[] = [];
+    const wrapped = createHQBotModel({
+      resolve: (modelId) => models[modelId],
+      onAttempt: (modelId) => attempts.push(modelId)
+    }) as V4Model;
+
+    await expect(wrapped.doGenerate({ prompt: [] })).resolves.toEqual(result);
+    expect(primaryGenerate).toHaveBeenCalledOnce();
+    expect(fallbackGenerate).toHaveBeenCalledOnce();
+    expect(attempts).toEqual([GLM_PRIMARY_MODEL_ID, DEEPSEEK_FALLBACK_MODEL_ID]);
+  });
+});

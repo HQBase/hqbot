@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest";
 
-import { parseResearchPlan, safeResearchUrl } from "../src/domain/research"
+import { parseResearchPlan, safeResearchUrl } from "../src/domain/research";
 
 describe("safeResearchUrl", () => {
   it("accepts public web URLs and removes fragments", () => {
     expect(safeResearchUrl("https://example.com/report#private")?.toString()).toBe(
-      "https://example.com/report",
-    )
-  })
+      "https://example.com/report"
+    );
+  });
 
   it.each([
     "http://localhost/admin",
@@ -21,11 +21,11 @@ describe("safeResearchUrl", () => {
     "http://service.internal/",
     "http://service.localhost/",
     "http://single-label/",
-    "file:///etc/passwd",
+    "file:///etc/passwd"
   ])("rejects a private target: %s", (value) => {
-    expect(safeResearchUrl(value)).toBeNull()
-  })
-})
+    expect(safeResearchUrl(value)).toBeNull();
+  });
+});
 
 describe("parseResearchPlan", () => {
   it("bounds lists and removes unsafe URLs", () => {
@@ -34,20 +34,20 @@ describe("parseResearchPlan", () => {
         {
           goal: "Research this",
           queries: ["one", "two", "three"],
-          urls: ["https://example.com/one", "http://localhost/", "https://example.net/two"],
+          urls: ["https://example.com/one", "http://localhost/", "https://example.net/two"]
         },
-        "fallback",
-      ),
+        "fallback"
+      )
     ).toEqual({
       goal: "Research this",
       queries: ["one", "two"],
-      urls: ["https://example.com/one", "https://example.net/two"],
-    })
-  })
+      urls: ["https://example.com/one", "https://example.net/two"]
+    });
+  });
 
   it("uses the goal as a search when the model gives no route", () => {
     expect(parseResearchPlan({ goal: "Find current evidence" }, "fallback").queries).toEqual([
-      "Find current evidence",
-    ])
-  })
-})
+      "Find current evidence"
+    ]);
+  });
+});
