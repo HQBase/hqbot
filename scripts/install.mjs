@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { stdout } from "node:process"
 
 function run(command, args, options = {}) {
@@ -23,15 +26,14 @@ function check(command, args) {
   )
 }
 
-function output(command, args) {
+function optionalOutput(command, args) {
   const result = spawnSync(command, args, {
     cwd: new URL("..", import.meta.url),
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
+    stdio: ["ignore", "pipe", "pipe"],
   })
   if (result.error) throw result.error
-  if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed`)
-  return result.stdout
+  return result.status === 0 ? result.stdout : null
 }
 
 stdout.write("HQBot installs into your current Cloudflare account.\n\n")
@@ -39,8 +41,8 @@ run("pnpm", ["build"])
 if (!check("pnpm", ["exec", "wrangler", "r2", "bucket", "info", "hqbot-artifacts"])) {
   run("pnpm", ["exec", "wrangler", "r2", "bucket", "create", "hqbot-artifacts"])
 }
-run("pnpm", ["exec", "wrangler", "deploy"])
-const existingSecrets = JSON.parse(output("pnpm", ["exec", "wrangler", "secret", "list", "--json"]))
+const secretOutput = optionalOutput("pnpm", ["exec", "wrangler", "secret", "list", "--json"])
+const existingSecrets = secretOutput ? JSON.parse(secretOutput) : []
 if (
   Array.isArray(existingSecrets) &&
   existingSecrets.some(
@@ -53,12 +55,18 @@ if (
 }
 const ownerToken = randomBytes(32).toString("base64url")
 const connectionKey = randomBytes(32).toString("base64url")
-run("pnpm", ["exec", "wrangler", "secret", "put", "HQBOT_OWNER_TOKEN"], {
-  input: `${ownerToken}\n`,
-})
-run("pnpm", ["exec", "wrangler", "secret", "put", "HQBOT_CONNECTION_KEY"], {
-  input: `${connectionKey}\n`,
-})
+const secretDirectory = mkdtempSync(join(tmpdir(), "hqbot-install-"))
+const secretPath = join(secretDirectory, "secrets.json")
+try {
+  writeFileSync(
+    secretPath,
+    JSON.stringify({ HQBOT_OWNER_TOKEN: ownerToken, HQBOT_CONNECTION_KEY: connectionKey }),
+    { mode: 0o600 },
+  )
+  run("pnpm", ["exec", "wrangler", "deploy", "--secrets-file", secretPath])
+} finally {
+  rmSync(secretDirectory, { recursive: true, force: true })
+}
 
 stdout.write("\nHQBot is ready. Save this owner token now; it will not be shown again:\n\n")
 stdout.write(`${ownerToken}\n`)
