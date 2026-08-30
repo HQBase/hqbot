@@ -51,10 +51,17 @@ export function RealtimeConversation({
     void controller.load(bot.id);
   }, [bot.id, chat.status, controller.load, refreshApprovals]);
   const queuedInitialMessage = controller.pendingInitialMessage?.botId === bot.id;
+  const takePendingInitialMessage = controller.takePendingInitialMessage;
   useEffect(() => {
     if (!queuedInitialMessage) return;
     let active = true;
     let retryTimer: number | undefined;
+    const retryLater = () => {
+      retryTimer = initialMessage.scheduleInitialMessageRetry(initialRetry, () => {
+        initialSubmissionRef.current = null;
+        setInitialRetry((current) => current + 1);
+      });
+    };
     void (async () => {
       try {
         await agent.ready;
@@ -63,20 +70,18 @@ export function RealtimeConversation({
         if (!text) return;
         initialSubmissionRef.current = bot.id;
         setLocalError("");
-        await initialMessage.submitInitialMessage(bot.id, text);
+        const delivery = await initialMessage.submitInitialMessage(bot.id, text);
+        if (active && delivery === "pending") retryLater();
       } catch (cause) {
         if (!active) return;
         if (cause instanceof initialMessage.InitialMessageAdmissionUnknownError) {
           setLocalError(cause.message);
-          retryTimer = initialMessage.scheduleInitialMessageRetry(initialRetry, () => {
-            initialSubmissionRef.current = null;
-            setInitialRetry((current) => current + 1);
-          });
+          retryLater();
           return;
         }
         initialSubmissionRef.current = null;
         setInitialRetry(0);
-        const text = controller.takePendingInitialMessage(bot.id);
+        const text = takePendingInitialMessage(bot.id);
         if (text) onPromptChange(text);
         setLocalError(cause instanceof Error ? cause.message : "The message could not be sent");
       }
@@ -89,25 +94,19 @@ export function RealtimeConversation({
     agent.ready,
     bot.id,
     controller.pendingInitialMessage,
-    controller.takePendingInitialMessage,
     initialRetry,
     onPromptChange,
-    queuedInitialMessage
+    queuedInitialMessage,
+    takePendingInitialMessage
   ]);
   const initialMessageId = `chat:first:${bot.id}`;
   useEffect(() => {
     if (queuedInitialMessage && chat.messages.some((message) => message.id === initialMessageId)) {
-      controller.takePendingInitialMessage(bot.id);
+      takePendingInitialMessage(bot.id);
       setLocalError("");
       setInitialRetry(0);
     }
-  }, [
-    bot.id,
-    chat.messages,
-    controller.takePendingInitialMessage,
-    initialMessageId,
-    queuedInitialMessage
-  ]);
+  }, [bot.id, chat.messages, initialMessageId, queuedInitialMessage, takePendingInitialMessage]);
   const approvalRevision = approvals
     .map((approval) => `${approval.executionId}:${approval.seq}`)
     .join(":");

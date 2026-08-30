@@ -68,7 +68,7 @@ describe("new teammate chat", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(createTeammate("hey how are you?")).resolves.toEqual(teammate);
-    await expect(submitInitialMessage("bot-1", "hey how are you?")).resolves.toBeUndefined();
+    await expect(submitInitialMessage("bot-1", "hey how are you?")).resolves.toBe("pending");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/bots",
@@ -134,7 +134,7 @@ describe("new teammate chat", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(createTeammate(message)).resolves.toEqual(teammate);
-    await expect(submitInitialMessage("bot-2", message)).resolves.toBeUndefined();
+    await expect(submitInitialMessage("bot-2", message)).resolves.toBe("pending");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/bots",

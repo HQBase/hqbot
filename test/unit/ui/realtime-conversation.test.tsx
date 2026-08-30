@@ -10,7 +10,9 @@ import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
 import * as initialMessageModule from "../../../src/ui/lib/initial-message";
 import { interact, renderComponent } from "./render.tsx";
 
-const submitInitialMessage = vi.hoisted(() => vi.fn(async () => undefined));
+const submitInitialMessage = vi.hoisted(() =>
+  vi.fn(async (): Promise<"pending" | "delivered"> => "delivered")
+);
 const agent = vi.hoisted(() => ({
   approveIntegrationAction: vi.fn(async () => undefined),
   listIntegrationApprovals: vi.fn<() => Promise<PendingAction[]>>(async () => []),
@@ -71,7 +73,7 @@ afterEach(() => {
   chat.isStreaming = false;
   chat.isToolContinuation = false;
   chat.status = "ready";
-  submitInitialMessage.mockResolvedValue(undefined);
+  submitInitialMessage.mockResolvedValue("delivered");
 });
 
 describe("RealtimeConversation", () => {
@@ -288,7 +290,7 @@ describe("RealtimeConversation", () => {
     await view.unmount();
   });
 
-  it("automatically retries an uncertain first message with the same identity", async () => {
+  it("polls an uncertain first message until its terminal result", async () => {
     chat.messages = [];
     submitInitialMessage
       .mockRejectedValueOnce(
@@ -296,7 +298,8 @@ describe("RealtimeConversation", () => {
           new TypeError("The response was lost")
         )
       )
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce("pending")
+      .mockRejectedValueOnce(new Error("The message stopped before it started"));
     let retry: (() => void) | undefined;
     const timer = vi
       .spyOn(initialMessageModule, "scheduleInitialMessageRetry")
@@ -304,6 +307,8 @@ describe("RealtimeConversation", () => {
         retry = callback;
         return 1;
       });
+    const takePendingInitialMessage = vi.fn(() => "hey how are you?");
+    const onPromptChange = vi.fn();
     const controller = {
       detailsOpen: true,
       error: "",
@@ -314,7 +319,7 @@ describe("RealtimeConversation", () => {
       setDialog: vi.fn(),
       setMobileChatOpen: vi.fn(),
       snapshot: { bots: [teammate] },
-      takePendingInitialMessage: vi.fn(() => null)
+      takePendingInitialMessage
     } as unknown as WorkspaceController;
     const view = await renderComponent(
       <RealtimeConversation
@@ -322,7 +327,7 @@ describe("RealtimeConversation", () => {
         controller={controller}
         prompt=""
         showBack={false}
-        onPromptChange={() => undefined}
+        onPromptChange={onPromptChange}
       />
     );
 
@@ -331,8 +336,16 @@ describe("RealtimeConversation", () => {
     await interact();
 
     expect(submitInitialMessage).toHaveBeenCalledTimes(2);
+    if (!retry) throw new Error("The pending message was not checked again");
+    retry();
+    await interact();
+
+    expect(submitInitialMessage).toHaveBeenCalledTimes(3);
     expect(submitInitialMessage).toHaveBeenNthCalledWith(1, teammate.id, "hey how are you?");
     expect(submitInitialMessage).toHaveBeenNthCalledWith(2, teammate.id, "hey how are you?");
+    expect(submitInitialMessage).toHaveBeenNthCalledWith(3, teammate.id, "hey how are you?");
+    expect(takePendingInitialMessage).toHaveBeenCalledWith(teammate.id);
+    expect(onPromptChange).toHaveBeenCalledWith("hey how are you?");
     timer.mockRestore();
     await view.unmount();
   });
