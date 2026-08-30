@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { HQBotModelId } from "../../domain/models";
 import type { BotRoutine, BotTeammate } from "../../domain/types";
 import { api, errorMessage } from "../lib/api";
 import type { DialogName, WorkspaceEvent, WorkspaceView } from "../types";
@@ -180,6 +181,21 @@ export function useWorkspace(onSignedOut: () => void) {
     }
   }
 
+  async function setModel(modelId: HQBotModelId): Promise<void> {
+    if (!selectedBot) return;
+    setError("");
+    try {
+      await api(`/api/bots/${selectedBot.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ modelId })
+      });
+      await load(selectedBot.id);
+    } catch (cause) {
+      setError(errorMessage(cause, "The model could not be changed"));
+      throw cause;
+    }
+  }
+
   async function deleteRoutine(routine: BotRoutine): Promise<void> {
     if (!selectedBot) return;
     setError("");
@@ -238,6 +254,7 @@ export function useWorkspace(onSignedOut: () => void) {
     setDialog,
     setError,
     setMobileChatOpen,
+    setModel,
     snapshot,
     takePendingInitialMessage
   };

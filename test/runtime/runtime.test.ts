@@ -72,7 +72,8 @@ describe("turn routing", () => {
         name: "Teammate",
         title: "hey how are you?",
         description: "A helpful teammate for everyday questions and tasks.",
-        brief: "Answer the owner directly. Follow the instructions in the conversation."
+        brief: "Answer the owner directly. Follow the instructions in the conversation.",
+        modelId: DEEPSEEK_FALLBACK_MODEL_ID
       },
       connection: null,
       memories: [],
@@ -82,6 +83,7 @@ describe("turn routing", () => {
 
     expect(instructions).not.toContain("hey how are you?");
     expect(instructions).toContain("You are Teammate.");
+    expect(instructions).toContain("Your selected model is DeepSeek V4 Flash.");
   });
 
   it("activates browser tools for research", () => {
@@ -197,10 +199,44 @@ describe("durable task submission", () => {
         browserTools: [],
         context: { body: {}, messages: [] } as never,
         maxSteps: 1,
+        modelFor: () => "test-model",
         workspaceAgent
       })
     ).rejects.toThrow("Restore this teammate before you start new work");
     expect(markInteraction).not.toHaveBeenCalled();
+  });
+
+  it("uses the model saved on the teammate", async () => {
+    const selectedModel = { modelId: "selected-model" } as unknown as LanguageModel;
+    const modelFor = vi.fn(() => selectedModel);
+    const workspaceAgent = {
+      checkSpendPolicy: vi.fn(async () => ({ allowed: true, reason: null })),
+      getBot: vi.fn(async () => ({
+        id: "bot-1",
+        name: "Teammate",
+        title: "Research",
+        description: "Finds useful evidence.",
+        brief: "Be concise.",
+        modelId: DEEPSEEK_FALLBACK_MODEL_ID
+      })),
+      getBotConnection: vi.fn(async () => null),
+      listBots: vi.fn(async () => []),
+      listMemories: vi.fn(async () => []),
+      listSkills: vi.fn(async () => []),
+      markInteraction: vi.fn(async () => undefined)
+    } as unknown as WorkspaceAgentRpc;
+
+    const config = await prepareTeammateTurn({
+      botId: "bot-1",
+      browserTools: [],
+      context: { body: {}, messages: userMessage("Hello") } as never,
+      maxSteps: 1,
+      modelFor,
+      workspaceAgent
+    });
+
+    expect(modelFor).toHaveBeenCalledWith(DEEPSEEK_FALLBACK_MODEL_ID);
+    expect(config.model).toBe(selectedModel);
   });
 });
 
@@ -307,5 +343,45 @@ describe("model fallback", () => {
     expect(primaryGenerate).toHaveBeenCalledOnce();
     expect(fallbackGenerate).toHaveBeenCalledOnce();
     expect(attempts).toEqual([GLM_PRIMARY_MODEL_ID, DEEPSEEK_FALLBACK_MODEL_ID]);
+  });
+
+  it("uses GLM as fallback when DeepSeek is selected", async () => {
+    type V4Model = Extract<LanguageModel, { specificationVersion: "v4" }>;
+    const result = {
+      content: [{ type: "text" as const, text: "GLM fallback worked" }],
+      finishReason: { unified: "stop" as const, raw: "stop" },
+      usage: {
+        inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 1, text: 1, reasoning: 0 }
+      },
+      warnings: []
+    };
+    const deepSeekGenerate = vi.fn(async () => {
+      throw new Error("DeepSeek unavailable");
+    });
+    const glmGenerate = vi.fn(async () => result);
+    const model = (id: HQBotModelId, generate: V4Model["doGenerate"]): V4Model => ({
+      specificationVersion: "v4",
+      provider: "test",
+      modelId: id,
+      supportedUrls: {},
+      doGenerate: generate,
+      doStream: async () => {
+        throw new Error("Not used by this test");
+      }
+    });
+    const models = {
+      [GLM_PRIMARY_MODEL_ID]: model(GLM_PRIMARY_MODEL_ID, glmGenerate),
+      [DEEPSEEK_FALLBACK_MODEL_ID]: model(DEEPSEEK_FALLBACK_MODEL_ID, deepSeekGenerate)
+    };
+    const attempts: HQBotModelId[] = [];
+    const wrapped = createHQBotModel({
+      primaryModelId: DEEPSEEK_FALLBACK_MODEL_ID,
+      resolve: (modelId) => models[modelId],
+      onAttempt: (modelId) => attempts.push(modelId)
+    }) as V4Model;
+
+    await expect(wrapped.doGenerate({ prompt: [] })).resolves.toEqual(result);
+    expect(attempts).toEqual([DEEPSEEK_FALLBACK_MODEL_ID, GLM_PRIMARY_MODEL_ID]);
   });
 });

@@ -1,28 +1,11 @@
 import type { ComponentType, ReactNode } from "react";
-import {
-  PiCalendar,
-  PiFile,
-  PiLink,
-  PiPause,
-  PiPlay,
-  PiPlus,
-  PiSparkle,
-  PiTrash
-} from "react-icons/pi";
+import { PiCalendar, PiFile, PiPause, PiPlay, PiPlus, PiSparkle, PiTrash } from "react-icons/pi";
 
-import type {
-  BotConnection,
-  BotFile,
-  BotMemory,
-  BotRoutine,
-  BotSkill,
-  BotTeammate
-} from "../../../domain/types";
+import type { BotFile, BotMemory, BotRoutine, BotSkill, BotTeammate } from "../../../domain/types";
 import { formatInterval } from "../../lib/format";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Separator } from "../ui/separator";
+import { DetailsSection } from "./details-section";
 
 export function ResourcesPanel({
   bot,
@@ -30,7 +13,6 @@ export function ResourcesPanel({
   memories,
   routines,
   skills,
-  onConnect,
   onDeleteRoutine,
   onNewRoutine,
   onNewSkill,
@@ -42,48 +24,19 @@ export function ResourcesPanel({
   memories: BotMemory[];
   routines: BotRoutine[];
   skills: BotSkill[];
-  onConnect: () => void;
   onDeleteRoutine: (routine: BotRoutine) => void;
   onNewRoutine: () => void;
   onNewSkill: () => void;
   onSetRoutineActive: (routine: BotRoutine, active: boolean) => void;
   onUseSkill: (skill: BotSkill) => void;
 }) {
-  const connectionStatus = bot.connection
-    ? realtimeConnectionLabel(bot.connection.realtimeStatus)
-    : null;
-
   return (
-    <div className="flex flex-col gap-3">
-      <Card className="shadow-none">
-        <CardHeader className="flex-row items-start justify-between gap-3 p-4 pb-3">
-          <div className="flex flex-col gap-1">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <PiLink /> HQBase
-            </CardTitle>
-            <CardDescription className="truncate text-xs">
-              {bot.connection?.mailboxAddress ?? "No mailbox connected"}
-            </CardDescription>
-          </div>
-          {connectionStatus ? (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{connectionStatus}</Badge>
-              <Button size="sm" type="button" variant="ghost" onClick={onConnect}>
-                Manage
-              </Button>
-            </div>
-          ) : (
-            <Button size="sm" type="button" variant="outline" onClick={onConnect}>
-              Connect
-            </Button>
-          )}
-        </CardHeader>
-      </Card>
-      <ResourceCard
-        icon={PiSparkle}
-        title="Skills"
+    <>
+      <ResourceSection
         actionLabel="New skill"
         count={skills.length}
+        icon={PiSparkle}
+        title="Skills"
         onAction={onNewSkill}
       >
         {skills.length === 0 ? (
@@ -108,13 +61,13 @@ export function ResourcesPanel({
             </button>
           ))
         )}
-      </ResourceCard>
-      <ResourceCard
+      </ResourceSection>
+      <ResourceSection
+        actionLabel="New routine"
+        count={routines.length}
         icon={PiCalendar}
         id="routines"
         title="Routines"
-        actionLabel="New routine"
-        count={routines.length}
         onAction={onNewRoutine}
       >
         {routines.length === 0 ? (
@@ -161,8 +114,8 @@ export function ResourcesPanel({
             </div>
           ))
         )}
-      </ResourceCard>
-      <ResourceCard icon={PiFile} title="Files" count={files.length}>
+      </ResourceSection>
+      <ResourceSection count={files.length} icon={PiFile} title="Files">
         {files.length === 0 ? (
           <EmptyText>Files attached in chat stay with {bot.name}.</EmptyText>
         ) : (
@@ -173,34 +126,25 @@ export function ResourcesPanel({
             </div>
           ))
         )}
-      </ResourceCard>
+      </ResourceSection>
       {memories.length > 0 ? (
-        <ResourceCard icon={PiSparkle} title="Memory" count={memories.length}>
+        <ResourceSection count={memories.length} icon={PiSparkle} title="Memory">
           {memories.slice(0, 4).map((memory) => (
-            <p
-              className="rounded-md px-2 py-1.5 text-xs leading-5 text-muted-foreground"
-              key={memory.id}
-            >
+            <p className="px-2 py-1.5 text-xs leading-5 text-muted-foreground" key={memory.id}>
               {memory.content}
             </p>
           ))}
-        </ResourceCard>
+        </ResourceSection>
       ) : null}
-    </div>
+    </>
   );
 }
 
-export function realtimeConnectionLabel(status: BotConnection["realtimeStatus"]): string {
-  if (status === "connected") return "Connected";
-  if (status === "connecting") return "Connecting";
-  return "Reconnecting";
-}
-
-function ResourceCard({
+function ResourceSection({
   actionLabel,
   children,
   count,
-  icon: Icon,
+  icon,
   id,
   title,
   onAction
@@ -208,35 +152,22 @@ function ResourceCard({
   actionLabel?: string;
   children: ReactNode;
   count: number;
-  icon: ComponentType;
+  icon: ComponentType<{ className?: string }>;
   id?: string;
   title: string;
   onAction?: () => void;
 }) {
   return (
-    <Card className="scroll-mt-3 shadow-none" id={id}>
-      <CardHeader className="flex-row items-center justify-between gap-3 p-4 pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Icon /> {title}
-        </CardTitle>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">{count}</Badge>
-          {onAction ? (
-            <Button
-              aria-label={actionLabel}
-              size="icon"
-              type="button"
-              variant="ghost"
-              onClick={onAction}
-            >
-              <PiPlus />
-            </Button>
-          ) : null}
+    <DetailsSection badge={count} icon={icon} id={id} title={title}>
+      {onAction ? (
+        <div className="mb-1 flex justify-end">
+          <Button size="sm" type="button" variant="ghost" onClick={onAction}>
+            <PiPlus data-icon="inline-start" /> {actionLabel}
+          </Button>
         </div>
-      </CardHeader>
-      <Separator />
-      <CardContent className="p-2">{children}</CardContent>
-    </Card>
+      ) : null}
+      {children}
+    </DetailsSection>
   );
 }
 

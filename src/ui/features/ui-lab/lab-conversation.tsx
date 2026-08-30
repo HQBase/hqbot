@@ -4,7 +4,11 @@ import { useState } from "react";
 import { PiArrowRight } from "react-icons/pi";
 
 import type { BotTeammate } from "../../../domain/types";
-import { AgentMessage, type AgentPart } from "../../components/chat/agent-message";
+import {
+  AgentMessage,
+  type AgentPart,
+  ThinkingIndicator
+} from "../../components/chat/agent-message";
 import { ApprovalCard } from "../../components/chat/approval-card";
 import { ChatComposer } from "../../components/chat/chat-composer";
 import { ConversationHeader } from "../../components/conversation-header";
@@ -115,6 +119,15 @@ export function StreamingConversation({ bot }: { bot: BotTeammate }) {
   });
   const next = streamFixture.next(messages);
   const busy = status === "submitted" || status === "streaming";
+  const lastMessage = messages.at(-1);
+  const showThinking =
+    busy &&
+    (lastMessage?.role !== "assistant" ||
+      !lastMessage.parts.some((part) =>
+        part.type === "text" || part.type === "reasoning"
+          ? Boolean(part.text.trim())
+          : part.type.startsWith("tool-") || part.type === "dynamic-tool"
+      ));
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-reader">
       <ConversationHeader
@@ -138,6 +151,7 @@ export function StreamingConversation({ bot }: { bot: BotTeammate }) {
               speaker={message.role === "user" ? "user" : "assistant"}
             />
           ))}
+          {showThinking ? <ThinkingIndicator name={bot.name} /> : null}
           <Button
             className="self-center"
             disabled={!next || busy}

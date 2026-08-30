@@ -1,5 +1,6 @@
 import type { ModelMessage } from "ai";
 
+import { hqbotModelName } from "../domain/models";
 import type {
   WorkspaceBotDto,
   WorkspaceConnectionDto,
@@ -114,5 +115,5 @@ export function teammateInstructions(input: {
     .slice(0, 8)
     .map((item) => `- ${item.name}: ${item.instructions.slice(0, 2_000)}`);
 
-  return `${identity}\nYou run on Cloudflare. Your primary model is GLM-5.3 Flash. Your fallback model is DeepSeek V4 Flash. If asked about your model, answer this without research.\n${mode}${email}${section("Memory", memories)}${section("Skills", skills)}`;
+  return `${identity}\nYou run on Cloudflare. Your selected model is ${hqbotModelName(bot?.modelId)}. If asked about your model, answer this without research.\n${mode}${email}${section("Memory", memories)}${section("Skills", skills)}`;
 }

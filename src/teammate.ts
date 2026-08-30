@@ -65,7 +65,6 @@ export class HQBotTeammate extends Think<Env> {
     name: () => `teammates/${this.name}`
   });
 
-  private model: LanguageModel | null = null;
   private attemptedModel: HQBotModelId = GLM_PRIMARY_MODEL_ID;
   private browser: MeteredBrowserRuntime | null = null;
 
@@ -85,14 +84,17 @@ export class HQBotTeammate extends Think<Env> {
     return this.browser;
   }
 
-  getModel(): LanguageModel {
-    this.model ??= createHQBotModel({
+  private modelFor(modelId: HQBotModelId): LanguageModel {
+    return createHQBotModel({
+      primaryModelId: modelId,
       resolve: (modelId) => concreteLanguageModel(this.resolveModel(modelId)),
       onAttempt: (modelId) => {
         this.attemptedModel = modelId;
       }
     });
-    return this.model;
+  }
+  getModel(): LanguageModel {
+    return this.modelFor(GLM_PRIMARY_MODEL_ID);
   }
   getTools(): ToolSet {
     return this.browserRuntime.tools;
@@ -122,6 +124,7 @@ export class HQBotTeammate extends Think<Env> {
       browserTools: Object.keys(this.browserRuntime.tools),
       context: ctx,
       maxSteps: this.maxSteps,
+      modelFor: (modelId) => this.modelFor(modelId),
       metadata: this.activeTurnMetadata,
       workspaceAgent: this.workspaceAgent
     });

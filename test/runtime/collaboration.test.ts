@@ -16,6 +16,7 @@ function teammate(id: string, name: string, hidden = false): WorkspaceTeammateDt
     title: "Specialist",
     description: "Helps with a bounded task.",
     brief: "Be concise.",
+    modelId: "@cf/zai-org/glm-5.3-flash",
     hidden
   };
 }

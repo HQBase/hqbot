@@ -2,7 +2,7 @@
 
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { DEEPSEEK_FALLBACK_MODEL_ID, GLM_PRIMARY_MODEL_ID } from "../../../src/domain/models";
 import {
   createTeammate,
   submitInitialMessage,
@@ -127,6 +127,47 @@ describe("new teammate chat", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/messages/initial"))).toBe(
       false
     );
+    await view.unmount();
+  });
+});
+
+describe("teammate model", () => {
+  it("saves and reloads the selected model", async () => {
+    const bot = {
+      id: "bot-1",
+      name: "Teammate",
+      modelId: GLM_PRIMARY_MODEL_ID
+    };
+    const snapshot = {
+      archivedBots: [],
+      bots: [bot],
+      realtime: { url: null },
+      selectedBot: bot,
+      tasks: []
+    };
+    const updatedBot = { ...bot, modelId: DEEPSEEK_FALLBACK_MODEL_ID };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(snapshot))
+      .mockResolvedValueOnce(jsonResponse({ teammate: updatedBot }))
+      .mockResolvedValueOnce(
+        jsonResponse({ ...snapshot, bots: [updatedBot], selectedBot: updatedBot })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const view = await renderComponent(createElement(WorkspaceHarness));
+
+    await controller().setModel(DEEPSEEK_FALLBACK_MODEL_ID);
+    await interact();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/bots/bot-1",
+      expect.objectContaining({
+        body: JSON.stringify({ modelId: DEEPSEEK_FALLBACK_MODEL_ID }),
+        method: "PATCH"
+      })
+    );
+    expect(controller().selectedBot?.modelId).toBe(DEEPSEEK_FALLBACK_MODEL_ID);
     await view.unmount();
   });
 });

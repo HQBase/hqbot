@@ -61,7 +61,7 @@ export const labBots: BotTeammate[] = [
     status: "idle",
     lastInteractedAt: minutesAgo(180),
     lastMessage: "Weekly check complete",
-    modelId: "@cf/deepseek-ai/deepseek-v4-flash",
+    modelId: "@cf/deepseek-ai/deepseek-v4-flash-0731",
     dailyBudgetUsd: 3,
     createdAt: minutesAgo(5_000),
     updatedAt: minutesAgo(180),

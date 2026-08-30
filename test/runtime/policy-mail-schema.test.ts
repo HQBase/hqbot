@@ -147,7 +147,8 @@ describe("HQBase email intake", () => {
         name: "Scout",
         title: "Research teammate",
         description: "Finds useful evidence.",
-        brief: "Be concise."
+        brief: "Be concise.",
+        modelId: "@cf/zai-org/glm-5.3-flash"
       },
       connection: { id: "connection", active: true, mailboxAddress: "bot@example.com" },
       memories: [{ id: "memory", content: "Use primary sources." }],

@@ -1,6 +1,7 @@
 import { defineBot, defineConversationBot } from "../domain/ai";
 import { contentTypeForUpload } from "../domain/files";
 import { ARCHIVED_TEAMMATE_ERROR } from "../domain/lifecycle";
+import { isHQBotModelId } from "../domain/models";
 import type { BotFile } from "../domain/types";
 import {
   cleanString,
@@ -98,12 +99,16 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
     ) {
       return json({ error: "dailyBudgetUsd must be from 0.1 to 50" }, 400);
     }
+    if (body.modelId !== undefined && !isHQBotModelId(body.modelId)) {
+      return json({ error: "modelId must be a supported Workers AI model" }, 400);
+    }
     let updated = await agent.updateBot(bot[0], {
       name: optionalString(body, "name", 80),
       title: optionalString(body, "title", 120),
       description: optionalString(body, "description", 1_000),
       pinned: typeof body.pinned === "boolean" ? body.pinned : undefined,
-      dailyBudgetUsd
+      dailyBudgetUsd,
+      modelId: body.modelId
     });
     if (updated && typeof body.hidden === "boolean") {
       updated = await agent.setBotHidden(bot[0], body.hidden);

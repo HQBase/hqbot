@@ -51,8 +51,7 @@ function renderCostPanel(costs: CostSnapshot): string {
   return renderToStaticMarkup(
     createElement(CostPanel, {
       budgetUsd: 1,
-      costs,
-      modelId: "@cf/zai-org/glm-5.3-flash"
+      costs
     })
   );
 }
@@ -73,13 +72,12 @@ describe("CostPanel", () => {
     expect(html).toContain("$0.04");
   });
 
-  it("shows raw shared realtime usage only for a connected teammate", () => {
+  it("does not add a separate HQBase usage section", () => {
     const connected = renderCostPanel(snapshot(true));
     const disconnected = renderCostPanel(snapshot(false));
 
-    expect(connected).toContain("2 shared connections");
-    expect(connected).toContain("1,234.568 GB-s/day");
-    expect(connected).toContain("Raw usage before account allowances");
+    expect(connected).not.toContain("HQBase realtime");
+    expect(connected).not.toContain("GB-s/day");
     expect(disconnected).not.toContain("HQBase realtime");
     expect(disconnected).not.toContain("GB-s/day");
   });

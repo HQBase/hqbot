@@ -1,7 +1,8 @@
 import type { ChatResponseResult, TurnConfig, TurnContext } from "@cloudflare/think";
-import type { UIMessage } from "ai";
+import type { LanguageModel, UIMessage } from "ai";
 
 import { mentionedTeammates } from "../domain/collaboration";
+import { type HQBotModelId, normalizeHQBotModelId } from "../domain/models";
 import type { ReplyApproval } from "./approval";
 import { delegationInstructions } from "./collaboration";
 import { activeTools, latestUserText, routeTurn, teammateInstructions } from "./routing";
@@ -12,6 +13,7 @@ interface PrepareTeammateTurnInput {
   browserTools: readonly string[];
   context: TurnContext;
   maxSteps: number;
+  modelFor(modelId: HQBotModelId): LanguageModel;
   metadata?: Record<string, unknown> | null;
   workspaceAgent: WorkspaceAgentRpc;
 }
@@ -182,6 +184,7 @@ export async function prepareTeammateTurn(input: PrepareTeammateTurnInput): Prom
     activeTools: activeTools(route, input.browserTools, { canDelegate, readOnly: delegated }),
     maxSteps: route === "direct" ? (canDelegate ? 4 : 1) : delegated ? 4 : input.maxSteps,
     maxOutputTokens: route === "direct" ? 1_500 : delegated ? 2_500 : 5_000,
+    model: input.modelFor(normalizeHQBotModelId(bot?.modelId)),
     temperature: route === "direct" ? 0.4 : 0.2
   };
 }

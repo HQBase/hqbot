@@ -1,7 +1,10 @@
-export const GLM_PRIMARY_MODEL_ID = "@cf/zai-org/glm-5.3-flash" as const;
-export const DEEPSEEK_FALLBACK_MODEL_ID = "@cf/deepseek-ai/deepseek-v4-flash-0731" as const;
+import type { HQBotModelId } from "../domain/models";
 
-export type HQBotModelId = typeof GLM_PRIMARY_MODEL_ID | typeof DEEPSEEK_FALLBACK_MODEL_ID;
+export {
+  DEEPSEEK_FALLBACK_MODEL_ID,
+  GLM_PRIMARY_MODEL_ID,
+  type HQBotModelId
+} from "../domain/models";
 
 export interface WorkspaceBotDto {
   id: string;
@@ -9,6 +12,7 @@ export interface WorkspaceBotDto {
   title: string;
   description: string;
   brief: string;
+  modelId: string | null;
 }
 
 export interface WorkspaceTeammateDto extends WorkspaceBotDto {

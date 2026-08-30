@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestHarness } from "wrangler";
 
+import { DEEPSEEK_FALLBACK_MODEL_ID } from "../../../src/domain/models";
 import { schemaMigrations } from "../../../src/domain/schema";
 
 const origin = "http://hqbot.test";
@@ -187,7 +188,11 @@ describe("HQBot Worker authentication", () => {
         Cookie: session,
         Origin: origin
       },
-      body: JSON.stringify({ dailyBudgetUsd: 3.5, pinned: true })
+      body: JSON.stringify({
+        dailyBudgetUsd: 3.5,
+        modelId: DEEPSEEK_FALLBACK_MODEL_ID,
+        pinned: true
+      })
     });
     expect(updated.status).toBe(200);
 
@@ -199,8 +204,22 @@ describe("HQBot Worker authentication", () => {
         id: createdBody.teammate.id,
         dailyBudgetUsd: 3.5,
         pinned: true,
-        modelId: "@cf/zai-org/glm-5.3-flash"
+        modelId: DEEPSEEK_FALLBACK_MODEL_ID
       }
+    });
+
+    const invalidModel = await request(`/api/bots/${createdBody.teammate.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: session,
+        Origin: origin
+      },
+      body: JSON.stringify({ modelId: "@cf/not-a-model" })
+    });
+    expect(invalidModel.status).toBe(400);
+    expect(await invalidModel.json()).toEqual({
+      error: "modelId must be a supported Workers AI model"
     });
   });
 

@@ -15,33 +15,37 @@ function canFallback(error: unknown): boolean {
 }
 
 export function createHQBotModel(input: {
+  primaryModelId?: HQBotModelId;
   resolve(modelId: HQBotModelId): ConcreteLanguageModel;
   onAttempt(modelId: HQBotModelId): void;
 }): LanguageModel {
-  const primary = input.resolve(GLM_PRIMARY_MODEL_ID);
+  const primaryModelId = input.primaryModelId ?? GLM_PRIMARY_MODEL_ID;
+  const fallbackModelId =
+    primaryModelId === GLM_PRIMARY_MODEL_ID ? DEEPSEEK_FALLBACK_MODEL_ID : GLM_PRIMARY_MODEL_ID;
+  const primary = input.resolve(primaryModelId);
   const fallback = wrapLanguageModel({
-    model: input.resolve(DEEPSEEK_FALLBACK_MODEL_ID),
+    model: input.resolve(fallbackModelId),
     middleware: {}
   });
 
   const middleware: LanguageModelMiddleware = {
     wrapGenerate: async ({ doGenerate, params }) => {
-      input.onAttempt(GLM_PRIMARY_MODEL_ID);
+      input.onAttempt(primaryModelId);
       try {
         return await doGenerate();
       } catch (error) {
         if (!canFallback(error)) throw error;
-        input.onAttempt(DEEPSEEK_FALLBACK_MODEL_ID);
+        input.onAttempt(fallbackModelId);
         return fallback.doGenerate(params);
       }
     },
     wrapStream: async ({ doStream, params }) => {
-      input.onAttempt(GLM_PRIMARY_MODEL_ID);
+      input.onAttempt(primaryModelId);
       try {
         return await doStream();
       } catch (error) {
         if (!canFallback(error)) throw error;
-        input.onAttempt(DEEPSEEK_FALLBACK_MODEL_ID);
+        input.onAttempt(fallbackModelId);
         return fallback.doStream(params);
       }
     }
@@ -50,7 +54,7 @@ export function createHQBotModel(input: {
   return wrapLanguageModel({
     model: primary,
     middleware,
-    modelId: GLM_PRIMARY_MODEL_ID,
+    modelId: primaryModelId,
     providerId: "cloudflare-workers-ai"
   });
 }

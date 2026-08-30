@@ -3,6 +3,7 @@ import { PiDeviceMobile, PiFlask, PiMoon, PiSun } from "react-icons/pi";
 
 import type { BotTeammate } from "../../../domain/types";
 import { CostPanel } from "../../components/details/cost-panel";
+import { ModelPanel } from "../../components/details/model-panel";
 import { TeammateSidebar } from "../../components/teammate-sidebar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -115,11 +116,8 @@ function DesktopShell({ state }: { state: Exclude<LabState, "mobile"> }) {
         <LabConversation bot={selected} mode={mode} />
       )}
       <aside className="hidden min-h-0 overflow-y-auto border-l border-divider bg-sidebar p-3 lg:block">
-        <CostPanel
-          budgetUsd={selected.dailyBudgetUsd}
-          costs={labCosts}
-          modelId={selected.modelId}
-        />
+        <ModelPanel modelId={selected.modelId} onModelChange={async () => undefined} />
+        <CostPanel budgetUsd={selected.dailyBudgetUsd} costs={labCosts} />
       </aside>
     </section>
   );
