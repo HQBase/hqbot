@@ -1,781 +1,177 @@
-import { Agent } from "agents"
+import { getAgentByName } from "agents";
 
+import type { BotConnection, StoredBotConnection } from "./domain/types";
 import type {
-  BotActivity,
-  BotConnection,
-  BotDefinition,
-  BotFile,
-  BotMemory,
-  BotRoutine,
-  BotSkill,
-  BotTask,
-  BotTeammate,
-  StoredBotConnection,
-  StoredComputerState,
-  TaskSource,
-  TaskStatus,
-  WorkspaceSnapshot,
-} from "./domain/types"
+  SendApprovedReplyInput,
+  SendApprovedReplyResult,
+  TeammateTaskSubmission
+} from "./runtime/types";
+import { decryptConnectionToken } from "./services/crypto";
+import {
+  emailTaskPrompt,
+  existingReply,
+  getMessage,
+  getThread,
+  type MailConfig,
+  type MessageSummary,
+  replyToMessage,
+  stableMailTaskId
+} from "./services/mail";
+import type { HQBotTeammate } from "./teammate";
+import { WorkspaceAgentBase } from "./workspace/agent-base";
+import type { WorkspaceCatalog } from "./workspace/catalog";
+import { MailRealtime, type MailRealtimeHost } from "./workspace/mail-realtime";
 
-type SqlValue = string | number | boolean | null
-type Row = Record<string, SqlValue>
+export class HQBotAgent extends WorkspaceAgentBase implements MailRealtimeHost {
+  private mailRuntime: MailRealtime | null = null;
 
-function now(): string {
-  return new Date().toISOString()
-}
-
-function text(row: Row, key: string): string {
-  const value = row[key]
-  if (typeof value !== "string") throw new Error(`Invalid stored ${key}`)
-  return value
-}
-
-function nullableText(row: Row, key: string): string | null {
-  const value = row[key]
-  return typeof value === "string" ? value : null
-}
-
-function taskFromRow(row: Row): BotTask {
-  return {
-    id: text(row, "id"),
-    botId: nullableText(row, "bot_id") ?? "legacy",
-    connectionId: nullableText(row, "connection_id"),
-    source: text(row, "source") as TaskSource,
-    status: text(row, "status") as TaskStatus,
-    prompt: text(row, "prompt"),
-    subject: nullableText(row, "subject"),
-    sender: nullableText(row, "sender"),
-    sourceMessageId: nullableText(row, "source_message_id"),
-    workflowId: nullableText(row, "workflow_id"),
-    result: nullableText(row, "result"),
-    replyMessageId: nullableText(row, "reply_message_id"),
-    screenshotKey: nullableText(row, "screenshot_key"),
-    browserUrl: nullableText(row, "browser_url"),
-    error: nullableText(row, "error"),
-    createdAt: text(row, "created_at"),
-    updatedAt: text(row, "updated_at"),
+  private get mail(): MailRealtime {
+    this.mailRuntime ??= new MailRealtime(this.env.HQBOT_CONNECTION_KEY, this);
+    return this.mailRuntime;
   }
-}
 
-function activityFromRow(row: Row): BotActivity {
-  return {
-    id: text(row, "id"),
-    taskId: text(row, "task_id"),
-    phase: text(row, "phase"),
-    title: text(row, "title"),
-    detail: nullableText(row, "detail"),
-    createdAt: text(row, "created_at"),
-  }
-}
-
-function publicConnection(row: Row): BotConnection {
-  return {
-    id: text(row, "id"),
-    provider: "hqbase",
-    origin: text(row, "origin"),
-    mailboxId: text(row, "mailbox_id"),
-    mailboxAddress: text(row, "mailbox_address"),
-    mailboxName: text(row, "mailbox_name"),
-    active: row.active === 1,
-    createdAt: text(row, "created_at"),
-  }
-}
-
-function storedConnection(row: Row): StoredBotConnection {
-  return {
-    ...publicConnection(row),
-    botId: text(row, "bot_id"),
-    tokenCiphertext: text(row, "token_ciphertext"),
-    tokenIv: text(row, "token_iv"),
-  }
-}
-
-function botFromRow(row: Row, connection: BotConnection | null): BotTeammate {
-  return {
-    id: text(row, "id"),
-    name: text(row, "name"),
-    title: text(row, "title"),
-    description: text(row, "description"),
-    brief: text(row, "brief"),
-    pinned: row.pinned === 1,
-    hidden: row.hidden === 1,
-    createdAt: text(row, "created_at"),
-    updatedAt: text(row, "updated_at"),
-    connection,
-  }
-}
-
-function memoryFromRow(row: Row): BotMemory {
-  return {
-    id: text(row, "id"),
-    botId: text(row, "bot_id"),
-    content: text(row, "content"),
-    createdAt: text(row, "created_at"),
-  }
-}
-
-function routineFromRow(row: Row): BotRoutine {
-  const intervalMinutes = row.interval_minutes
-  if (typeof intervalMinutes !== "number") throw new Error("Invalid stored interval_minutes")
-  return {
-    id: text(row, "id"),
-    botId: text(row, "bot_id"),
-    name: text(row, "name"),
-    prompt: text(row, "prompt"),
-    intervalMinutes,
-    active: row.active === 1,
-    nextRunAt: text(row, "next_run_at"),
-    createdAt: text(row, "created_at"),
-    updatedAt: text(row, "updated_at"),
-  }
-}
-
-function fileFromRow(row: Row): BotFile {
-  const size = row.size
-  if (typeof size !== "number") throw new Error("Invalid stored file size")
-  return {
-    id: text(row, "id"),
-    botId: text(row, "bot_id"),
-    taskId: nullableText(row, "task_id"),
-    key: text(row, "object_key"),
-    name: text(row, "name"),
-    contentType: text(row, "content_type"),
-    size,
-    createdAt: text(row, "created_at"),
-  }
-}
-
-function skillFromRow(row: Row): BotSkill {
-  return {
-    id: text(row, "id"),
-    botId: text(row, "bot_id"),
-    name: text(row, "name"),
-    description: text(row, "description"),
-    instructions: text(row, "instructions"),
-    createdAt: text(row, "created_at"),
-    updatedAt: text(row, "updated_at"),
-  }
-}
-
-function computerFromRow(row?: Row): StoredComputerState {
-  const expiresAt = row ? nullableText(row, "expires_at") : null
-  return {
-    active: Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now()),
-    sessionId: row ? nullableText(row, "session_id") : null,
-    url: row ? nullableText(row, "url") : null,
-    screenshotKey: row ? nullableText(row, "screenshot_key") : null,
-    expiresAt,
-    cookiesCiphertext: row ? nullableText(row, "cookies_ciphertext") : null,
-    cookiesIv: row ? nullableText(row, "cookies_iv") : null,
-    updatedAt: row ? text(row, "updated_at") : null,
-  }
-}
-
-export class HQBotAgent extends Agent<Env, Record<string, never>> {
   async onStart(): Promise<void> {
-    this.sql`CREATE TABLE IF NOT EXISTS schema_migrations (
-      version INTEGER PRIMARY KEY,
-      applied_at TEXT NOT NULL
-    )`
-    const version1 = this.sql<{
-      version: number
-    }>`SELECT version FROM schema_migrations WHERE version = 1`
-    if (version1.length === 0) {
-      this.sql`CREATE TABLE IF NOT EXISTS tasks (
-        id TEXT PRIMARY KEY,
-        source TEXT NOT NULL CHECK (source IN ('chat', 'email')),
-        status TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        subject TEXT,
-        sender TEXT,
-        source_message_id TEXT UNIQUE,
-        workflow_id TEXT,
-        result TEXT,
-        reply_message_id TEXT,
-        screenshot_key TEXT,
-        browser_url TEXT,
-        error TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )`
-      this.sql`CREATE TABLE IF NOT EXISTS activity (
-        id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL,
-        phase TEXT NOT NULL,
-        title TEXT NOT NULL,
-        detail TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-      )`
-      this.sql`CREATE INDEX IF NOT EXISTS activity_task_created ON activity(task_id, created_at)`
-      this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (1, ${now()})`
-    }
-
-    const version2 = this.sql<{
-      version: number
-    }>`SELECT version FROM schema_migrations WHERE version = 2`
-    if (version2.length === 0) {
-      this.sql`CREATE TABLE IF NOT EXISTS bots (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      brief TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`
-      this.sql`CREATE TABLE IF NOT EXISTS connections (
-      id TEXT PRIMARY KEY,
-      bot_id TEXT NOT NULL,
-      provider TEXT NOT NULL CHECK (provider = 'hqbase'),
-      origin TEXT NOT NULL,
-      mailbox_id TEXT NOT NULL,
-      mailbox_address TEXT NOT NULL,
-      mailbox_name TEXT NOT NULL,
-      token_ciphertext TEXT NOT NULL,
-      token_iv TEXT NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      UNIQUE(bot_id, provider),
-      UNIQUE(provider, origin, mailbox_id),
-      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
-    )`
-      const columns = this.sql<{ name: string }>`PRAGMA table_info(tasks)`
-      if (!columns.some((column) => column.name === "bot_id")) {
-        this.sql`ALTER TABLE tasks ADD COLUMN bot_id TEXT`
-      }
-      if (!columns.some((column) => column.name === "connection_id")) {
-        this.sql`ALTER TABLE tasks ADD COLUMN connection_id TEXT`
-      }
-      this.sql`CREATE INDEX IF NOT EXISTS tasks_bot_created ON tasks(bot_id, created_at)`
-      const legacyTasks = this.sql<{
-        count: number
-      }>`SELECT COUNT(*) AS count FROM tasks WHERE bot_id IS NULL`
-      if ((legacyTasks[0]?.count ?? 0) > 0) {
-        const timestamp = now()
-        this.sql`INSERT OR IGNORE INTO bots (
-        id, name, title, description, brief, created_at, updated_at
-      ) VALUES (
-        'legacy', 'HQBot', 'Research teammate',
-        'I research the public web and return evidence-backed work.',
-        'Legacy HQBot teammate', ${timestamp}, ${timestamp}
-      )`
-        this.sql`UPDATE tasks SET bot_id = 'legacy' WHERE bot_id IS NULL`
-      }
-      this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (2, ${now()})`
-    }
-
-    const version3 = this.sql<{
-      version: number
-    }>`SELECT version FROM schema_migrations WHERE version = 3`
-    if (version3.length === 0) {
-      const botColumns = this.sql<{ name: string }>`PRAGMA table_info(bots)`
-      if (!botColumns.some((column) => column.name === "pinned")) {
-        this.sql`ALTER TABLE bots ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`
-      }
-      if (!botColumns.some((column) => column.name === "hidden")) {
-        this.sql`ALTER TABLE bots ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`
-      }
-      this.sql`CREATE TABLE IF NOT EXISTS memories (
-      id TEXT PRIMARY KEY,
-      bot_id TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
-    )`
-      this.sql`CREATE INDEX IF NOT EXISTS memories_bot_created ON memories(bot_id, created_at)`
-      this.sql`CREATE TABLE IF NOT EXISTS routines (
-      id TEXT PRIMARY KEY,
-      bot_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      prompt TEXT NOT NULL,
-      interval_minutes INTEGER NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1,
-      next_run_at TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
-    )`
-      this.sql`CREATE INDEX IF NOT EXISTS routines_due ON routines(active, next_run_at)`
-      this.sql`CREATE TABLE IF NOT EXISTS files (
-      id TEXT PRIMARY KEY,
-      bot_id TEXT NOT NULL,
-      task_id TEXT,
-      object_key TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      content_type TEXT NOT NULL,
-      size INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
-      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
-    )`
-      this.sql`CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)`
-      this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (3, ${now()})`
-    }
-
-    const version4 = this.sql<{
-      version: number
-    }>`SELECT version FROM schema_migrations WHERE version = 4`
-    if (version4.length > 0) return
-    this.sql`CREATE TABLE IF NOT EXISTS skills (
-      id TEXT PRIMARY KEY,
-      bot_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      instructions TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      UNIQUE(bot_id, name),
-      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
-    )`
-    this.sql`CREATE INDEX IF NOT EXISTS skills_bot_created ON skills(bot_id, created_at)`
-    this.sql`CREATE TABLE IF NOT EXISTS computer_state (
-      id TEXT PRIMARY KEY CHECK (id = 'shared'),
-      session_id TEXT,
-      url TEXT,
-      screenshot_key TEXT,
-      expires_at TEXT,
-      cookies_ciphertext TEXT,
-      cookies_iv TEXT,
-      updated_at TEXT NOT NULL
-    )`
-    this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (4, ${now()})`
+    await super.onStart();
+    this.ctx.waitUntil(
+      Promise.all(
+        this.catalog.listActiveConnections().map((connection) => this.mail.connect(connection.id))
+      ).then(() => undefined)
+    );
   }
 
-  createBot(id: string, definition: BotDefinition, brief: string): BotTeammate {
-    const timestamp = now()
-    this.sql`INSERT INTO bots (id, name, title, description, brief, created_at, updated_at)
-      VALUES (${id}, ${definition.name}, ${definition.title}, ${definition.description}, ${brief},
-        ${timestamp}, ${timestamp})`
-    return {
-      id,
-      ...definition,
-      brief,
-      pinned: false,
-      hidden: false,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      connection: null,
-    }
+  connectHQBase(input: Parameters<WorkspaceCatalog["connectHQBase"]>[0]): BotConnection {
+    const connection = this.catalog.connectHQBase(input);
+    void this.queue("openConnection", { connectionId: connection.id });
+    this.changed();
+    return connection;
   }
 
-  hasBot(id: string): boolean {
-    return this.sql<{ id: string }>`SELECT id FROM bots WHERE id = ${id}`.length > 0
-  }
-
-  listBots(): BotTeammate[] {
-    const connectionRows = this.sql<Row>`SELECT * FROM connections ORDER BY created_at ASC`
-    const connections = new Map(
-      connectionRows.map((row) => [text(row, "bot_id"), publicConnection(row)]),
-    )
-    return this.sql<Row>`SELECT * FROM bots ORDER BY pinned DESC, created_at ASC`.map((row) =>
-      botFromRow(row, connections.get(text(row, "id")) ?? null),
-    )
-  }
-
-  getBot(id: string): BotTeammate | null {
-    const rows = this.sql<Row>`SELECT * FROM bots WHERE id = ${id}`
-    if (!rows[0]) return null
-    const connectionRows = this.sql<Row>`SELECT * FROM connections WHERE bot_id = ${id}`
-    return botFromRow(rows[0], connectionRows[0] ? publicConnection(connectionRows[0]) : null)
-  }
-
-  updateBot(
-    id: string,
-    input: {
-      name?: string
-      title?: string
-      description?: string
-      pinned?: boolean
-      hidden?: boolean
-    },
-  ): BotTeammate | null {
-    const current = this.getBot(id)
-    if (!current) return null
-    this.sql`UPDATE bots SET
-      name = ${input.name ?? current.name},
-      title = ${input.title ?? current.title},
-      description = ${input.description ?? current.description},
-      pinned = ${(input.pinned ?? current.pinned) ? 1 : 0},
-      hidden = ${(input.hidden ?? current.hidden) ? 1 : 0},
-      updated_at = ${now()}
-      WHERE id = ${id}`
-    return this.getBot(id)
-  }
-
-  createMemory(id: string, botId: string, content: string): BotMemory {
-    const createdAt = now()
-    this.sql`INSERT INTO memories (id, bot_id, content, created_at)
-      VALUES (${id}, ${botId}, ${content}, ${createdAt})`
-    return { id, botId, content, createdAt }
-  }
-
-  listMemories(botId: string): BotMemory[] {
-    return this.sql<Row>`SELECT * FROM memories WHERE bot_id = ${botId}
-      ORDER BY created_at ASC LIMIT 50`.map(memoryFromRow)
-  }
-
-  deleteMemory(id: string, botId: string): boolean {
+  getBotConnection(id: string): StoredBotConnection | null {
     return (
-      this.sql<{ id: string }>`DELETE FROM memories WHERE id = ${id} AND bot_id = ${botId}
-        RETURNING id`.length > 0
-    )
-  }
-
-  createRoutine(input: {
-    id: string
-    botId: string
-    name: string
-    prompt: string
-    intervalMinutes: number
-    nextRunAt: string
-  }): BotRoutine {
-    const timestamp = now()
-    this.sql`INSERT INTO routines (
-      id, bot_id, name, prompt, interval_minutes, active, next_run_at, created_at, updated_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, ${input.name}, ${input.prompt}, ${input.intervalMinutes}, 1,
-      ${input.nextRunAt}, ${timestamp}, ${timestamp}
-    )`
-    return {
-      ...input,
-      active: true,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    }
-  }
-
-  listRoutines(botId: string): BotRoutine[] {
-    return this.sql<Row>`SELECT * FROM routines WHERE bot_id = ${botId}
-      ORDER BY created_at ASC`.map(routineFromRow)
-  }
-
-  listDueRoutines(timestamp: string): BotRoutine[] {
-    return this.sql<Row>`SELECT * FROM routines WHERE active = 1 AND next_run_at <= ${timestamp}
-      ORDER BY next_run_at ASC LIMIT 10`.map(routineFromRow)
-  }
-
-  setRoutineActive(id: string, botId: string, active: boolean): BotRoutine | null {
-    this.sql`UPDATE routines SET active = ${active ? 1 : 0}, updated_at = ${now()}
-      WHERE id = ${id} AND bot_id = ${botId}`
-    const rows = this.sql<Row>`SELECT * FROM routines WHERE id = ${id} AND bot_id = ${botId}`
-    return rows[0] ? routineFromRow(rows[0]) : null
-  }
-
-  advanceRoutine(id: string, nextRunAt: string): void {
-    this.sql`UPDATE routines SET next_run_at = ${nextRunAt}, updated_at = ${now()} WHERE id = ${id}`
-  }
-
-  deleteRoutine(id: string, botId: string): boolean {
-    return (
-      this.sql<{ id: string }>`DELETE FROM routines WHERE id = ${id} AND bot_id = ${botId}
-        RETURNING id`.length > 0
-    )
-  }
-
-  createFile(input: {
-    id: string
-    botId: string
-    key: string
-    name: string
-    contentType: string
-    size: number
-  }): BotFile {
-    const createdAt = now()
-    this.sql`INSERT INTO files (
-      id, bot_id, object_key, name, content_type, size, created_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, ${input.key}, ${input.name}, ${input.contentType},
-      ${input.size}, ${createdAt}
-    )`
-    return { ...input, taskId: null, createdAt }
-  }
-
-  attachFiles(botId: string, taskId: string, fileIds: string[]): BotFile[] {
-    const attached: BotFile[] = []
-    for (const fileId of fileIds.slice(0, 5)) {
-      this.sql`UPDATE files SET task_id = ${taskId}
-        WHERE id = ${fileId} AND bot_id = ${botId} AND task_id IS NULL`
-      const rows = this.sql<Row>`SELECT * FROM files
-        WHERE id = ${fileId} AND bot_id = ${botId} AND task_id = ${taskId}`
-      if (rows[0]) attached.push(fileFromRow(rows[0]))
-    }
-    return attached
-  }
-
-  deleteFile(id: string, botId: string): BotFile | null {
-    const rows = this.sql<Row>`DELETE FROM files WHERE id = ${id} AND bot_id = ${botId}
-      RETURNING *`
-    return rows[0] ? fileFromRow(rows[0]) : null
-  }
-
-  createSkill(input: {
-    id: string
-    botId: string
-    name: string
-    description: string
-    instructions: string
-  }): BotSkill {
-    const timestamp = now()
-    this.sql`INSERT INTO skills (
-      id, bot_id, name, description, instructions, created_at, updated_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, ${input.name}, ${input.description}, ${input.instructions},
-      ${timestamp}, ${timestamp}
-    )`
-    return { ...input, createdAt: timestamp, updatedAt: timestamp }
-  }
-
-  listSkills(botId: string): BotSkill[] {
-    return this.sql<Row>`SELECT * FROM skills WHERE bot_id = ${botId}
-      ORDER BY created_at ASC`.map(skillFromRow)
-  }
-
-  getSkill(id: string, botId: string): BotSkill | null {
-    const rows = this.sql<Row>`SELECT * FROM skills WHERE id = ${id} AND bot_id = ${botId}`
-    return rows[0] ? skillFromRow(rows[0]) : null
-  }
-
-  deleteSkill(id: string, botId: string): boolean {
-    return (
-      this.sql<{ id: string }>`DELETE FROM skills WHERE id = ${id} AND bot_id = ${botId}
-        RETURNING id`.length > 0
-    )
-  }
-
-  getComputerState(): StoredComputerState {
-    return computerFromRow(this.sql<Row>`SELECT * FROM computer_state WHERE id = 'shared'`[0])
-  }
-
-  saveComputerState(input: Omit<StoredComputerState, "active" | "updatedAt">): void {
-    this.sql`INSERT INTO computer_state (
-      id, session_id, url, screenshot_key, expires_at, cookies_ciphertext, cookies_iv, updated_at
-    ) VALUES (
-      'shared', ${input.sessionId}, ${input.url}, ${input.screenshotKey}, ${input.expiresAt},
-      ${input.cookiesCiphertext}, ${input.cookiesIv}, ${now()}
-    ) ON CONFLICT(id) DO UPDATE SET
-      session_id = excluded.session_id,
-      url = excluded.url,
-      screenshot_key = excluded.screenshot_key,
-      expires_at = excluded.expires_at,
-      cookies_ciphertext = excluded.cookies_ciphertext,
-      cookies_iv = excluded.cookies_iv,
-      updated_at = excluded.updated_at`
-  }
-
-  connectHQBase(input: {
-    id: string
-    botId: string
-    origin: string
-    mailboxId: string
-    mailboxAddress: string
-    mailboxName: string
-    tokenCiphertext: string
-    tokenIv: string
-  }): BotConnection {
-    const timestamp = now()
-    this.sql`INSERT INTO connections (
-      id, bot_id, provider, origin, mailbox_id, mailbox_address, mailbox_name,
-      token_ciphertext, token_iv, active, created_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, 'hqbase', ${input.origin}, ${input.mailboxId},
-      ${input.mailboxAddress}, ${input.mailboxName}, ${input.tokenCiphertext}, ${input.tokenIv},
-      1, ${timestamp}
-    )`
-    return {
-      id: input.id,
-      provider: "hqbase",
-      origin: input.origin,
-      mailboxId: input.mailboxId,
-      mailboxAddress: input.mailboxAddress,
-      mailboxName: input.mailboxName,
-      active: true,
-      createdAt: timestamp,
-    }
-  }
-
-  getBotConnection(connectionId: string): StoredBotConnection | null {
-    const rows = this.sql<Row>`SELECT * FROM connections WHERE id = ${connectionId}`
-    return rows[0] ? storedConnection(rows[0]) : null
+      this.catalog.getBotConnection(id) ??
+      this.catalog.listActiveConnections().find((connection) => connection.botId === id) ??
+      null
+    );
   }
 
   listActiveConnections(): StoredBotConnection[] {
-    return this.sql<Row>`SELECT * FROM connections WHERE active = 1 ORDER BY created_at ASC`.map(
-      storedConnection,
-    )
+    return this.catalog.listActiveConnections();
   }
 
   disconnectHQBase(botId: string): boolean {
-    return (
-      this.sql<{
-        id: string
-      }>`DELETE FROM connections WHERE bot_id = ${botId} AND provider = 'hqbase'
-        RETURNING id`.length > 0
-    )
+    const connection = this.getBotConnection(botId);
+    const deleted = this.catalog.disconnectHQBase(botId);
+    if (connection) this.mail.close(connection.id);
+    if (deleted) this.changed();
+    return deleted;
   }
 
-  createEmailTask(input: {
-    id: string
-    botId: string
-    connectionId: string
-    messageId: string
-    sender: string
-    subject: string
-    prompt: string
-  }): boolean {
-    const timestamp = now()
-    const rows = this.sql<{ id: string }>`INSERT OR IGNORE INTO tasks (
-      id, bot_id, connection_id, source, status, prompt, subject, sender, source_message_id,
-      created_at, updated_at
-    ) VALUES (
-      ${input.id}, ${input.botId}, ${input.connectionId}, 'email', 'queued', ${input.prompt},
-      ${input.subject}, ${input.sender}, ${input.messageId}, ${timestamp}, ${timestamp}
-    ) RETURNING id`
-    if (rows.length === 0) return false
-    this.addActivity(
-      input.id,
-      "queued",
-      "Email received",
-      "The connected HQBase inbox sent this task.",
-    )
-    return true
+  getStoredConnection(id: string): StoredBotConnection | null {
+    return this.catalog.getBotConnection(id);
   }
 
-  createChatTask(id: string, botId: string, prompt: string): void {
-    const timestamp = now()
-    this.sql`INSERT INTO tasks (
-      id, bot_id, source, status, prompt, created_at, updated_at
-    ) VALUES (${id}, ${botId}, 'chat', 'queued', ${prompt}, ${timestamp}, ${timestamp})`
-    this.addActivity(id, "queued", "Task queued", "Your teammate is preparing the work.")
-  }
-
-  countTasksSince(timestamp: string): number {
-    return (
-      this.sql<{ count: number }>`SELECT COUNT(*) AS count FROM tasks
-      WHERE created_at >= ${timestamp}`[0]?.count ?? 0
-    )
-  }
-
-  setWorkflow(taskId: string, workflowId: string): void {
-    this
-      .sql`UPDATE tasks SET workflow_id = ${workflowId}, updated_at = ${now()} WHERE id = ${taskId}`
-  }
-
-  setTaskInput(
-    taskId: string,
-    prompt: string,
-    subject: string | null,
-    sender: string | null,
+  saveConnectionState(
+    id: string,
+    status: StoredBotConnection["realtimeStatus"],
+    cursor?: string | null
   ): void {
-    this.sql`UPDATE tasks SET prompt = ${prompt}, subject = ${subject}, sender = ${sender},
-      updated_at = ${now()} WHERE id = ${taskId}`
+    this.catalog.setConnectionRealtime(id, status, cursor);
+    this.changed();
   }
 
-  setStatus(taskId: string, status: TaskStatus): void {
-    this.sql`UPDATE tasks SET status = ${status}, updated_at = ${now()} WHERE id = ${taskId}`
-  }
-
-  getTask(taskId: string): BotTask | null {
-    const rows = this.sql<Row>`SELECT * FROM tasks WHERE id = ${taskId}`
-    return rows[0] ? taskFromRow(rows[0]) : null
-  }
-
-  requestReplyApproval(taskId: string, result: string): void {
-    this.sql`UPDATE tasks SET status = 'awaiting_approval', result = ${result},
-      updated_at = ${now()} WHERE id = ${taskId}`
-    this.addActivity(
-      taskId,
-      "approval",
-      "Reply needs approval",
-      "Review the draft before HQBot sends it through HQBase.",
-    )
-  }
-
-  recordReplyDecision(taskId: string, approved: boolean): void {
-    this.addActivity(
-      taskId,
-      approved ? "approved" : "denied",
-      approved ? "Reply approved" : "Reply kept as a draft",
-      approved ? "The approved reply can now be sent." : "Nothing was sent.",
-    )
-  }
-
-  addActivity(taskId: string, phase: string, title: string, detail: string | null = null): void {
-    const id = `${taskId}:${phase}`
-    this.sql`INSERT OR IGNORE INTO activity (id, task_id, phase, title, detail, created_at)
-      VALUES (${id}, ${taskId}, ${phase}, ${title}, ${detail}, ${now()})`
-  }
-
-  recordBrowser(taskId: string, screenshotKey: string | null, browserUrl: string | null): void {
-    this.sql`UPDATE tasks SET screenshot_key = ${screenshotKey}, browser_url = ${browserUrl},
-      updated_at = ${now()} WHERE id = ${taskId}`
-  }
-
-  completeTask(taskId: string, result: string, replyMessageId: string | null): void {
-    this.sql`UPDATE tasks SET status = 'completed', result = ${result},
-      reply_message_id = ${replyMessageId}, error = NULL, updated_at = ${now()} WHERE id = ${taskId}`
-    this.addActivity(
-      taskId,
-      "completed",
-      replyMessageId ? "Work sent" : "Work completed",
-      replyMessageId ? "HQBase accepted the reply." : "The result is ready in this chat.",
-    )
-  }
-
-  failTask(taskId: string, error: string): void {
-    const message = error.slice(0, 500)
-    this.sql`UPDATE tasks SET status = 'failed', error = ${message}, updated_at = ${now()}
-      WHERE id = ${taskId}`
-    this.addActivity(taskId, "failed", "Task stopped", message)
-  }
-
-  cancelTask(taskId: string): void {
-    this.sql`UPDATE tasks SET status = 'cancelled', error = NULL, updated_at = ${now()}
-      WHERE id = ${taskId}`
-    this.addActivity(taskId, "cancelled", "Task stopped", "The owner stopped this work.")
-  }
-
-  getSnapshot(botId?: string): WorkspaceSnapshot {
-    const bots = this.listBots()
-    const selectedBot = bots.find((candidate) => candidate.id === botId) ?? bots[0] ?? null
-    const tasks = selectedBot
-      ? this.sql<Row>`SELECT * FROM tasks WHERE bot_id = ${selectedBot.id}
-          ORDER BY created_at DESC LIMIT 30`.map(taskFromRow)
-      : []
-    const activeTask =
-      tasks.find((task) => !["completed", "failed", "cancelled"].includes(task.status)) ??
-      tasks[0] ??
-      null
-    const activity = activeTask
-      ? this.sql<Row>`SELECT * FROM activity WHERE task_id = ${activeTask.id}
-          ORDER BY created_at ASC`.map(activityFromRow)
-      : []
-    const memories = selectedBot ? this.listMemories(selectedBot.id) : []
-    const routines = selectedBot ? this.listRoutines(selectedBot.id) : []
-    const files = selectedBot
-      ? this.sql<Row>`SELECT * FROM files WHERE bot_id = ${selectedBot.id}
-          ORDER BY created_at DESC LIMIT 30`.map(fileFromRow)
-      : []
-    const skills = selectedBot ? this.listSkills(selectedBot.id) : []
-    const storedComputer = this.getComputerState()
-    const computer = {
-      active: storedComputer.active,
-      url: storedComputer.url,
-      screenshotKey: storedComputer.screenshotKey,
-      expiresAt: storedComputer.expiresAt,
-      updatedAt: storedComputer.updatedAt,
+  async acceptMessage(connection: StoredBotConnection, message: MessageSummary): Promise<void> {
+    const taskId = await stableMailTaskId(connection, message.id);
+    const source = await getMessage(await this.mailConfig(connection), message.id);
+    const body = source.textBody.trim() || message.snippet.trim() || message.subject.trim();
+    const prompt = emailTaskPrompt(message, body);
+    const created = this.tasks.createEmailTask({
+      id: taskId,
+      botId: connection.botId,
+      connectionId: connection.id,
+      messageId: message.id,
+      sender: message.fromAddress,
+      subject: message.subject,
+      prompt
+    });
+    if (!created) {
+      const existing = this.tasks.getTask(taskId);
+      if (existing?.status !== "queued" || existing.submissionId) return;
+    } else {
+      this.catalog.markInteraction(connection.botId, message.subject || message.snippet, "working");
     }
+    const teammate = await getAgentByName<Env, HQBotTeammate>(
+      this.env.HQBOT_TEAMMATE,
+      connection.botId
+    );
+    const submission = await teammate.submitTask({
+      taskId,
+      source: "email",
+      prompt
+    } satisfies TeammateTaskSubmission);
+    this.tasks.setSubmission(taskId, submission.submissionId);
+    this.changed();
+  }
+
+  async queueReconcile(connectionId: string): Promise<void> {
+    await this.queue("reconcileConnection", { connectionId });
+  }
+
+  async scheduleReconnect(connectionId: string): Promise<void> {
+    await this.schedule(15, "openConnection", { connectionId }, { idempotent: true });
+  }
+
+  async scheduleRenewal(connectionId: string): Promise<void> {
+    await this.schedule(8 * 60, "renewConnection", { connectionId }, { idempotent: true });
+  }
+
+  async openConnection(payload: { connectionId: string }): Promise<void> {
+    await this.mail.connect(payload.connectionId);
+  }
+
+  async renewConnection(payload: { connectionId: string }): Promise<void> {
+    await this.mail.renew(payload.connectionId);
+  }
+
+  async reconcileConnection(payload: { connectionId: string }): Promise<void> {
+    await this.mail.drain(payload.connectionId);
+  }
+
+  async sendApprovedReply(input: SendApprovedReplyInput): Promise<SendApprovedReplyResult> {
+    const task = this.tasks.getTask(input.taskId);
+    if (!task || task.botId !== input.botId || task.source !== "email" || !task.connectionId) {
+      throw new Error("The HQBase email task is not available");
+    }
+    if (task.replyMessageId) return { messageId: task.replyMessageId, duplicate: true };
+    if (!task.sourceMessageId) throw new Error("The source email is not available");
+    const connection = this.catalog.getBotConnection(task.connectionId);
+    if (!connection?.active) throw new Error("The HQBase connection is not active");
+    const config = await this.mailConfig(connection);
+    const source = await getMessage(config, task.sourceMessageId);
+    const duplicate = existingReply(
+      await getThread(config, source.id),
+      source,
+      connection.mailboxAddress
+    );
+    if (duplicate) {
+      this.completeTask(task.id, input.draft, duplicate.id);
+      return { messageId: duplicate.id, duplicate: true };
+    }
+    this.tasks.setStatus(task.id, "replying");
+    const reply = await replyToMessage(config, source.id, input.draft);
+    this.completeTask(task.id, input.draft, reply.id);
+    return { messageId: reply.id, duplicate: false };
+  }
+
+  private async mailConfig(connection: StoredBotConnection): Promise<MailConfig> {
     return {
-      bots,
-      selectedBot,
-      tasks,
-      activeTask,
-      activity,
-      memories,
-      routines,
-      files,
-      skills,
-      computer,
-    }
+      origin: connection.origin,
+      mailboxId: connection.mailboxId,
+      mailboxAddress: connection.mailboxAddress,
+      token: await decryptConnectionToken(
+        this.env.HQBOT_CONNECTION_KEY,
+        connection.tokenCiphertext,
+        connection.tokenIv
+      )
+    };
   }
 }

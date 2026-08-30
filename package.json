@@ -8,15 +8,19 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && WRANGLER_LOG_PATH=.wrangler/wrangler.log vite build",
-    "test": "vitest run --config vitest.config.ts",
+    "build": "tsc -b && vite build",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vite build && vitest run --config vitest.worker.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:architecture": "node scripts/check-architecture.mjs",
     "typecheck": "tsc -b",
     "format": "biome format --write .",
     "code:check": "biome check .",
-    "cf:typegen": "WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler types",
-    "deploy": "pnpm build && WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler deploy",
-    "deploy:dry-run": "pnpm build && WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler deploy --dry-run",
-    "check": "pnpm code:check && pnpm test && pnpm typecheck && pnpm deploy:dry-run",
+    "cf:typegen": "wrangler types",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:dry-run": "pnpm build && wrangler deploy --dry-run",
+    "check": "pnpm code:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:architecture && pnpm build",
     "hqbot": "node scripts/install.mjs"
   },
   "cloudflare": {
@@ -31,10 +35,16 @@
         "description": "R2 stores browser screenshots and reviewable task artifacts."
       },
       "HQBOT_AGENT": {
-        "description": "A Durable Object stores teammate profiles, connections, chats, tasks, and activity."
+        "description": "A Durable Object stores the owner, teammate roster, HQBase connections, and aggregate costs."
       },
-      "HQBOT_WORKFLOW": {
-        "description": "A Workflow runs durable research and reply tasks."
+      "HQBOT_TEAMMATE": {
+        "description": "One durable Think agent stores each teammate's chat, files, tools, schedules, and cost events."
+      },
+      "LOADER": {
+        "description": "A Worker Loader runs the bounded browser tool in an isolated Worker."
+      },
+      "CF_VERSION_METADATA": {
+        "description": "Version metadata binds health checks to the exact deployed revision."
       },
       "ASSETS": {
         "description": "Worker Static Assets serves the HQBot web app."
@@ -45,7 +55,6 @@
     "@ai-sdk/react": "4.0.88",
     "@cloudflare/ai-chat": "0.11.0",
     "@cloudflare/codemode": "0.5.1",
-    "@cloudflare/puppeteer": "1.4.0",
     "@cloudflare/shell": "0.4.3",
     "@cloudflare/think": "0.17.0",
     "@radix-ui/react-avatar": "1.1.10",
@@ -61,7 +70,6 @@
     "ai": "7.0.85",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
-    "lucide-react": "1.33.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-icons": "5.7.0",

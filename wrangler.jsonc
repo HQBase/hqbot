@@ -9,10 +9,11 @@
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/health"]
+    "run_worker_first": ["/api/*", "/agents/*", "/health"]
   },
   "ai": { "binding": "AI" },
   "browser": { "binding": "BROWSER" },
+  "worker_loaders": [{ "binding": "LOADER" }],
   "r2_buckets": [
     {
       "binding": "ARTIFACTS",
@@ -20,31 +21,33 @@
     }
   ],
   "durable_objects": {
-    "bindings": [{ "name": "HQBOT_AGENT", "class_name": "HQBotAgent" }]
+    "bindings": [
+      { "name": "HQBOT_AGENT", "class_name": "HQBotAgent" },
+      { "name": "HQBOT_TEAMMATE", "class_name": "HQBotTeammate" }
+    ]
   },
-  "workflows": [
-    {
-      "binding": "HQBOT_WORKFLOW",
-      "name": "hqbot-task",
-      "class_name": "HQBotWorkflow"
-    }
-  ],
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["HQBotAgent"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["HQBotTeammate"]
     }
   ],
-  "triggers": { "crons": ["* * * * *"] },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "vars": {
     "HQBOT_ID": "hqbot",
     "HQBOT_MODEL_ID": "@cf/zai-org/glm-5.3-flash",
     "HQBOT_FALLBACK_MODEL_ID": "@cf/deepseek-ai/deepseek-v4-flash-0731",
-    "HQBOT_AUTO_REPLY": "false",
-    "HQBOT_DAILY_TASK_LIMIT": "50"
+    "HQBOT_DAILY_TASK_LIMIT": "50",
+    "HQBOT_TASK_BUDGET_USD": "1",
+    "HQBOT_BOT_DAILY_BUDGET_USD": "2",
+    "HQBOT_GLOBAL_DAILY_BUDGET_USD": "5"
   },
   "secrets": {
-    "required": ["HQBOT_OWNER_TOKEN", "HQBOT_CONNECTION_KEY"]
+    "required": ["HQBOT_CONNECTION_KEY", "HQBOT_SETUP_TOKEN"]
   },
   "observability": {
     "enabled": true,

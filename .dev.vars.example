@@ -1,2 +1,2 @@
-HQBOT_OWNER_TOKEN=replace-with-a-long-random-token
-HQBOT_CONNECTION_KEY=replace-with-32-random-bytes-as-base64url
+# Choose a private value with at least 24 characters. It is used only for the first owner claim.
+HQBOT_SETUP_TOKEN=

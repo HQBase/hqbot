@@ -1,6 +1,6 @@
 export interface SchemaMigration {
-  version: number
-  statements: string[]
+  version: number;
+  statements: string[];
 }
 
 export const schemaMigrations: readonly SchemaMigration[] = [
@@ -37,8 +37,8 @@ export const schemaMigrations: readonly SchemaMigration[] = [
         created_at TEXT NOT NULL,
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
       )`,
-      "CREATE INDEX IF NOT EXISTS activity_task_created ON activity(task_id, created_at)",
-    ],
+      "CREATE INDEX IF NOT EXISTS activity_task_created ON activity(task_id, created_at)"
+    ]
   },
   {
     version: 2,
@@ -70,8 +70,8 @@ export const schemaMigrations: readonly SchemaMigration[] = [
       )`,
       "ALTER TABLE tasks ADD COLUMN bot_id TEXT",
       "ALTER TABLE tasks ADD COLUMN connection_id TEXT",
-      "CREATE INDEX IF NOT EXISTS tasks_bot_created ON tasks(bot_id, created_at)",
-    ],
+      "CREATE INDEX IF NOT EXISTS tasks_bot_created ON tasks(bot_id, created_at)"
+    ]
   },
   {
     version: 3,
@@ -111,8 +111,8 @@ export const schemaMigrations: readonly SchemaMigration[] = [
         FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
       )`,
-      "CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)",
-    ],
+      "CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)"
+    ]
   },
   {
     version: 4,
@@ -138,12 +138,66 @@ export const schemaMigrations: readonly SchemaMigration[] = [
         cookies_ciphertext TEXT,
         cookies_iv TEXT,
         updated_at TEXT NOT NULL
-      )`,
-    ],
+      )`
+    ]
   },
-]
+  {
+    version: 5,
+    statements: [
+      "ALTER TABLE bots ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'",
+      "ALTER TABLE bots ADD COLUMN last_interacted_at TEXT",
+      "ALTER TABLE bots ADD COLUMN last_message TEXT",
+      "ALTER TABLE bots ADD COLUMN model_id TEXT",
+      "ALTER TABLE bots ADD COLUMN daily_budget_usd REAL NOT NULL DEFAULT 2",
+      "ALTER TABLE connections ADD COLUMN change_cursor TEXT",
+      "ALTER TABLE connections ADD COLUMN socket_status TEXT NOT NULL DEFAULT 'disconnected'",
+      "ALTER TABLE connections ADD COLUMN last_event_at TEXT",
+      "ALTER TABLE tasks ADD COLUMN submission_id TEXT",
+      `CREATE TABLE IF NOT EXISTS owner (
+        id TEXT PRIMARY KEY CHECK (id = 'owner'),
+        username TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        iterations INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS owner_sessions (
+        token_hash TEXT PRIMARY KEY,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS owner_sessions_expiry ON owner_sessions(expires_at)",
+      `CREATE TABLE IF NOT EXISTS usage_events (
+        id TEXT PRIMARY KEY,
+        bot_id TEXT,
+        task_id TEXT,
+        service TEXT NOT NULL,
+        input_units INTEGER NOT NULL DEFAULT 0,
+        output_units INTEGER NOT NULL DEFAULT 0,
+        estimated_usd REAL NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE SET NULL,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS usage_day ON usage_events(created_at, bot_id, task_id)"
+    ]
+  },
+  {
+    version: 6,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS login_limits (
+        key_hash TEXT PRIMARY KEY,
+        failures INTEGER NOT NULL,
+        window_started_at TEXT NOT NULL,
+        blocked_until TEXT,
+        updated_at TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS login_limits_updated ON login_limits(updated_at)"
+    ]
+  }
+];
 
 export function pendingMigrations(appliedVersions: readonly number[]): readonly SchemaMigration[] {
-  const applied = new Set(appliedVersions)
-  return schemaMigrations.filter((migration) => !applied.has(migration.version))
+  const applied = new Set(appliedVersions);
+  return schemaMigrations.filter((migration) => !applied.has(migration.version));
 }

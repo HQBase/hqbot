@@ -4,11 +4,15 @@ const textTypes: Record<string, string> = {
   md: "text/markdown",
   text: "text/plain",
   txt: "text/plain",
-  xml: "application/xml",
-}
+  xml: "application/xml"
+};
 
 export function contentTypeForUpload(name: string, reportedType: string): string {
-  if (reportedType) return reportedType
-  const extension = name.split(".").pop()?.toLowerCase() ?? ""
-  return textTypes[extension] ?? "application/octet-stream"
+  const normalized = reportedType.toLowerCase().split(";", 1)[0]?.trim() ?? "";
+  if (["text/html", "application/xhtml+xml", "image/svg+xml"].includes(normalized)) {
+    return "text/plain";
+  }
+  if (normalized) return normalized;
+  const extension = name.split(".").pop()?.toLowerCase() ?? "";
+  return textTypes[extension] ?? "application/octet-stream";
 }
