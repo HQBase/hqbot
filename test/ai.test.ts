@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineBot, responseText } from "../src/domain/ai";
+import { defineBot, defineConversationBot, responseText } from "../src/domain/ai";
 
 describe("responseText", () => {
   it("reads the current Workers AI chat completion shape", () => {
@@ -26,6 +26,15 @@ describe("defineBot", () => {
       name: "Research",
       title: "Be my product research teammate.",
       description: "I will help with this job: Be my product research teammate."
+    });
+  });
+
+  it("keeps a casual first message out of the permanent teammate instructions", () => {
+    expect(defineConversationBot("hey how are you?")).toEqual({
+      name: "Teammate",
+      title: "hey how are you?",
+      description: "A helpful teammate for everyday questions and tasks.",
+      brief: "Answer the owner directly. Follow the instructions in the conversation."
     });
   });
 });

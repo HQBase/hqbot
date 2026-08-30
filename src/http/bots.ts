@@ -1,4 +1,4 @@
-import { defineBot } from "../domain/ai";
+import { defineBot, defineConversationBot } from "../domain/ai";
 import { contentTypeForUpload } from "../domain/files";
 import { ARCHIVED_TEAMMATE_ERROR } from "../domain/lifecycle";
 import type { BotFile } from "../domain/types";
@@ -74,8 +74,15 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
   if (request.method === "POST" && url.pathname === "/api/bots") {
     const body = await readJson(request);
     const brief = cleanString(body, "brief", 2_000);
+    const profile = body.conversation === true ? defineConversationBot(brief) : null;
     return json(
-      { teammate: await agent.createBot(crypto.randomUUID(), defineBot(brief), brief) },
+      {
+        teammate: await agent.createBot(
+          crypto.randomUUID(),
+          profile ?? defineBot(brief),
+          profile?.brief ?? brief
+        )
+      },
       201
     );
   }
@@ -145,6 +152,18 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
     });
     await agent.setTaskSubmission(taskId, submission.submissionId);
     return json({ taskId, submissionId: submission.submissionId }, 202);
+  }
+
+  const initialMessage = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/messages\/initial$/u);
+  if (request.method === "POST" && initialMessage?.[0]) {
+    const unavailable = await requireActiveTeammate(agent, initialMessage[0]);
+    if (unavailable) return unavailable;
+    const body = await readJson(request);
+    const submission = await (await teammate(env, initialMessage[0])).submitChat({
+      prompt: cleanString(body, "prompt", 20_000),
+      submissionId: `first:${initialMessage[0]}`
+    });
+    return json(submission, 202);
   }
 
   const stop = pathMatch(url.pathname, /^\/api\/tasks\/([^/]+)\/stop$/u);

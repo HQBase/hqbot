@@ -132,7 +132,10 @@ export function ChatComposer({
     >
       <div className="overflow-hidden rounded-2xl border border-input bg-background/95 shadow-lg backdrop-blur">
         {error ? (
-          <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <p
+            className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            role="alert"
+          >
             {error}
           </p>
         ) : null}
@@ -161,9 +164,9 @@ export function ChatComposer({
           aria-autocomplete="list"
           aria-controls={showMentions ? listboxId : undefined}
           aria-expanded={showMentions}
-          aria-label={bot ? `Message ${bot.name}` : "Describe your new teammate"}
+          aria-label={bot ? `Message ${bot.name}` : "Message your new teammate"}
           className="min-h-[72px] resize-none rounded-none border-0 bg-transparent px-4 pb-1 pt-3 shadow-none focus-visible:border-0"
-          placeholder={bot ? `Message ${bot.name}…` : "What do you want this teammate around for?"}
+          placeholder={bot ? `Message ${bot.name}…` : "Message your new teammate…"}
           ref={textarea}
           role="combobox"
           value={prompt}
@@ -245,7 +248,7 @@ export function ChatComposer({
               </>
             ) : (
               <span className="px-2 text-[11px] text-muted-foreground">
-                Creates a durable teammate
+                Creates a teammate and starts the chat
               </span>
             )}
           </div>

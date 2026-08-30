@@ -62,6 +62,30 @@ async function typeInComposer(textarea: HTMLTextAreaElement, value: string): Pro
 }
 
 describe("ChatComposer teammate mentions", () => {
+  it("announces a send error", async () => {
+    const view = await renderComponent(
+      <ChatComposer
+        attachedFiles={[]}
+        bot={current}
+        error="The message could not be sent"
+        prompt=""
+        sending={false}
+        teammates={[]}
+        uploading={false}
+        onConnect={vi.fn()}
+        onPromptChange={vi.fn()}
+        onRemoveFile={vi.fn()}
+        onSend={vi.fn()}
+        onUpload={vi.fn()}
+      />
+    );
+
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toBe(
+      "The message could not be sent"
+    );
+    await view.unmount();
+  });
+
   it("suggests matching active peers and explains the shortcut", async () => {
     const view = await renderComponent(<ComposerHarness />);
     const textarea = view.container.querySelector("textarea");

@@ -5,7 +5,7 @@ import { mentionedTeammates } from "../domain/collaboration";
 import type { ReplyApproval } from "./approval";
 import { delegationInstructions } from "./collaboration";
 import { activeTools, latestUserText, routeTurn, teammateInstructions } from "./routing";
-import type { TeammateTaskSubmission, WorkspaceAgentRpc } from "./types";
+import type { TeammateChatSubmission, TeammateTaskSubmission, WorkspaceAgentRpc } from "./types";
 
 interface PrepareTeammateTurnInput {
   botId: string;
@@ -15,6 +15,18 @@ interface PrepareTeammateTurnInput {
   metadata?: Record<string, unknown> | null;
   workspaceAgent: WorkspaceAgentRpc;
 }
+
+interface DurableSubmissionOptions {
+  channel: "web";
+  idempotencyKey: string;
+  metadata?: Record<string, unknown>;
+  submissionId: string;
+}
+
+type SubmitMessages = (
+  messages: UIMessage[],
+  options: DurableSubmissionOptions
+) => Promise<{ accepted: boolean; submissionId: string }>;
 
 export function safeTaskId(value: string): string {
   const taskId = value.trim();
@@ -42,6 +54,51 @@ export function createSubmittedTaskMessage(input: TeammateTaskSubmission): {
     },
     metadata
   };
+}
+
+export function createSubmittedChatMessage(input: TeammateChatSubmission): {
+  message: UIMessage;
+  submissionId: string;
+} {
+  const submissionId = safeTaskId(input.submissionId);
+  const prompt = input.prompt.trim().slice(0, 100_000);
+  if (prompt.length === 0) throw new Error("Chat message is required");
+  return {
+    message: {
+      id: `chat:${submissionId}`,
+      role: "user",
+      parts: [{ type: "text", text: prompt }]
+    },
+    submissionId
+  };
+}
+
+export async function submitChatTurn(
+  input: TeammateChatSubmission,
+  submit: SubmitMessages
+): Promise<{ accepted: boolean; submissionId: string }> {
+  const { message, submissionId } = createSubmittedChatMessage(input);
+  const result = await submit([message], {
+    submissionId,
+    idempotencyKey: `chat:${submissionId}`,
+    channel: "web"
+  });
+  return { accepted: result.accepted, submissionId: result.submissionId };
+}
+
+export async function submitTaskTurn(
+  input: TeammateTaskSubmission,
+  submit: SubmitMessages
+): Promise<{ accepted: boolean; submissionId: string }> {
+  const { message, metadata } = createSubmittedTaskMessage(input);
+  const taskId = metadata.taskId;
+  const result = await submit([message], {
+    submissionId: taskId,
+    idempotencyKey: `task:${taskId}`,
+    metadata,
+    channel: "web"
+  });
+  return { accepted: result.accepted, submissionId: result.submissionId };
 }
 
 function responseText(result: ChatResponseResult): string {

@@ -4,8 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { estimateModelUsage } from "../../src/runtime/costs";
 import { createHQBotModel } from "../../src/runtime/models";
-import { activeTools, routeTurn } from "../../src/runtime/routing";
+import { activeTools, routeTurn, teammateInstructions } from "../../src/runtime/routing";
 import {
+  createSubmittedChatMessage,
   createSubmittedTaskMessage,
   finishTeammateResponse,
   prepareTeammateTurn
@@ -55,6 +56,32 @@ describe("turn routing", () => {
 
     expect(route).toBe("direct");
     expect(activeTools(route, browserTools)).toEqual([]);
+  });
+
+  it("answers a greeting without opening browser tools", () => {
+    const route = routeTurn({ messages: userMessage("hey how are you?") });
+
+    expect(route).toBe("direct");
+    expect(activeTools(route, browserTools)).toEqual([]);
+  });
+
+  it("keeps the conversation title out of permanent model instructions", () => {
+    const instructions = teammateInstructions({
+      bot: {
+        id: "bot-1",
+        name: "Teammate",
+        title: "hey how are you?",
+        description: "A helpful teammate for everyday questions and tasks.",
+        brief: "Answer the owner directly. Follow the instructions in the conversation."
+      },
+      connection: null,
+      memories: [],
+      skills: [],
+      route: "direct"
+    });
+
+    expect(instructions).not.toContain("hey how are you?");
+    expect(instructions).toContain("You are Teammate.");
   });
 
   it("activates browser tools for research", () => {
@@ -119,6 +146,21 @@ describe("turn routing", () => {
 });
 
 describe("durable task submission", () => {
+  it("creates a native chat message without workspace-task metadata", () => {
+    const { message, submissionId } = createSubmittedChatMessage({
+      submissionId: "first:bot-1",
+      prompt: "  hey how are you?  "
+    });
+
+    expect(submissionId).toBe("first:bot-1");
+    expect(message).toEqual({
+      id: "chat:first:bot-1",
+      role: "user",
+      parts: [{ type: "text", text: "hey how are you?" }]
+    });
+    expect(message).not.toHaveProperty("metadata");
+  });
+
   it("carries server task metadata into Think lifecycle hooks", () => {
     const { message, metadata } = createSubmittedTaskMessage({
       taskId: "task-1",

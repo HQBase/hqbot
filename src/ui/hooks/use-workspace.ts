@@ -5,14 +5,41 @@ import { api, errorMessage } from "../lib/api";
 import type { DialogName, WorkspaceEvent, WorkspaceView } from "../types";
 import { useWorkspaceEvents } from "./use-workspace-events";
 
+export async function createTeammate(message: string): Promise<BotTeammate> {
+  const created = await api<{ teammate: BotTeammate }>("/api/bots", {
+    method: "POST",
+    body: JSON.stringify({ brief: message.slice(0, 2_000), conversation: true })
+  });
+  return created.teammate;
+}
+
+export async function submitInitialMessage(botId: string, message: string): Promise<void> {
+  const submit = () =>
+    api(`/api/bots/${botId}/messages/initial`, {
+      method: "POST",
+      body: JSON.stringify({ prompt: message })
+    });
+  try {
+    await submit();
+  } catch (cause) {
+    if (!(cause instanceof TypeError)) throw cause;
+    await submit();
+  }
+}
+
 export function useWorkspace(onSignedOut: () => void) {
   const [snapshot, setSnapshot] = useState<WorkspaceView | null>(null);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [pendingInitialMessage, setPendingInitialMessage] = useState<{
+    botId: string;
+    text: string;
+  } | null>(null);
   const [newTeammate, setNewTeammate] = useState(false);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [dialog, setDialog] = useState<DialogName>(null);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [sending, setSending] = useState(false);
   const selectedBotRef = useRef<string | null>(null);
   const newTeammateRef = useRef(false);
@@ -28,9 +55,9 @@ export function useWorkspace(onSignedOut: () => void) {
         selectedBotRef.current = nextId;
         setSelectedBotId(nextId);
       }
-      setError("");
+      setLoadError("");
     } catch (cause) {
-      setError(errorMessage(cause, "HQBot could not load"));
+      setLoadError(errorMessage(cause, "HQBot could not load"));
     }
   }, []);
 
@@ -67,6 +94,7 @@ export function useWorkspace(onSignedOut: () => void) {
   const selectedTask = newTeammate ? null : (snapshot?.activeTask ?? snapshot?.tasks[0] ?? null);
 
   function selectBot(bot: BotTeammate): void {
+    setError("");
     selectedBotRef.current = bot.id;
     newTeammateRef.current = false;
     setSelectedBotId(bot.id);
@@ -77,6 +105,7 @@ export function useWorkspace(onSignedOut: () => void) {
   }
 
   function beginNewTeammate(): void {
+    setError("");
     selectedBotRef.current = null;
     newTeammateRef.current = true;
     setSelectedBotId(null);
@@ -90,18 +119,25 @@ export function useWorkspace(onSignedOut: () => void) {
     if (!value || sending) return false;
     setSending(true);
     setError("");
+    let createdTeammate: BotTeammate | null = null;
     try {
-      const created = await api<{ teammate: BotTeammate }>("/api/bots", {
-        method: "POST",
-        body: JSON.stringify({ brief: value })
-      });
-      selectedBotRef.current = created.teammate.id;
+      createdTeammate = await createTeammate(value);
+      await submitInitialMessage(createdTeammate.id, value);
+      setPendingInitialMessage({ botId: createdTeammate.id, text: value });
+      selectedBotRef.current = createdTeammate.id;
       newTeammateRef.current = false;
-      setSelectedBotId(created.teammate.id);
+      setSelectedBotId(createdTeammate.id);
       setNewTeammate(false);
-      await load(created.teammate.id);
+      await load(createdTeammate.id);
       return true;
     } catch (cause) {
+      if (createdTeammate) {
+        selectedBotRef.current = createdTeammate.id;
+        newTeammateRef.current = false;
+        setSelectedBotId(createdTeammate.id);
+        setNewTeammate(false);
+        await load(createdTeammate.id);
+      }
       setError(errorMessage(cause, "The message could not be sent"));
       return false;
     } finally {
@@ -162,11 +198,12 @@ export function useWorkspace(onSignedOut: () => void) {
     deleteRoutine,
     detailsOpen,
     dialog,
-    error,
+    error: error || loadError,
     load,
     logout,
     mobileChatOpen,
     newTeammate,
+    pendingInitialMessage,
     realtimeStatus,
     restoreSelectedBot,
     selectBot,

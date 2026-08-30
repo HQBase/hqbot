@@ -73,12 +73,24 @@ export function RealtimeConversation({
   }, [approvalRevision, lastMessageId]);
 
   const busy = chat.isStreaming || chat.isRecovering || chat.status === "submitted";
+  const composerBusy = busy || controller.sending;
   const connectionError = chat.connectionError?.message ?? agent.connectionError?.message ?? "";
+  const pendingInitialMessage =
+    controller.pendingInitialMessage?.botId === bot.id &&
+    !chat.messages.some((message) => message.id === `chat:first:${bot.id}`)
+      ? controller.pendingInitialMessage.text
+      : null;
+  const loadingEmpty =
+    chat.messages.length === 0 &&
+    !pendingInitialMessage &&
+    approvals.length === 0 &&
+    (chat.status !== "ready" || chat.isRecovering);
 
   async function send(): Promise<void> {
     const text = prompt.trim();
-    if (!text || busy) return;
+    if (!text || composerBusy) return;
     setLocalError("");
+    controller.setError("");
     try {
       const transfer = new DataTransfer();
       for (const item of files) transfer.items.add(item.file);
@@ -138,12 +150,35 @@ export function RealtimeConversation({
         onStop={() => void chat.stop()}
       />
       <div className="min-h-0 flex-1 overflow-y-auto bg-card/30">
-        <div className="mx-auto flex w-full max-w-[780px] flex-col gap-7 px-4 py-8 sm:px-8">
-          <AgentMessage
-            name={bot.name}
-            parts={[{ text: bot.description || "What can I help with?", type: "text" }]}
-            speaker="assistant"
-          />
+        <div
+          aria-label={`Conversation with ${bot.name}`}
+          aria-relevant="additions"
+          className="mx-auto flex w-full max-w-[780px] flex-col gap-7 px-4 py-8 sm:px-8"
+          role="log"
+        >
+          {loadingEmpty ? (
+            <div className="my-auto flex min-h-56 items-center justify-center text-center">
+              <p className="text-sm text-muted-foreground">Loading conversation…</p>
+            </div>
+          ) : null}
+          {!loadingEmpty &&
+          chat.messages.length === 0 &&
+          !pendingInitialMessage &&
+          approvals.length === 0 ? (
+            <div className="my-auto flex min-h-56 flex-col items-center justify-center text-center">
+              <p className="text-sm font-medium text-foreground">Start a conversation</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Send a message to {bot.name} below.
+              </p>
+            </div>
+          ) : null}
+          {pendingInitialMessage ? (
+            <AgentMessage
+              name="You"
+              parts={[{ text: pendingInitialMessage, type: "text" }]}
+              speaker="user"
+            />
+          ) : null}
           {chat.messages.map((message) =>
             message.role === "user" || message.role === "assistant" ? (
               <AgentMessage
@@ -176,7 +211,7 @@ export function RealtimeConversation({
           bot={bot}
           error={localError || chat.error?.message || connectionError || controller.error}
           prompt={prompt}
-          sending={busy}
+          sending={composerBusy}
           teammates={controller.snapshot?.bots ?? []}
           uploading={false}
           onConnect={() => controller.setDialog("connection")}

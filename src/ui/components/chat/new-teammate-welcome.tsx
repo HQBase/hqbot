@@ -14,10 +14,10 @@ export function NewTeammateWelcome({ onSuggestion }: { onSuggestion: (prompt: st
       </span>
       <p className="text-xs font-medium text-tertiary">New teammate</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-        What do you want me around for?
+        Start a conversation
       </h1>
       <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-        Describe a job or a general sidekick. HQBot creates the teammate from this chat.
+        Send any message. HQBot creates a teammate and answers in this chat.
       </p>
       <div className="mt-7 grid w-full gap-2 sm:grid-cols-2">
         {suggestions.map((suggestion, index) => (

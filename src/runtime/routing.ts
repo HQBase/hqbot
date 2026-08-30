@@ -99,7 +99,7 @@ export function teammateInstructions(input: {
 }): string {
   const bot = input.bot;
   const identity = bot
-    ? `You are ${bot.name}, ${bot.title}. ${bot.description}\nYour brief: ${bot.brief}`
+    ? `You are ${bot.name}. ${bot.description}\nYour brief: ${bot.brief}`
     : "You are an HQBot AI teammate.";
   const mode =
     input.route === "direct"

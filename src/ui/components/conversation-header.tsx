@@ -42,7 +42,7 @@ export function ConversationHeader({
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-sm font-semibold">{bot?.name ?? "New teammate"}</h1>
         <p className="truncate text-[11px] text-muted-foreground">
-          {bot?.title ?? "Create a teammate in chat"}
+          {bot?.title ?? "Start a conversation"}
         </p>
       </div>
       <Badge className="hidden sm:inline-flex" variant="outline">

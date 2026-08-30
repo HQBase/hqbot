@@ -118,6 +118,11 @@ export interface TeammateTaskSubmission {
   prompt: string;
 }
 
+export interface TeammateChatSubmission {
+  submissionId: string;
+  prompt: string;
+}
+
 export interface LiveViewDto {
   sessionId: string;
   targets: Array<{

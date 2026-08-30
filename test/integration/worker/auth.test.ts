@@ -204,6 +204,68 @@ describe("HQBot Worker authentication", () => {
     });
   });
 
+  it("starts a new teammate with one native chat submission", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const created = await post(
+      "/api/bots",
+      { brief: "hey how are you?", conversation: true },
+      session
+    );
+    expect(created.status).toBe(201);
+    const body = (await created.json()) as { teammate: { id: string } };
+    const firstMessage = await post(
+      `/api/bots/${body.teammate.id}/messages/initial`,
+      { prompt: "hey how are you?" },
+      session
+    );
+    expect(firstMessage.status).toBe(202);
+    const submission = (await firstMessage.json()) as {
+      accepted: boolean;
+      submissionId: string;
+    };
+    expect(submission).toEqual({ accepted: true, submissionId: `first:${body.teammate.id}` });
+
+    const workspaceStorage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    expect(await workspaceStorage.exec("SELECT COUNT(*) AS count FROM tasks")).toEqual([
+      { count: 0 }
+    ]);
+    expect(
+      await workspaceStorage.exec(
+        "SELECT title, description, brief FROM bots WHERE id = ?",
+        body.teammate.id
+      )
+    ).toEqual([
+      {
+        title: "hey how are you?",
+        description: "A helpful teammate for everyday questions and tasks.",
+        brief: "Answer the owner directly. Follow the instructions in the conversation."
+      }
+    ]);
+
+    const teammateStorage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: body.teammate.id });
+    const submissions = await teammateStorage.exec(
+      "SELECT submission_id, messages_json FROM cf_think_submissions"
+    );
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0]).toMatchObject({ submission_id: submission.submissionId });
+    expect(String(submissions[0]?.messages_json)).toContain("hey how are you?");
+
+    const retry = await post(
+      `/api/bots/${body.teammate.id}/messages/initial`,
+      { prompt: "hey how are you?" },
+      session
+    );
+    expect(retry.status).toBe(202);
+    expect(await retry.json()).toEqual({
+      accepted: false,
+      submissionId: submission.submissionId
+    });
+  });
+
   it("blocks new work for an archived teammate and still permits restore", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const created = await post("/api/bots", { brief: "Research product questions." }, session);

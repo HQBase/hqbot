@@ -50,3 +50,12 @@ export function defineBot(brief: string): BotDefinition {
     description: `I will help with this job: ${cleanBrief.slice(0, 320)}`
   };
 }
+
+export function defineConversationBot(message: string): BotDefinition & { brief: string } {
+  const definition = defineBot(message);
+  return {
+    ...definition,
+    description: "A helpful teammate for everyday questions and tasks.",
+    brief: "Answer the owner directly. Follow the instructions in the conversation."
+  };
+}

@@ -71,11 +71,6 @@ export function LabConversation({
       <div className="min-h-0 flex-1 overflow-y-auto bg-card/30" aria-live="polite">
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-7 px-4 py-8 sm:px-8">
           <AgentMessage
-            name={bot.name}
-            parts={[{ text: bot.description, type: "text" }]}
-            speaker="assistant"
-          />
-          <AgentMessage
             name="You"
             parts={[{ text: "Find the current Browser Run pricing.", type: "text" }]}
             speaker="user"

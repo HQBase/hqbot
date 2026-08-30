@@ -35,16 +35,18 @@ import { teammateScheduledTasks } from "./runtime/schedules";
 import { suspendTeammateWork } from "./runtime/suspension";
 import { createTeammateActions, REPLY_PERMISSION } from "./runtime/teammate-actions";
 import {
-  createSubmittedTaskMessage,
   finishTeammateResponse,
   prepareTeammateTurn,
-  safeTaskId
+  safeTaskId,
+  submitChatTurn,
+  submitTaskTurn
 } from "./runtime/turn";
 import {
   type DelegatedTaskInput,
   type DelegatedTaskResult,
   GLM_PRIMARY_MODEL_ID,
   type HQBotModelId,
+  type TeammateChatSubmission,
   type TeammateTaskSubmission,
   type WorkspaceAgentRpc
 } from "./runtime/types";
@@ -187,18 +189,13 @@ export class HQBotTeammate extends Think<Env> {
   }
 
   @callable()
-  async submitTask(
-    input: TeammateTaskSubmission
-  ): Promise<{ accepted: boolean; submissionId: string }> {
-    const { message, metadata } = createSubmittedTaskMessage(input);
-    const taskId = metadata.taskId;
-    const result = await this.submitMessages([message], {
-      submissionId: taskId,
-      idempotencyKey: `task:${taskId}`,
-      metadata,
-      channel: "web"
-    });
-    return { accepted: result.accepted, submissionId: result.submissionId };
+  submitChat(input: TeammateChatSubmission) {
+    return submitChatTurn(input, (messages, options) => this.submitMessages(messages, options));
+  }
+
+  @callable()
+  submitTask(input: TeammateTaskSubmission) {
+    return submitTaskTurn(input, (messages, options) => this.submitMessages(messages, options));
   }
 
   @callable()

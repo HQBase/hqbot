@@ -44,8 +44,8 @@ export function ConversationPanel({
         bot={null}
         detailsOpen={controller.detailsOpen}
         showBack={showBack}
-        status="Ready"
-        working={controller.sending}
+        status={controller.sending ? "Starting" : "Ready"}
+        working={false}
         onBack={() => controller.setMobileChatOpen(false)}
         onDetails={() => controller.setDetailsOpen(!controller.detailsOpen)}
         onEdit={() => undefined}
