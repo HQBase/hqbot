@@ -9,7 +9,8 @@ import {
   createSubmittedChatMessage,
   createSubmittedTaskMessage,
   finishTeammateResponse,
-  prepareTeammateTurn
+  prepareTeammateTurn,
+  submitChatTurn
 } from "../../src/runtime/turn";
 import {
   DEEPSEEK_FALLBACK_MODEL_ID,
@@ -172,6 +173,50 @@ describe("durable task submission", () => {
       id: "task:task-1",
       metadata: { turnMetadata: metadata },
       parts: [{ type: "text", text: "Research this request" }]
+    });
+  });
+
+  it("cancels the first submission when Stop lands during admission", async () => {
+    const cancel = vi.fn(async () => undefined);
+    const result = await submitChatTurn(
+      { submissionId: "first:bot-1", prompt: "hey" },
+      vi.fn(async () => ({ accepted: true, submissionId: "first:bot-1" })),
+      {
+        cancel,
+        inspect: vi.fn(),
+        messageApplied: vi.fn(),
+        stopped: vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+      }
+    );
+
+    expect(result).toBeNull();
+    expect(cancel).toHaveBeenCalledWith("first:bot-1", "The owner stopped this teammate");
+  });
+
+  it("describes an idempotent retry whose message was not applied", async () => {
+    const result = await submitChatTurn(
+      { submissionId: "first:bot-1", prompt: "hey" },
+      vi.fn(async () => ({ accepted: false, submissionId: "first:bot-1" })),
+      {
+        cancel: vi.fn(),
+        inspect: vi.fn(async () => ({
+          submissionId: "first:bot-1",
+          status: "aborted" as const,
+          error: "The owner stopped this teammate",
+          createdAt: 1,
+          completedAt: 2
+        })),
+        messageApplied: vi.fn(() => false),
+        stopped: vi.fn(async () => false)
+      }
+    );
+
+    expect(result).toEqual({
+      accepted: false,
+      submissionId: "first:bot-1",
+      status: "aborted",
+      error: "The owner stopped this teammate",
+      messageApplied: false
     });
   });
 

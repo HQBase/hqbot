@@ -279,10 +279,42 @@ describe("HQBot Worker authentication", () => {
       session
     );
     expect(retry.status).toBe(202);
-    expect(await retry.json()).toEqual({
+    expect(await retry.json()).toMatchObject({
       accepted: false,
-      submissionId: submission.submissionId
+      submissionId: submission.submissionId,
+      status: "error",
+      messageApplied: true,
+      error: expect.stringContaining("Workers AI binding")
     });
+  });
+
+  it("rejects a delayed initial message after Stop completes", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const created = await post(
+      "/api/bots",
+      { brief: "Wait for my first message", conversation: true },
+      session
+    );
+    const { teammate } = (await created.json()) as { teammate: { id: string } };
+
+    expect((await post(`/api/bots/${teammate.id}/stop`, undefined, session)).status).toBe(200);
+
+    const delayed = await post(
+      `/api/bots/${teammate.id}/messages/initial`,
+      { prompt: "hey" },
+      session
+    );
+    expect(delayed.status).toBe(409);
+    expect(await delayed.json()).toEqual({
+      error: "This message was stopped before it started"
+    });
+
+    const teammateStorage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: teammate.id });
+    expect(
+      await teammateStorage.exec("SELECT COUNT(*) AS count FROM cf_think_submissions")
+    ).toEqual([{ count: 0 }]);
   });
 
   it("opens only the exact OAuth callback without an owner session", async () => {

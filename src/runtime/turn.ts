@@ -1,4 +1,9 @@
-import type { ChatResponseResult, TurnConfig, TurnContext } from "@cloudflare/think";
+import type {
+  ChatResponseResult,
+  ThinkSubmissionInspection,
+  TurnConfig,
+  TurnContext
+} from "@cloudflare/think";
 import type { LanguageModel, UIMessage } from "ai";
 
 import { mentionedTeammates } from "../domain/collaboration";
@@ -29,6 +34,23 @@ type SubmitMessages = (
   messages: UIMessage[],
   options: DurableSubmissionOptions
 ) => Promise<{ accepted: boolean; submissionId: string }>;
+
+interface ChatAdmissionLifecycle {
+  cancel(submissionId: string, reason: string): Promise<void>;
+  inspect(submissionId: string): Promise<ThinkSubmissionInspection | null>;
+  messageApplied(messageId: string): boolean;
+  stopped(): Promise<boolean>;
+}
+
+export type TeammateChatSubmissionResult =
+  | { accepted: true; submissionId: string }
+  | {
+      accepted: false;
+      submissionId: string;
+      status: ThinkSubmissionInspection["status"];
+      error?: string;
+      messageApplied: boolean;
+    };
 
 export function safeTaskId(value: string): string {
   const taskId = value.trim();
@@ -76,15 +98,30 @@ export function createSubmittedChatMessage(input: TeammateChatSubmission): {
 
 export async function submitChatTurn(
   input: TeammateChatSubmission,
-  submit: SubmitMessages
-): Promise<{ accepted: boolean; submissionId: string }> {
+  submit: SubmitMessages,
+  lifecycle: ChatAdmissionLifecycle
+): Promise<TeammateChatSubmissionResult | null> {
   const { message, submissionId } = createSubmittedChatMessage(input);
+  if (await lifecycle.stopped()) return null;
   const result = await submit([message], {
     submissionId,
     idempotencyKey: `chat:${submissionId}`,
     channel: "web"
   });
-  return { accepted: result.accepted, submissionId: result.submissionId };
+  if (await lifecycle.stopped()) {
+    await lifecycle.cancel(result.submissionId, "The owner stopped this teammate");
+    return null;
+  }
+  if (result.accepted) return { accepted: true, submissionId: result.submissionId };
+  const inspection = await lifecycle.inspect(result.submissionId);
+  if (!inspection) throw new Error("The chat submission state is not available");
+  return {
+    accepted: false,
+    submissionId: result.submissionId,
+    status: inspection.status,
+    ...(inspection.error ? { error: inspection.error } : {}),
+    messageApplied: lifecycle.messageApplied(message.id)
+  };
 }
 
 export async function submitTaskTurn(

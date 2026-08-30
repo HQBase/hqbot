@@ -65,6 +65,8 @@ import {
   type WorkspaceAgentRpc
 } from "./runtime/types";
 
+const FIRST_MESSAGE_STOPPED_KEY = "hqbot:first-message-stopped";
+
 export class HQBotTeammate extends Think<Env> {
   maxSteps = 8;
   chatStreamStallTimeoutMs = 120_000;
@@ -217,7 +219,14 @@ export class HQBotTeammate extends Think<Env> {
 
   @callable()
   submitChat(input: TeammateChatSubmission) {
-    return submitChatTurn(input, (messages, options) => this.submitMessages(messages, options));
+    const firstSubmission = input.submissionId === `first:${this.name}`;
+    return submitChatTurn(input, (messages, options) => this.submitMessages(messages, options), {
+      cancel: (submissionId, reason) => this.cancelSubmission(submissionId, reason),
+      inspect: (submissionId) => this.inspectSubmission(submissionId),
+      messageApplied: (messageId) => this.messages.some((message) => message.id === messageId),
+      stopped: async () =>
+        firstSubmission && Boolean(await this.ctx.storage.get<boolean>(FIRST_MESSAGE_STOPPED_KEY))
+    });
   }
 
   @callable()
@@ -347,6 +356,7 @@ export class HQBotTeammate extends Think<Env> {
 
   @callable()
   async suspend(taskIds: string[]): Promise<void> {
+    await this.ctx.storage.put(FIRST_MESSAGE_STOPPED_KEY, true);
     await suspendTeammateWork(this, taskIds);
     await rejectPendingIntegrationActions(this.integrationRuntime());
     await closeBrowserSession(this.browserRuntime);
@@ -354,6 +364,7 @@ export class HQBotTeammate extends Think<Env> {
   }
 
   async stopActivity(taskIds: string[], reason = "The owner stopped this teammate"): Promise<void> {
+    await this.ctx.storage.put(FIRST_MESSAGE_STOPPED_KEY, true);
     await suspendTeammateWork(this, taskIds, reason);
     await rejectPendingIntegrationActions(this.integrationRuntime());
     await closeBrowserSession(this.browserRuntime);

@@ -180,7 +180,9 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
       prompt: cleanString(body, "prompt", 20_000),
       submissionId: `first:${initialMessage[0]}`
     });
-    return json(submission, 202);
+    return submission
+      ? json(submission, 202)
+      : json({ error: "This message was stopped before it started" }, 409);
   }
 
   const stop = pathMatch(url.pathname, /^\/api\/tasks\/([^/]+)\/stop$/u);
