@@ -1,5 +1,5 @@
 import { useAgent } from "agents/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PiArrowSquareOut, PiGlobe, PiMonitor, PiStop } from "react-icons/pi";
 
 import type { BotTask, ComputerState } from "../../../domain/types";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 
 type LiveComputer = ComputerState & { liveViewUrl?: string };
 type LiveViewResult = {
+  sessionId: string;
   targets: Array<{ pageUrl?: string; title?: string; url: string }>;
 };
 
@@ -17,6 +18,7 @@ interface LiveViewAgent {
   readonly state: unknown;
   closeLiveView(): Promise<void>;
   getLiveView(mode?: "tab" | "devtools"): Promise<LiveViewResult | null>;
+  keepLiveViewAlive(sessionId: string, taskId?: string): Promise<boolean>;
 }
 
 export function LiveView({
@@ -30,12 +32,33 @@ export function LiveView({
 }) {
   const agent = useAgent<LiveViewAgent, unknown>({ agent: "HQBOT_TEAMMATE", name: botId });
   const [liveTarget, setLiveTarget] = useState<LiveViewResult["targets"][number] | null>(null);
+  const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   const screenshotKey = computer.active ? computer.screenshotKey : (task?.screenshotKey ?? null);
   const revision = computer.active ? computer.updatedAt : (task?.updatedAt ?? null);
   const screenshot = useArtifactUrl({ key: screenshotKey, revision });
   const source = liveTarget?.url ?? computer.liveViewUrl ?? null;
+
+  useEffect(() => {
+    if (!liveSessionId) return;
+    const interval = window.setInterval(() => {
+      void agent.stub
+        .keepLiveViewAlive(liveSessionId, task?.id)
+        .then((alive) => {
+          if (!alive) {
+            setLiveSessionId(null);
+            setLiveTarget(null);
+          }
+        })
+        .catch(() => {
+          setError("Live View lost its browser session");
+          setLiveSessionId(null);
+          setLiveTarget(null);
+        });
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, [agent.stub, liveSessionId, task?.id]);
 
   async function openLiveView(): Promise<void> {
     setOpening(true);
@@ -45,6 +68,7 @@ export function LiveView({
       const target = result?.targets.find((candidate) => !candidate.pageUrl?.startsWith("about:"));
       if (!target) throw new Error("No browser tab is active yet");
       setLiveTarget(target);
+      setLiveSessionId(result?.sessionId ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Live View could not open");
     } finally {
@@ -55,6 +79,7 @@ export function LiveView({
   async function stop(): Promise<void> {
     await agent.stub.closeLiveView();
     setLiveTarget(null);
+    setLiveSessionId(null);
   }
 
   return (

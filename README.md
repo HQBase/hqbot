@@ -68,9 +68,10 @@ See [Install HQBot](docs/install.md) for the short setup guide.
 
 ## Cost view
 
-HQBot records Workers AI token use and Browser Run time. The totals are estimates, not a copy of
-the Cloudflare bill. Direct chat without a task ID still counts under the teammate and the overall
-daily total. See [Cost estimates](docs/costs.md).
+HQBot records Workers AI token use, Cloudflare-reported Quick Action time, and complete reusable
+Browser Run session time. The totals are estimates, not a copy of the Cloudflare bill. Direct chat
+without a task ID still counts under the teammate and the overall daily total. See
+[Cost estimates](docs/costs.md).
 
 ## Release gate
 

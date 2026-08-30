@@ -9,7 +9,6 @@ import {
   type TurnContext,
   Workspace
 } from "@cloudflare/think";
-import type { BrowserRuntime } from "@cloudflare/think/tools/browser";
 import { callable, getAgentByName } from "agents";
 import type { LanguageModel, ToolSet } from "ai";
 
@@ -19,7 +18,12 @@ import {
   replyApprovalOutcome,
   resolveReplyApprovalLifecycle
 } from "./runtime/approval";
-import { createTeammateBrowserRuntime } from "./runtime/browser";
+import {
+  createTeammateBrowserRuntime,
+  estimateBrowserMicroUsd,
+  type MeteredBrowserRuntime
+} from "./runtime/browser";
+import type { BrowserSessionLease } from "./runtime/browser-meter";
 import { executeDelegatedTask } from "./runtime/collaboration";
 import { estimateModelUsage, identifyModel } from "./runtime/costs";
 import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
@@ -58,18 +62,32 @@ export class HQBotTeammate extends Think<Env> {
 
   private model: LanguageModel | null = null;
   private attemptedModel: HQBotModelId = GLM_PRIMARY_MODEL_ID;
-  private browser: BrowserRuntime | null = null;
+  private browser: MeteredBrowserRuntime | null = null;
 
   private get workspaceAgent(): WorkspaceAgentRpc {
     return this.env.HQBOT_AGENT.getByName(this.env.HQBOT_ID) as unknown as WorkspaceAgentRpc;
   }
 
-  private get browserRuntime(): BrowserRuntime {
+  private get browserRuntime(): MeteredBrowserRuntime {
     this.browser ??= createTeammateBrowserRuntime(
       this.ctx,
       this.env.BROWSER,
       this.env.LOADER,
-      this.name
+      this.name,
+      () => {
+        const taskId = this.activeTurnMetadata?.taskId;
+        return typeof taskId === "string" ? taskId : null;
+      },
+      async (sample) => {
+        await this.workspaceAgent.recordResourceUsage({
+          eventId: sample.eventId,
+          botId: this.name,
+          taskId: sample.taskId,
+          service: "browser",
+          units: sample.milliseconds,
+          estimatedCostMicroUsd: estimateBrowserMicroUsd(sample.milliseconds)
+        });
+      }
     );
     return this.browser;
   }
@@ -139,16 +157,12 @@ export class HQBotTeammate extends Think<Env> {
   }
 
   async afterToolCall(ctx: ToolCallResultContext): Promise<void> {
-    if (!Object.hasOwn(this.browserRuntime.tools, ctx.toolName)) return;
+    if (ctx.toolName !== "browser_execute") return;
     const taskId = this.activeTurnMetadata?.taskId;
-    const milliseconds = Math.max(1_000, ctx.toolExecutionMs);
-    await this.workspaceAgent.recordResourceUsage({
-      botId: this.name,
-      taskId: typeof taskId === "string" ? taskId : null,
-      service: "browser",
-      units: milliseconds,
-      estimatedCostMicroUsd: Math.round((milliseconds / 3_600_000) * 0.09 * 1_000_000)
-    });
+    const leases = await this.browserRuntime.meter.touch(
+      typeof taskId === "string" ? taskId : null
+    );
+    await this.armBrowserLeases(leases);
   }
 
   async onChatResponse(result: ChatResponseResult): Promise<void> {
@@ -176,6 +190,7 @@ export class HQBotTeammate extends Think<Env> {
         schedule: "every 1 hour",
         handler: async () => {
           await this.browserRuntime.connector.sweep();
+          await this.browserRuntime.meter.flush();
         }
       }
     };
@@ -248,12 +263,28 @@ export class HQBotTeammate extends Think<Env> {
 
   @callable()
   async getLiveView(mode: "tab" | "devtools" = "tab"): Promise<LiveViewDto | null> {
-    return (await this.browserRuntime.connector.liveView({ mode })) ?? null;
+    const view = (await this.browserRuntime.connector.liveView({ mode })) ?? null;
+    await this.browserRuntime.meter.flush();
+    if (view)
+      await this.armBrowserLeases(await this.browserRuntime.meter.touch(null, view.sessionId));
+    return view;
+  }
+
+  @callable()
+  async keepLiveViewAlive(sessionId: string, taskId?: string): Promise<boolean> {
+    const info = await this.browserRuntime.connector.sessionInfo();
+    await this.browserRuntime.meter.flush();
+    if (!info || info.sessionId !== sessionId) return false;
+    const leases = await this.browserRuntime.meter.touch(taskId ?? null, sessionId);
+    await this.armBrowserLeases(leases);
+    return leases.length > 0;
   }
 
   @callable()
   async closeLiveView(): Promise<void> {
-    await this.browserRuntime.connector.closeSession();
+    await this.browserRuntime.meter.closeSession(() =>
+      this.browserRuntime.connector.closeSession()
+    );
   }
 
   @callable()
@@ -265,7 +296,32 @@ export class HQBotTeammate extends Think<Env> {
       pending: this.pendingApprovals(),
       reject: (executionId) => super.rejectExecution(executionId, "The owner stopped this task")
     });
+    await this.browserRuntime.meter.closeSession(() =>
+      this.browserRuntime.connector.closeSession()
+    );
     this.resetTurnState();
+  }
+
+  async settleBrowserSession(payload: BrowserSessionLease): Promise<void> {
+    const lease = (await this.browserRuntime.meter.leases(payload.sessionId))[0];
+    if (!lease) return;
+    if (lease.deadline > Date.now()) {
+      await this.armBrowserLeases([lease]);
+      return;
+    }
+
+    const info = await this.browserRuntime.connector.sessionInfo();
+    await this.browserRuntime.meter.flush();
+    if (!info || info.sessionId !== payload.sessionId) return;
+    const current = (await this.browserRuntime.meter.leases(payload.sessionId))[0];
+    if (!current) return;
+    if (current.deadline > Date.now()) {
+      await this.armBrowserLeases([current]);
+      return;
+    }
+    await this.browserRuntime.meter.closeSession(() =>
+      this.browserRuntime.connector.closeSession()
+    );
   }
 
   private async resolveNativeApproval(
@@ -285,5 +341,12 @@ export class HQBotTeammate extends Think<Env> {
       fail: (taskId) =>
         this.workspaceAgent.failTask(taskId, "The approved HQBase reply could not be sent")
     });
+  }
+
+  private async armBrowserLeases(leases: BrowserSessionLease[]): Promise<void> {
+    for (const lease of leases) {
+      const when = new Date(Math.max(Date.now() + 1_000, lease.deadline));
+      await this.schedule(when, "settleBrowserSession", lease, { idempotent: true });
+    }
   }
 }

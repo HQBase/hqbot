@@ -279,7 +279,7 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
 
   recordResourceUsage(usage: ResourceUsageDto): void {
     this.tasks.recordUsage({
-      id: crypto.randomUUID(),
+      id: usage.eventId ?? crypto.randomUUID(),
       botId: usage.botId,
       taskId: usage.taskId,
       service: usage.service,

@@ -135,4 +135,23 @@ describe("workspace cost snapshot", () => {
       }
     });
   });
+
+  it("does not count a retried browser checkpoint twice", () => {
+    const usage = {
+      botId: "bot-a",
+      estimatedUsd: 0.001,
+      id: "browser-session:one:0:1000",
+      inputUnits: 1,
+      service: "browser" as const,
+      taskId: "task-a"
+    };
+
+    tasks.recordUsage(usage);
+    tasks.recordUsage(usage);
+
+    expect(tasks.getCosts("bot-a", "task-a").services.selectedTask.browser).toMatchObject({
+      estimatedUsd: 0.001,
+      inputUnits: 1
+    });
+  });
 });

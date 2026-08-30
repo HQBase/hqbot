@@ -54,6 +54,7 @@ export interface ModelUsageDto {
 }
 
 export interface ResourceUsageDto {
+  eventId?: string;
   botId: string;
   taskId: string | null;
   service: "browser" | "durable-object" | "r2";
