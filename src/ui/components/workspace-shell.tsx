@@ -39,6 +39,16 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
     setPrompt(`/${skill.name.toLowerCase().replaceAll(" ", "-")} `);
   }
 
+  function selectBot(bot: Parameters<WorkspaceController["selectBot"]>[0]): void {
+    setPrompt("");
+    controller.selectBot(bot);
+  }
+
+  function beginNewTeammate(): void {
+    setPrompt("");
+    controller.beginNewTeammate();
+  }
+
   function showDetails(section: "costs" | "routines"): void {
     controller.setDetailsOpen(true);
     window.requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView());
@@ -48,8 +58,8 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
     <TeammateSidebar
       bots={snapshot.bots}
       selectedId={controller.selectedBot?.id ?? null}
-      onCreate={controller.beginNewTeammate}
-      onSelect={controller.selectBot}
+      onCreate={beginNewTeammate}
+      onSelect={selectBot}
     />
   );
 
@@ -92,7 +102,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
                   size="icon"
                   type="button"
                   variant="ghost"
-                  onClick={controller.beginNewTeammate}
+                  onClick={beginNewTeammate}
                 >
                   <PiPlus />
                 </Button>

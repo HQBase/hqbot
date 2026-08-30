@@ -25,6 +25,7 @@ export function DetailsPanel({
         <LiveView
           botId={selectedBot.id}
           computer={snapshot.computer}
+          key={selectedBot.id}
           task={selectedTask}
           onStop={() => void controller.stopComputer()}
         />

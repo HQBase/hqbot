@@ -20,6 +20,7 @@ export function ConversationPanel({
       <RealtimeConversation
         bot={controller.selectedBot}
         controller={controller}
+        key={controller.selectedBot.id}
         prompt={prompt}
         showBack={showBack}
         onPromptChange={onPromptChange}
