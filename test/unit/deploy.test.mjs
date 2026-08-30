@@ -47,6 +47,14 @@ describe("HQBot deployment", () => {
     vi.restoreAllMocks();
   });
 
+  it("declares the decorator transform used by the direct release build", () => {
+    const packageJson = JSON.parse(
+      readFileSync(new URL("../../package.json", import.meta.url), "utf8")
+    );
+
+    expect(packageJson.devDependencies["@babel/plugin-proposal-decorators"]).toBe("8.0.2");
+  });
+
   it("rejects a dirty tree before building or contacting Cloudflare", () => {
     const runtime = operations(
       { status: 0, stdout: "[]", stderr: "" },

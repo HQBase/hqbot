@@ -78,6 +78,7 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@babel/plugin-proposal-decorators": "8.0.2",
     "@biomejs/biome": "2.5.3",
     "@cloudflare/vite-plugin": "1.53.1",
     "@cloudflare/vitest-pool-workers": "0.22.0",
