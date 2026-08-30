@@ -1,4 +1,12 @@
-import { type ChangeEvent, type FormEvent, type KeyboardEvent, useRef } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { PiArrowUp, PiLink, PiPaperclip, PiX } from "react-icons/pi";
 
 import type { BotTeammate } from "../../../domain/types";
@@ -8,12 +16,29 @@ import { Textarea } from "../ui/textarea";
 
 export type ComposerFile = { id: string; name: string };
 
+interface MentionQuery {
+  end: number;
+  query: string;
+  start: number;
+}
+
+export function mentionQueryAtCaret(value: string, caret: number): MentionQuery | null {
+  const prefix = value.slice(0, caret);
+  const start = prefix.lastIndexOf("@");
+  if (start < 0) return null;
+  const before = prefix[start - 1];
+  const query = prefix.slice(start + 1);
+  if ((before && !/[\s([{]/u.test(before)) || /[\r\n]/u.test(query)) return null;
+  return { end: caret, query, start };
+}
+
 export function ChatComposer({
   attachedFiles,
   bot,
   error,
   prompt,
   sending,
+  teammates,
   uploading,
   onConnect,
   onPromptChange,
@@ -26,6 +51,7 @@ export function ChatComposer({
   error: string;
   prompt: string;
   sending: boolean;
+  teammates: BotTeammate[];
   uploading: boolean;
   onConnect: () => void;
   onPromptChange: (value: string) => void;
@@ -34,6 +60,23 @@ export function ChatComposer({
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const listboxId = useId();
+  const [caret, setCaret] = useState(prompt.length);
+  const [mentionsOpen, setMentionsOpen] = useState(true);
+  const [selectedMention, setSelectedMention] = useState(0);
+  const mention = bot ? mentionQueryAtCaret(prompt, caret) : null;
+  const peers = useMemo(
+    () => teammates.filter((teammate) => !teammate.hidden && teammate.id !== bot?.id),
+    [bot?.id, teammates]
+  );
+  const mentionOptions = mention
+    ? peers.filter((teammate) =>
+        teammate.name.toLocaleLowerCase().startsWith(mention.query.toLocaleLowerCase())
+      )
+    : [];
+  const showMentions = mentionsOpen && mentionOptions.length > 0;
+  const activeMention = Math.min(selectedMention, Math.max(mentionOptions.length - 1, 0));
 
   function submit(event: FormEvent): void {
     event.preventDefault();
@@ -41,9 +84,45 @@ export function ChatComposer({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (showMentions) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setSelectedMention(
+          (current) => (current + direction + mentionOptions.length) % mentionOptions.length
+        );
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionsOpen(false);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        insertMention(mentionOptions[activeMention] ?? mentionOptions[0]);
+        return;
+      }
+    }
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
     if (prompt.trim() && !sending) onSend();
+  }
+
+  function insertMention(teammate: BotTeammate | undefined): void {
+    if (!mention || !teammate) return;
+    const suffix = prompt.slice(mention.end);
+    const separator = suffix && /^[\s.,!?;:)\]}]/u.test(suffix) ? "" : " ";
+    const inserted = `@${teammate.name}${separator}`;
+    const next = `${prompt.slice(0, mention.start)}${inserted}${suffix}`;
+    const nextCaret = mention.start + inserted.length;
+    onPromptChange(next);
+    setCaret(nextCaret);
+    setMentionsOpen(false);
+    window.requestAnimationFrame(() => {
+      textarea.current?.focus();
+      textarea.current?.setSelectionRange(nextCaret, nextCaret);
+    });
   }
 
   return (
@@ -78,13 +157,61 @@ export function ChatComposer({
           </div>
         ) : null}
         <Textarea
+          aria-activedescendant={showMentions ? `${listboxId}-option-${activeMention}` : undefined}
+          aria-autocomplete="list"
+          aria-controls={showMentions ? listboxId : undefined}
+          aria-expanded={showMentions}
           aria-label={bot ? `Message ${bot.name}` : "Describe your new teammate"}
           className="min-h-[72px] resize-none rounded-none border-0 bg-transparent px-4 pb-1 pt-3 shadow-none focus-visible:border-0"
           placeholder={bot ? `Message ${bot.name}…` : "What do you want this teammate around for?"}
+          ref={textarea}
+          role="combobox"
           value={prompt}
-          onChange={(event) => onPromptChange(event.target.value)}
+          onChange={(event) => {
+            setCaret(event.target.selectionStart);
+            setMentionsOpen(true);
+            setSelectedMention(0);
+            onPromptChange(event.target.value);
+          }}
+          onClick={(event) => {
+            setCaret(event.currentTarget.selectionStart);
+            setMentionsOpen(true);
+            setSelectedMention(0);
+          }}
           onKeyDown={handleKeyDown}
+          onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
         />
+        {showMentions ? (
+          <div className="border-t border-divider px-2 py-1.5">
+            <p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-tertiary">
+              Ask a teammate
+            </p>
+            <div
+              aria-label="Teammates"
+              className="flex gap-1 overflow-x-auto"
+              id={listboxId}
+              role="listbox"
+            >
+              {mentionOptions.map((teammate, index) => (
+                <button
+                  aria-selected={index === activeMention}
+                  className="min-w-0 rounded-lg px-2.5 py-1.5 text-left text-xs hover:bg-muted aria-selected:bg-selected"
+                  id={`${listboxId}-option-${index}`}
+                  key={teammate.id}
+                  role="option"
+                  type="button"
+                  onClick={() => insertMention(teammate)}
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  <span className="block truncate font-medium">@{teammate.name}</span>
+                  <span className="block truncate text-[10px] text-muted-foreground">
+                    {teammate.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5 pt-1">
           <div className="flex items-center gap-1">
             {bot ? (
@@ -129,6 +256,7 @@ export function ChatComposer({
       </div>
       <p className="mt-2 text-center text-[10px] text-tertiary">
         Enter to send · Shift Enter for a new line
+        {bot && peers.length > 0 ? " · @Name to ask a teammate" : ""}
       </p>
     </form>
   );

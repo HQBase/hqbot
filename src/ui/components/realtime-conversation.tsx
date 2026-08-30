@@ -177,6 +177,7 @@ export function RealtimeConversation({
           error={localError || chat.error?.message || connectionError || controller.error}
           prompt={prompt}
           sending={busy}
+          teammates={controller.snapshot?.bots ?? []}
           uploading={false}
           onConnect={() => controller.setDialog("connection")}
           onPromptChange={onPromptChange}

@@ -61,6 +61,7 @@ export function ConversationPanel({
           error={controller.error}
           prompt={prompt}
           sending={controller.sending}
+          teammates={[]}
           uploading={false}
           onConnect={() => undefined}
           onPromptChange={onPromptChange}
