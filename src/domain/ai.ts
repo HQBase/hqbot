@@ -1,3 +1,5 @@
+import type { BotDefinition } from "./types"
+
 function contentText(value: unknown): string {
   if (typeof value === "string") return value.trim()
   if (!Array.isArray(value)) return ""
@@ -27,4 +29,24 @@ export function responseText(value: Record<string, unknown>): string {
     if (text) return text
   }
   throw new Error("Workers AI returned no text")
+}
+
+export function defineBot(brief: string): BotDefinition {
+  const lower = brief.toLowerCase()
+  const name =
+    [
+      ["inbox", "Inbox"],
+      ["email", "Inbox"],
+      ["research", "Research"],
+      ["support", "Support"],
+      ["sales", "Sales"],
+      ["finance", "Finance"],
+      ["operations", "Operations"],
+    ].find(([keyword]) => lower.includes(keyword ?? ""))?.[1] ?? "Teammate"
+  const cleanBrief = brief.replace(/\s+/gu, " ").trim()
+  return {
+    name,
+    title: cleanBrief.slice(0, 100),
+    description: `I will help with this job: ${cleanBrief.slice(0, 320)}`,
+  }
 }

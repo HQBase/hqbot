@@ -1,8 +1,8 @@
 import { getAgentByName } from "agents"
 
 import { HQBotAgent } from "./agent"
+import { defineBot } from "./domain/ai"
 import type { StoredBotConnection, WorkflowInput } from "./domain/types"
-import { defineBot } from "./services/ai"
 import { decryptConnectionToken, encryptConnectionToken } from "./services/crypto"
 import {
   isNewInboundMessage,
@@ -205,12 +205,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (request.method === "POST" && url.pathname === "/api/bots") {
     const body = await readJson(request)
     const brief = cleanString(body, "brief", 2_000)
-    const definition = await defineBot(
-      env.AI,
-      env.HQBOT_MODEL_ID,
-      env.HQBOT_FALLBACK_MODEL_ID,
-      brief,
-    )
+    const definition = defineBot(brief)
     const teammate = await agent.createBot(crypto.randomUUID(), definition, brief)
     return json({ teammate }, 201)
   }

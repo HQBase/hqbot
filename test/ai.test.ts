@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { responseText } from "../src/domain/ai"
+import { defineBot, responseText } from "../src/domain/ai"
 
 describe("responseText", () => {
   it("reads the current Workers AI chat completion shape", () => {
@@ -17,5 +17,15 @@ describe("responseText", () => {
     expect(
       responseText({ choices: [{ message: { content: [{ type: "text", text: "Hello" }] } }] }),
     ).toBe("Hello")
+  })
+})
+
+describe("defineBot", () => {
+  it("creates a useful teammate without an AI request", () => {
+    expect(defineBot("Be my product research teammate.")).toEqual({
+      name: "Research",
+      title: "Be my product research teammate.",
+      description: "I will help with this job: Be my product research teammate.",
+    })
   })
 })

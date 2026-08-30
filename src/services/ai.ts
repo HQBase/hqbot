@@ -1,6 +1,6 @@
 import { responseText } from "../domain/ai"
 import { parseResearchPlan } from "../domain/research"
-import type { BotDefinition, ResearchPlan, ResearchSource } from "../domain/types"
+import type { ResearchPlan, ResearchSource } from "../domain/types"
 
 function parseJsonText(text: string): unknown {
   const cleaned = text.replace(/^```(?:json)?\s*/u, "").replace(/\s*```$/u, "")
@@ -55,42 +55,14 @@ export async function planResearch(
     ],
     600,
   )
-  return parseResearchPlan(parseJsonText(text), prompt)
-}
-
-export async function defineBot(
-  ai: Ai,
-  primaryModel: string,
-  fallbackModel: string | undefined,
-  brief: string,
-): Promise<BotDefinition> {
-  const text = await runText(
-    ai,
-    primaryModel,
-    fallbackModel,
-    [
-      {
-        role: "system",
-        content:
-          "Define one AI teammate from the user's message. Return only JSON with name, title, and description. The name is 1 to 3 words. The title is a concise job. The description is one plain sentence addressed to the user. Do not invent access to tools.",
-      },
-      { role: "user", content: brief.slice(0, 2_000) },
-    ],
-    300,
-  )
-  const value = parseJsonText(text)
-  const record =
-    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
-  const name = typeof record.name === "string" ? record.name.trim().slice(0, 60) : "New agent"
-  const title = typeof record.title === "string" ? record.title.trim().slice(0, 100) : "AI teammate"
-  const description =
-    typeof record.description === "string"
-      ? record.description.trim().slice(0, 400)
-      : "I am ready to take on this work with you."
-  return {
-    name: name || "New agent",
-    title: title || "AI teammate",
-    description: description || "I am ready to take on this work with you.",
+  try {
+    return parseResearchPlan(parseJsonText(text), prompt)
+  } catch {
+    return {
+      goal: prompt.slice(0, 500),
+      queries: [prompt.slice(0, 500)],
+      urls: [],
+    }
   }
 }
 
