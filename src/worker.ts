@@ -2,7 +2,7 @@ import { getAgentByName } from "agents"
 
 import { HQBotAgent } from "./agent"
 import { defineBot } from "./domain/ai"
-import type { StoredBotConnection, WorkflowInput } from "./domain/types"
+import type { BotFile, BotRoutine, StoredBotConnection, WorkflowInput } from "./domain/types"
 import { decryptConnectionToken, encryptConnectionToken } from "./services/crypto"
 import {
   isNewInboundMessage,
@@ -67,6 +67,33 @@ async function dispatch(env: Env, input: WorkflowInput): Promise<string> {
   const instance = await env.HQBOT_WORKFLOW.create({ id: input.taskId, params: input })
   await (await bot(env)).setWorkflow(input.taskId, instance.id)
   return instance.id
+}
+
+function nextRun(intervalMinutes: number, from = new Date()): string {
+  return new Date(from.getTime() + intervalMinutes * 60_000).toISOString()
+}
+
+async function dispatchRoutine(env: Env, routine: BotRoutine): Promise<string> {
+  const agent = await bot(env)
+  const taskId = crypto.randomUUID()
+  await agent.createChatTask(taskId, routine.botId, routine.prompt)
+  await dispatch(env, {
+    taskId,
+    botId: routine.botId,
+    source: "chat",
+    prompt: routine.prompt,
+  })
+  return taskId
+}
+
+async function dispatchDueRoutines(env: Env): Promise<number> {
+  const agent = await bot(env)
+  const routines = await agent.listDueRoutines(new Date().toISOString())
+  for (const routine of routines) {
+    await agent.advanceRoutine(routine.id, nextRun(routine.intervalMinutes))
+    await dispatchRoutine(env, routine)
+  }
+  return routines.length
 }
 
 async function taskIdForMessage(connection: StoredBotConnection, message: MessageSummary) {
@@ -145,6 +172,58 @@ function cleanString(body: Record<string, unknown>, key: string, limit: number):
   return value
 }
 
+function optionalString(
+  body: Record<string, unknown>,
+  key: string,
+  limit: number,
+): string | undefined {
+  if (body[key] === undefined) return undefined
+  return cleanString(body, key, limit)
+}
+
+function fileIds(body: Record<string, unknown>): string[] {
+  const value = body.fileIds
+  if (value === undefined) return []
+  if (
+    !Array.isArray(value) ||
+    value.length > 5 ||
+    value.some((id) => typeof id !== "string" || id.length > 100)
+  ) {
+    throw new Error("fileIds must contain at most five file IDs")
+  }
+  return value
+}
+
+function safeFileName(value: string): string {
+  const clean = value
+    .replace(/[^a-zA-Z0-9._ -]/gu, "_")
+    .slice(0, 120)
+    .trim()
+  return clean || "attachment"
+}
+
+async function promptWithFiles(env: Env, prompt: string, files: BotFile[]): Promise<string> {
+  if (files.length === 0) return prompt
+  const sections: string[] = []
+  let remaining = 16_000
+  for (const file of files) {
+    if (remaining <= 0) break
+    const readable =
+      file.contentType.startsWith("text/") ||
+      ["application/json", "application/xml"].includes(file.contentType)
+    if (!readable || file.size > 100_000) {
+      sections.push(`[Attached file: ${file.name} (${file.contentType})]`)
+      continue
+    }
+    const object = await env.ARTIFACTS.get(file.key)
+    if (!object) continue
+    const content = (await object.text()).slice(0, remaining)
+    remaining -= content.length
+    sections.push(`Attached file: ${file.name}\n${content}`)
+  }
+  return sections.length > 0 ? `${prompt}\n\n${sections.join("\n\n")}` : prompt
+}
+
 function canonicalOrigin(value: string): string {
   const url = new URL(value)
   if (
@@ -210,6 +289,137 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     return json({ teammate }, 201)
   }
 
+  const botMatch = /^\/api\/bots\/([^/]+)$/u.exec(url.pathname)
+  if (request.method === "PATCH" && botMatch?.[1]) {
+    const botId = decodeURIComponent(botMatch[1])
+    const body = await readJson(request)
+    const pinned = typeof body.pinned === "boolean" ? body.pinned : undefined
+    const hidden = typeof body.hidden === "boolean" ? body.hidden : undefined
+    const teammate = await agent.updateBot(botId, {
+      name: optionalString(body, "name", 80),
+      title: optionalString(body, "title", 120),
+      description: optionalString(body, "description", 1_000),
+      pinned,
+      hidden,
+    })
+    return teammate ? json({ teammate }) : json({ error: "Teammate not found" }, 404)
+  }
+
+  const duplicateMatch = /^\/api\/bots\/([^/]+)\/duplicate$/u.exec(url.pathname)
+  if (request.method === "POST" && duplicateMatch?.[1]) {
+    const source = await agent.getBot(decodeURIComponent(duplicateMatch[1]))
+    if (!source) return json({ error: "Teammate not found" }, 404)
+    const teammate = await agent.createBot(
+      crypto.randomUUID(),
+      {
+        name: `${source.name} copy`.slice(0, 80),
+        title: source.title,
+        description: source.description,
+      },
+      source.brief,
+    )
+    return json({ teammate }, 201)
+  }
+
+  const memoryCollectionMatch = /^\/api\/bots\/([^/]+)\/memories$/u.exec(url.pathname)
+  if (request.method === "POST" && memoryCollectionMatch?.[1]) {
+    const botId = decodeURIComponent(memoryCollectionMatch[1])
+    if (!(await agent.hasBot(botId))) return json({ error: "Teammate not found" }, 404)
+    const body = await readJson(request)
+    const memory = await agent.createMemory(
+      crypto.randomUUID(),
+      botId,
+      cleanString(body, "content", 500),
+    )
+    return json({ memory }, 201)
+  }
+
+  const memoryMatch = /^\/api\/bots\/([^/]+)\/memories\/([^/]+)$/u.exec(url.pathname)
+  if (request.method === "DELETE" && memoryMatch?.[1] && memoryMatch[2]) {
+    const deleted = await agent.deleteMemory(
+      decodeURIComponent(memoryMatch[2]),
+      decodeURIComponent(memoryMatch[1]),
+    )
+    return deleted ? json({ deleted: true }) : json({ error: "Memory not found" }, 404)
+  }
+
+  const routineCollectionMatch = /^\/api\/bots\/([^/]+)\/routines$/u.exec(url.pathname)
+  if (request.method === "POST" && routineCollectionMatch?.[1]) {
+    const botId = decodeURIComponent(routineCollectionMatch[1])
+    if (!(await agent.hasBot(botId))) return json({ error: "Teammate not found" }, 404)
+    const body = await readJson(request)
+    const intervalMinutes = Number(body.intervalMinutes)
+    if (!Number.isInteger(intervalMinutes) || intervalMinutes < 15 || intervalMinutes > 43_200) {
+      return json({ error: "intervalMinutes must be from 15 to 43200" }, 400)
+    }
+    const routine = await agent.createRoutine({
+      id: crypto.randomUUID(),
+      botId,
+      name: cleanString(body, "name", 100),
+      prompt: cleanString(body, "prompt", 4_000),
+      intervalMinutes,
+      nextRunAt: nextRun(intervalMinutes),
+    })
+    return json({ routine }, 201)
+  }
+
+  const routineRunMatch = /^\/api\/bots\/([^/]+)\/routines\/([^/]+)\/run$/u.exec(url.pathname)
+  if (request.method === "POST" && routineRunMatch?.[1] && routineRunMatch[2]) {
+    const botId = decodeURIComponent(routineRunMatch[1])
+    const routine = (await agent.listRoutines(botId)).find(
+      (candidate) => candidate.id === decodeURIComponent(routineRunMatch[2] ?? ""),
+    )
+    if (!routine) return json({ error: "Routine not found" }, 404)
+    return json({ taskId: await dispatchRoutine(env, routine) }, 202)
+  }
+
+  const routineMatch = /^\/api\/bots\/([^/]+)\/routines\/([^/]+)$/u.exec(url.pathname)
+  if (routineMatch?.[1] && routineMatch[2]) {
+    const botId = decodeURIComponent(routineMatch[1])
+    const routineId = decodeURIComponent(routineMatch[2])
+    if (request.method === "PATCH") {
+      const body = await readJson(request)
+      if (typeof body.active !== "boolean") return json({ error: "active is required" }, 400)
+      const routine = await agent.setRoutineActive(routineId, botId, body.active)
+      return routine ? json({ routine }) : json({ error: "Routine not found" }, 404)
+    }
+    if (request.method === "DELETE") {
+      return (await agent.deleteRoutine(routineId, botId))
+        ? json({ deleted: true })
+        : json({ error: "Routine not found" }, 404)
+    }
+  }
+
+  const fileCollectionMatch = /^\/api\/bots\/([^/]+)\/files$/u.exec(url.pathname)
+  if (request.method === "POST" && fileCollectionMatch?.[1]) {
+    const botId = decodeURIComponent(fileCollectionMatch[1])
+    if (!(await agent.hasBot(botId))) return json({ error: "Teammate not found" }, 404)
+    const form = await request.formData()
+    const value = form.get("file")
+    if (!value || typeof value === "string") return json({ error: "file is required" }, 400)
+    if (value.size === 0 || value.size > 10_000_000) {
+      return json({ error: "Files must contain 1 byte to 10 MB" }, 400)
+    }
+    const id = crypto.randomUUID()
+    const name = safeFileName(value.name)
+    const contentType = value.type || "application/octet-stream"
+    const key = `files/${botId}/${id}/${name}`
+    await env.ARTIFACTS.put(key, value.stream(), { httpMetadata: { contentType } })
+    const file = await agent.createFile({ id, botId, key, name, contentType, size: value.size })
+    return json({ file }, 201)
+  }
+
+  const fileMatch = /^\/api\/bots\/([^/]+)\/files\/([^/]+)$/u.exec(url.pathname)
+  if (request.method === "DELETE" && fileMatch?.[1] && fileMatch[2]) {
+    const file = await agent.deleteFile(
+      decodeURIComponent(fileMatch[2]),
+      decodeURIComponent(fileMatch[1]),
+    )
+    if (!file) return json({ error: "File not found" }, 404)
+    await env.ARTIFACTS.delete(file.key)
+    return json({ deleted: true })
+  }
+
   const approvalMatch = /^\/api\/tasks\/([^/]+)\/approval$/u.exec(url.pathname)
   if (request.method === "POST" && approvalMatch?.[1]) {
     const taskId = decodeURIComponent(approvalMatch[1])
@@ -240,7 +450,14 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     const prompt = cleanString(body, "prompt", 20_000)
     const taskId = crypto.randomUUID()
     await agent.createChatTask(taskId, botId, prompt)
-    const workflowId = await dispatch(env, { taskId, botId, source: "chat", prompt })
+    const attachedFiles = await agent.attachFiles(botId, taskId, fileIds(body))
+    const workflowPrompt = await promptWithFiles(env, prompt, attachedFiles)
+    const workflowId = await dispatch(env, {
+      taskId,
+      botId,
+      source: "chat",
+      prompt: workflowPrompt,
+    })
     return json({ taskId, workflowId }, 202)
   }
 
@@ -251,7 +468,11 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     } catch {
       return json({ error: "Invalid artifact path" }, 400)
     }
-    if (!key.startsWith("tasks/") || key.includes("..") || key.includes("\\")) {
+    if (
+      (!key.startsWith("tasks/") && !key.startsWith("files/")) ||
+      key.includes("..") ||
+      key.includes("\\")
+    ) {
       return json({ error: "Invalid artifact path" }, 400)
     }
     const object = await env.ARTIFACTS.get(key)
@@ -281,6 +502,6 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await pollInbox(env)
+    await Promise.all([pollInbox(env), dispatchDueRoutines(env)])
   },
 } satisfies ExportedHandler<Env>

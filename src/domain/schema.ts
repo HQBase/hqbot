@@ -73,6 +73,47 @@ export const schemaMigrations: readonly SchemaMigration[] = [
       "CREATE INDEX IF NOT EXISTS tasks_bot_created ON tasks(bot_id, created_at)",
     ],
   },
+  {
+    version: 3,
+    statements: [
+      "ALTER TABLE bots ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE bots ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0",
+      `CREATE TABLE IF NOT EXISTS memories (
+        id TEXT PRIMARY KEY,
+        bot_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+      )`,
+      "CREATE INDEX IF NOT EXISTS memories_bot_created ON memories(bot_id, created_at)",
+      `CREATE TABLE IF NOT EXISTS routines (
+        id TEXT PRIMARY KEY,
+        bot_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        interval_minutes INTEGER NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        next_run_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+      )`,
+      "CREATE INDEX IF NOT EXISTS routines_due ON routines(active, next_run_at)",
+      `CREATE TABLE IF NOT EXISTS files (
+        id TEXT PRIMARY KEY,
+        bot_id TEXT NOT NULL,
+        task_id TEXT,
+        object_key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)",
+    ],
+  },
 ]
 
 export function pendingMigrations(appliedVersions: readonly number[]): readonly SchemaMigration[] {

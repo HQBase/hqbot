@@ -52,7 +52,7 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
         }
       }
 
-      const prompt = await step.do("read request", async () => {
+      const rawPrompt = await step.do("read request", async () => {
         if (input.source === "chat") return required(input.prompt, "prompt")
         const messageId = required(input.messageId, "messageId")
         if (!config) throw new Error("The email task has no HQBase connection")
@@ -63,6 +63,13 @@ export class HQBotWorkflow extends WorkflowEntrypoint<Env, WorkflowInput> {
         await agent.setTaskInput(input.taskId, request, message.subject, message.fromAddress)
         return request
       })
+
+      const memories = await step.do("load teammate memory", async () =>
+        agent.listMemories(input.botId),
+      )
+      const prompt = memories.length
+        ? `${rawPrompt}\n\nTeammate memory:\n${memories.map((memory) => `- ${memory.content}`).join("\n")}`
+        : rawPrompt
 
       await step.do("start task", async () => {
         await agent.setStatus(input.taskId, "working")

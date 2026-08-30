@@ -4,6 +4,9 @@ import type {
   BotActivity,
   BotConnection,
   BotDefinition,
+  BotFile,
+  BotMemory,
+  BotRoutine,
   BotTask,
   BotTeammate,
   StoredBotConnection,
@@ -92,9 +95,51 @@ function botFromRow(row: Row, connection: BotConnection | null): BotTeammate {
     title: text(row, "title"),
     description: text(row, "description"),
     brief: text(row, "brief"),
+    pinned: row.pinned === 1,
+    hidden: row.hidden === 1,
     createdAt: text(row, "created_at"),
     updatedAt: text(row, "updated_at"),
     connection,
+  }
+}
+
+function memoryFromRow(row: Row): BotMemory {
+  return {
+    id: text(row, "id"),
+    botId: text(row, "bot_id"),
+    content: text(row, "content"),
+    createdAt: text(row, "created_at"),
+  }
+}
+
+function routineFromRow(row: Row): BotRoutine {
+  const intervalMinutes = row.interval_minutes
+  if (typeof intervalMinutes !== "number") throw new Error("Invalid stored interval_minutes")
+  return {
+    id: text(row, "id"),
+    botId: text(row, "bot_id"),
+    name: text(row, "name"),
+    prompt: text(row, "prompt"),
+    intervalMinutes,
+    active: row.active === 1,
+    nextRunAt: text(row, "next_run_at"),
+    createdAt: text(row, "created_at"),
+    updatedAt: text(row, "updated_at"),
+  }
+}
+
+function fileFromRow(row: Row): BotFile {
+  const size = row.size
+  if (typeof size !== "number") throw new Error("Invalid stored file size")
+  return {
+    id: text(row, "id"),
+    botId: text(row, "bot_id"),
+    taskId: nullableText(row, "task_id"),
+    key: text(row, "object_key"),
+    name: text(row, "name"),
+    contentType: text(row, "content_type"),
+    size,
+    createdAt: text(row, "created_at"),
   }
 }
 
@@ -141,8 +186,8 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     const version2 = this.sql<{
       version: number
     }>`SELECT version FROM schema_migrations WHERE version = 2`
-    if (version2.length > 0) return
-    this.sql`CREATE TABLE IF NOT EXISTS bots (
+    if (version2.length === 0) {
+      this.sql`CREATE TABLE IF NOT EXISTS bots (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       title TEXT NOT NULL,
@@ -151,7 +196,7 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )`
-    this.sql`CREATE TABLE IF NOT EXISTS connections (
+      this.sql`CREATE TABLE IF NOT EXISTS connections (
       id TEXT PRIMARY KEY,
       bot_id TEXT NOT NULL,
       provider TEXT NOT NULL CHECK (provider = 'hqbase'),
@@ -167,29 +212,77 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       UNIQUE(provider, origin, mailbox_id),
       FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
     )`
-    const columns = this.sql<{ name: string }>`PRAGMA table_info(tasks)`
-    if (!columns.some((column) => column.name === "bot_id")) {
-      this.sql`ALTER TABLE tasks ADD COLUMN bot_id TEXT`
-    }
-    if (!columns.some((column) => column.name === "connection_id")) {
-      this.sql`ALTER TABLE tasks ADD COLUMN connection_id TEXT`
-    }
-    this.sql`CREATE INDEX IF NOT EXISTS tasks_bot_created ON tasks(bot_id, created_at)`
-    const legacyTasks = this.sql<{
-      count: number
-    }>`SELECT COUNT(*) AS count FROM tasks WHERE bot_id IS NULL`
-    if ((legacyTasks[0]?.count ?? 0) > 0) {
-      const timestamp = now()
-      this.sql`INSERT OR IGNORE INTO bots (
+      const columns = this.sql<{ name: string }>`PRAGMA table_info(tasks)`
+      if (!columns.some((column) => column.name === "bot_id")) {
+        this.sql`ALTER TABLE tasks ADD COLUMN bot_id TEXT`
+      }
+      if (!columns.some((column) => column.name === "connection_id")) {
+        this.sql`ALTER TABLE tasks ADD COLUMN connection_id TEXT`
+      }
+      this.sql`CREATE INDEX IF NOT EXISTS tasks_bot_created ON tasks(bot_id, created_at)`
+      const legacyTasks = this.sql<{
+        count: number
+      }>`SELECT COUNT(*) AS count FROM tasks WHERE bot_id IS NULL`
+      if ((legacyTasks[0]?.count ?? 0) > 0) {
+        const timestamp = now()
+        this.sql`INSERT OR IGNORE INTO bots (
         id, name, title, description, brief, created_at, updated_at
       ) VALUES (
         'legacy', 'HQBot', 'Research teammate',
         'I research the public web and return evidence-backed work.',
         'Legacy HQBot teammate', ${timestamp}, ${timestamp}
       )`
-      this.sql`UPDATE tasks SET bot_id = 'legacy' WHERE bot_id IS NULL`
+        this.sql`UPDATE tasks SET bot_id = 'legacy' WHERE bot_id IS NULL`
+      }
+      this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (2, ${now()})`
     }
-    this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (2, ${now()})`
+
+    const version3 = this.sql<{
+      version: number
+    }>`SELECT version FROM schema_migrations WHERE version = 3`
+    if (version3.length > 0) return
+    const botColumns = this.sql<{ name: string }>`PRAGMA table_info(bots)`
+    if (!botColumns.some((column) => column.name === "pinned")) {
+      this.sql`ALTER TABLE bots ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`
+    }
+    if (!botColumns.some((column) => column.name === "hidden")) {
+      this.sql`ALTER TABLE bots ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`
+    }
+    this.sql`CREATE TABLE IF NOT EXISTS memories (
+      id TEXT PRIMARY KEY,
+      bot_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    )`
+    this.sql`CREATE INDEX IF NOT EXISTS memories_bot_created ON memories(bot_id, created_at)`
+    this.sql`CREATE TABLE IF NOT EXISTS routines (
+      id TEXT PRIMARY KEY,
+      bot_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      interval_minutes INTEGER NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      next_run_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+    )`
+    this.sql`CREATE INDEX IF NOT EXISTS routines_due ON routines(active, next_run_at)`
+    this.sql`CREATE TABLE IF NOT EXISTS files (
+      id TEXT PRIMARY KEY,
+      bot_id TEXT NOT NULL,
+      task_id TEXT,
+      object_key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+    )`
+    this.sql`CREATE INDEX IF NOT EXISTS files_bot_created ON files(bot_id, created_at)`
+    this.sql`INSERT INTO schema_migrations (version, applied_at) VALUES (3, ${now()})`
   }
 
   createBot(id: string, definition: BotDefinition, brief: string): BotTeammate {
@@ -201,6 +294,8 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       id,
       ...definition,
       brief,
+      pinned: false,
+      hidden: false,
       createdAt: timestamp,
       updatedAt: timestamp,
       connection: null,
@@ -209,6 +304,142 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
 
   hasBot(id: string): boolean {
     return this.sql<{ id: string }>`SELECT id FROM bots WHERE id = ${id}`.length > 0
+  }
+
+  getBot(id: string): BotTeammate | null {
+    const rows = this.sql<Row>`SELECT * FROM bots WHERE id = ${id}`
+    if (!rows[0]) return null
+    const connectionRows = this.sql<Row>`SELECT * FROM connections WHERE bot_id = ${id}`
+    return botFromRow(rows[0], connectionRows[0] ? publicConnection(connectionRows[0]) : null)
+  }
+
+  updateBot(
+    id: string,
+    input: {
+      name?: string
+      title?: string
+      description?: string
+      pinned?: boolean
+      hidden?: boolean
+    },
+  ): BotTeammate | null {
+    const current = this.getBot(id)
+    if (!current) return null
+    this.sql`UPDATE bots SET
+      name = ${input.name ?? current.name},
+      title = ${input.title ?? current.title},
+      description = ${input.description ?? current.description},
+      pinned = ${(input.pinned ?? current.pinned) ? 1 : 0},
+      hidden = ${(input.hidden ?? current.hidden) ? 1 : 0},
+      updated_at = ${now()}
+      WHERE id = ${id}`
+    return this.getBot(id)
+  }
+
+  createMemory(id: string, botId: string, content: string): BotMemory {
+    const createdAt = now()
+    this.sql`INSERT INTO memories (id, bot_id, content, created_at)
+      VALUES (${id}, ${botId}, ${content}, ${createdAt})`
+    return { id, botId, content, createdAt }
+  }
+
+  listMemories(botId: string): BotMemory[] {
+    return this.sql<Row>`SELECT * FROM memories WHERE bot_id = ${botId}
+      ORDER BY created_at ASC LIMIT 50`.map(memoryFromRow)
+  }
+
+  deleteMemory(id: string, botId: string): boolean {
+    return (
+      this.sql<{ id: string }>`DELETE FROM memories WHERE id = ${id} AND bot_id = ${botId}
+        RETURNING id`.length > 0
+    )
+  }
+
+  createRoutine(input: {
+    id: string
+    botId: string
+    name: string
+    prompt: string
+    intervalMinutes: number
+    nextRunAt: string
+  }): BotRoutine {
+    const timestamp = now()
+    this.sql`INSERT INTO routines (
+      id, bot_id, name, prompt, interval_minutes, active, next_run_at, created_at, updated_at
+    ) VALUES (
+      ${input.id}, ${input.botId}, ${input.name}, ${input.prompt}, ${input.intervalMinutes}, 1,
+      ${input.nextRunAt}, ${timestamp}, ${timestamp}
+    )`
+    return {
+      ...input,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
+  }
+
+  listRoutines(botId: string): BotRoutine[] {
+    return this.sql<Row>`SELECT * FROM routines WHERE bot_id = ${botId}
+      ORDER BY created_at ASC`.map(routineFromRow)
+  }
+
+  listDueRoutines(timestamp: string): BotRoutine[] {
+    return this.sql<Row>`SELECT * FROM routines WHERE active = 1 AND next_run_at <= ${timestamp}
+      ORDER BY next_run_at ASC LIMIT 10`.map(routineFromRow)
+  }
+
+  setRoutineActive(id: string, botId: string, active: boolean): BotRoutine | null {
+    this.sql`UPDATE routines SET active = ${active ? 1 : 0}, updated_at = ${now()}
+      WHERE id = ${id} AND bot_id = ${botId}`
+    const rows = this.sql<Row>`SELECT * FROM routines WHERE id = ${id} AND bot_id = ${botId}`
+    return rows[0] ? routineFromRow(rows[0]) : null
+  }
+
+  advanceRoutine(id: string, nextRunAt: string): void {
+    this.sql`UPDATE routines SET next_run_at = ${nextRunAt}, updated_at = ${now()} WHERE id = ${id}`
+  }
+
+  deleteRoutine(id: string, botId: string): boolean {
+    return (
+      this.sql<{ id: string }>`DELETE FROM routines WHERE id = ${id} AND bot_id = ${botId}
+        RETURNING id`.length > 0
+    )
+  }
+
+  createFile(input: {
+    id: string
+    botId: string
+    key: string
+    name: string
+    contentType: string
+    size: number
+  }): BotFile {
+    const createdAt = now()
+    this.sql`INSERT INTO files (
+      id, bot_id, object_key, name, content_type, size, created_at
+    ) VALUES (
+      ${input.id}, ${input.botId}, ${input.key}, ${input.name}, ${input.contentType},
+      ${input.size}, ${createdAt}
+    )`
+    return { ...input, taskId: null, createdAt }
+  }
+
+  attachFiles(botId: string, taskId: string, fileIds: string[]): BotFile[] {
+    const attached: BotFile[] = []
+    for (const fileId of fileIds.slice(0, 5)) {
+      this.sql`UPDATE files SET task_id = ${taskId}
+        WHERE id = ${fileId} AND bot_id = ${botId} AND task_id IS NULL`
+      const rows = this.sql<Row>`SELECT * FROM files
+        WHERE id = ${fileId} AND bot_id = ${botId} AND task_id = ${taskId}`
+      if (rows[0]) attached.push(fileFromRow(rows[0]))
+    }
+    return attached
+  }
+
+  deleteFile(id: string, botId: string): BotFile | null {
+    const rows = this.sql<Row>`DELETE FROM files WHERE id = ${id} AND bot_id = ${botId}
+      RETURNING *`
+    return rows[0] ? fileFromRow(rows[0]) : null
   }
 
   connectHQBase(input: {
@@ -366,7 +597,7 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
     const connections = new Map(
       connectionRows.map((row) => [text(row, "bot_id"), publicConnection(row)]),
     )
-    const bots = this.sql<Row>`SELECT * FROM bots ORDER BY created_at ASC`.map((row) =>
+    const bots = this.sql<Row>`SELECT * FROM bots ORDER BY pinned DESC, created_at ASC`.map((row) =>
       botFromRow(row, connections.get(text(row, "id")) ?? null),
     )
     const selectedBot = bots.find((candidate) => candidate.id === botId) ?? bots[0] ?? null
@@ -380,6 +611,12 @@ export class HQBotAgent extends Agent<Env, Record<string, never>> {
       ? this.sql<Row>`SELECT * FROM activity WHERE task_id = ${activeTask.id}
           ORDER BY created_at ASC`.map(activityFromRow)
       : []
-    return { bots, selectedBot, tasks, activeTask, activity }
+    const memories = selectedBot ? this.listMemories(selectedBot.id) : []
+    const routines = selectedBot ? this.listRoutines(selectedBot.id) : []
+    const files = selectedBot
+      ? this.sql<Row>`SELECT * FROM files WHERE bot_id = ${selectedBot.id}
+          ORDER BY created_at DESC LIMIT 30`.map(fileFromRow)
+      : []
+    return { bots, selectedBot, tasks, activeTask, activity, memories, routines, files }
   }
 }

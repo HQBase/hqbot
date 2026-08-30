@@ -31,9 +31,41 @@ export interface BotTeammate {
   title: string
   description: string
   brief: string
+  pinned: boolean
+  hidden: boolean
   createdAt: string
   updatedAt: string
   connection: BotConnection | null
+}
+
+export interface BotMemory {
+  id: string
+  botId: string
+  content: string
+  createdAt: string
+}
+
+export interface BotRoutine {
+  id: string
+  botId: string
+  name: string
+  prompt: string
+  intervalMinutes: number
+  active: boolean
+  nextRunAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BotFile {
+  id: string
+  botId: string
+  taskId: string | null
+  key: string
+  name: string
+  contentType: string
+  size: number
+  createdAt: string
 }
 
 export interface BotTask {
@@ -71,6 +103,9 @@ export interface WorkspaceSnapshot {
   tasks: BotTask[]
   activeTask: BotTask | null
   activity: BotActivity[]
+  memories: BotMemory[]
+  routines: BotRoutine[]
+  files: BotFile[]
 }
 
 export interface ResearchPlan {

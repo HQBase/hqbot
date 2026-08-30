@@ -8,8 +8,9 @@ describe("schema migrations", () => {
   })
 
   it("does not repeat an applied migration during update", () => {
-    expect(pendingMigrations([1])).toEqual([schemaMigrations[1]])
-    expect(pendingMigrations([1, 2])).toEqual([])
+    expect(pendingMigrations([1])).toEqual(schemaMigrations.slice(1))
+    expect(pendingMigrations([1, 2])).toEqual([schemaMigrations[2]])
+    expect(pendingMigrations([1, 2, 3])).toEqual([])
   })
 
   it("keeps versions ordered and unique", () => {
