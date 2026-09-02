@@ -1,0 +1,137 @@
+<p align="center">
+  <strong>HQBot</strong>
+</p>
+
+<h1 align="center">Self-hosted AI teammates on Cloudflare</h1>
+
+<p align="center">
+  Chat with AI teammates, give them real work, watch their computer, and approve actions before
+  they send anything.
+</p>
+
+<p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FHQBase%2Fhqbot">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare">
+  </a>
+</p>
+
+HQBot is a separate AGPL-licensed repository. It is not affiliated with xAI, X, or Grok Bot. It
+uses no proprietary code or assets.
+
+```mermaid
+flowchart LR
+  Owner[Owner] <-->|Realtime chat| App[HQBot Worker]
+  App <--> Workspace[Workspace Durable Object]
+  Workspace <--> Bot[One Think Durable Object per teammate]
+  Bot --> AI[Workers AI]
+  Bot --> Computer[One Sandbox Linux computer]
+  Computer --> Apps[Bash, visible Chrome, and GUI apps]
+  Owner[Owner] <-->|View or agent-granted control| Computer
+  Bot --> Files[R2 durable files]
+  Bot <-->|MCP| Tools[Connected tools]
+```
+
+## What it does
+
+- Keeps each teammate's chat, memory, skills, files, routines, and task history.
+- Gives every turn the same agent loop and the complete Linux computer tool set. The model uses
+  Bash, visible Chrome, or other GUI applications when they help with the request.
+- Runs durable work with Think fibers, Agent task queues, and Agent schedules.
+- Shows one-time waiting tasks and reminders in the right sidebar with a cancel action.
+- Lets a teammate create, list, pause, resume, and delete routines when the owner asks for repeated
+  work.
+- Lists current Workers AI text models that support function calling. GLM-5.3 Flash is the default
+  and safe fallback.
+- Gives each teammate one private Linux computer. Bash, visible Chrome, and other Linux GUI apps
+  run in that same Cloudflare Sandbox.
+- Controls the visible Chrome with structured browser tools. The live screen appears when the
+  teammate starts the computer.
+- Inspects and controls the whole visible desktop with screenshot, mouse, and keyboard tools.
+  The owner asks the teammate for control when needed. The teammate grants control and later takes
+  it back. The only direct computer action in the app is **Maximize**.
+- Gives the teammate explicit tools to list durable files, copy one to the computer, upload one
+  result to R2, or delete one durable file.
+- Starts and stops the computer through the teammate. HQBot also checkpoints and stops an idle
+  computer after 30 minutes.
+- Runs every Bash command through one durable named process. Quick commands return now; longer
+  commands continue as tasks, and **Stop** can end the process group.
+- Saves best-effort recovery checkpoints to R2 before managed sleep.
+- Shows computer CPU, memory, disk, uptime, and estimated cost.
+- Connects to compatible remote MCP servers and discovers their tools at run time.
+- Leaves inbound events to a separate future signed webhook or channel layer.
+- Shows estimated model and computer cost by task, teammate, and overall use, plus raw Durable
+  Object, Agent schedule, task, and R2 file footprints.
+- Stops active work on request and can delete a teammate with its saved state and files.
+
+HQBot does not use Cloudflare Workflows or cron triggers. MCP connections add tools that a teammate
+can call. They do not make external events wake HQBot by themselves.
+
+## Install
+
+```mermaid
+flowchart LR
+  Click[Deploy to Cloudflare] --> Account[Choose an account]
+  Account --> Code[Choose a one-time setup code]
+  Code --> Open[Open HQBot]
+  Open --> Owner[Claim the first owner]
+  Owner --> Team[Create a teammate]
+  Team --> Connect[Connect tools if needed]
+```
+
+Select **Deploy to Cloudflare**, choose your Cloudflare account, and choose a private setup code of
+at least 24 characters. Open the deployed address and use that code once to claim the owner name
+and password. Later visits use the owner account and a secure HTTP-only cookie. Normal sign-in does
+not use a login token.
+
+To add tools, give one teammate a compatible remote MCP server URL. Complete OAuth or add a bearer
+token only when the server needs it. HQBot reads the server's tool list, so it does not need a fixed
+integration inventory.
+
+See [Install HQBot](docs/install.md) for the short setup guide.
+See [Connect tools](docs/connections.md) for the connection model.
+
+## Cost view
+
+HQBot records Workers AI token use and Linux computer time. It also shows observed computer CPU,
+memory, disk, and uptime. The totals are estimates, not a copy of the Cloudflare bill. Direct chat
+without a task ID still counts under the teammate and overall daily total. See
+[Cost estimates](docs/costs.md).
+
+## Release gate
+
+A revision is not complete until every item passes:
+
+- [ ] Local quality checks and the Cloudflare dry run pass.
+- [ ] A clean Git SHA is deployed and shown by the live service.
+- [ ] First-owner setup, login, realtime chat, and the Linux computer work on Cloudflare.
+- [ ] Structured browser tools control the same Chrome that the owner sees in the desktop.
+- [ ] Desktop tools inspect and control the same Linux desktop that the owner sees.
+- [ ] Agent-granted owner control pauses model computer control and returns control safely.
+- [ ] Managed sleep creates a recovery checkpoint, and the next start restores it as documented.
+- [ ] Computer resource readings and cost estimates appear after real use.
+- [ ] A deployed teammate connects to a real remote MCP server, discovers its tools, and completes
+      one useful tool-backed task.
+
+The last item must use the deployed service. Mocks do not count.
+
+## Develop
+
+```sh
+pnpm install
+pnpm cf:typegen
+pnpm dev
+```
+
+Run the repository gates before each deploy:
+
+```sh
+pnpm check
+pnpm deploy:dry-run
+```
+
+Read [How HQBot fits together](docs/architecture.md), [Privacy and safety](docs/privacy.md), and
+[Maintain HQBot](docs/maintaining.md) before a release.
+
+## License
+
+HQBot is available under AGPL-3.0-only. See [LICENSE](LICENSE).

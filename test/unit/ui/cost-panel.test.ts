@@ -1,0 +1,88 @@
+// @vitest-environment happy-dom
+
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+
+import type { CostSnapshot, CostTotal } from "../../../src/domain/types";
+import { CostPanel } from "../../../src/ui/components/details/cost-panel";
+
+const empty: CostTotal = { estimatedUsd: 0, inputUnits: 0, outputUnits: 0 };
+
+function snapshot(): CostSnapshot {
+  return {
+    dayStartedAt: "2026-08-30T00:00:00.000Z",
+    overall: { estimatedUsd: 1.25, inputUnits: 0, outputUnits: 0 },
+    platform: {
+      resources: {
+        overall: {
+          durableObjects: 4,
+          agentSchedules: 8,
+          taskSubmissionsToday: 10,
+          r2FileObjects: 12,
+          r2FileBytes: 4_096
+        },
+        selectedBot: {
+          durableObjects: 1,
+          agentSchedules: 3,
+          taskSubmissionsToday: 4,
+          r2FileObjects: 5,
+          r2FileBytes: 2_048
+        }
+      }
+    },
+    selectedBot: { estimatedUsd: 0.15, inputUnits: 0, outputUnits: 0 },
+    selectedTask: { estimatedUsd: 0.01, inputUnits: 0, outputUnits: 0 },
+    services: {
+      overall: { sandbox: empty, workersAi: empty },
+      selectedBot: {
+        sandbox: { estimatedUsd: 0.006168, inputUnits: 300, outputUnits: 0 },
+        workersAi: { estimatedUsd: 0.11, inputUnits: 12345, outputUnits: 678 }
+      },
+      selectedTask: { sandbox: empty, workersAi: empty }
+    }
+  };
+}
+
+function renderCostPanel(costs: CostSnapshot): string {
+  return renderToStaticMarkup(
+    createElement(CostPanel, {
+      budgetUsd: 1,
+      costs
+    })
+  );
+}
+
+describe("CostPanel", () => {
+  it("keeps the three totals and shows one computer cost", () => {
+    const html = renderCostPanel(snapshot());
+
+    expect(html).toContain("Task");
+    expect(html).toContain("$0.01");
+    expect(html).toContain("Teammate");
+    expect(html).toContain("$0.15");
+    expect(html).toContain("Overall");
+    expect(html).toContain("$1.25");
+    expect(html).toContain("Overall $1.25");
+    expect(html).not.toContain("Live");
+    expect(html).toContain("12,345 in · 678 out");
+    expect(html).toContain("300 seconds reserved");
+    expect(html).toContain("Computer");
+    expect(html).not.toContain(">Browser<");
+    expect(html).toContain("$0.11");
+  });
+
+  it("shows raw Cloudflare resources for the teammate and overall workspace", () => {
+    const html = renderCostPanel(snapshot());
+
+    expect(html).toContain("Raw Cloudflare footprint");
+    expect(html).toContain("Tracked, not billing");
+    expect(html).toContain("Durable Objects");
+    expect(html).toContain("Agent schedules");
+    expect(html).not.toContain("Images today");
+    expect(html).toContain("Tasks today");
+    expect(html).toContain("Tracked R2 files");
+    expect(html).toContain("5 · 2 KiB");
+    expect(html).toContain("12 · 4 KiB");
+  });
+});

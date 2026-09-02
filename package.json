@@ -1,0 +1,102 @@
+{
+  "name": "hqbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source AI teammates on customer-owned Cloudflare infrastructure.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "vite",
+    "dev:ui": "vite --open /__ui",
+    "build": "tsc -b && vite build",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vite build && vitest run --config vitest.worker.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:architecture": "node scripts/check-architecture.mjs",
+    "typecheck": "tsc -b",
+    "format": "biome format --write .",
+    "code:check": "biome check .",
+    "cf:typegen": "wrangler types",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:dry-run": "pnpm build && wrangler deploy --dry-run",
+    "check": "pnpm code:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:architecture && pnpm build",
+    "hqbot": "node scripts/install.mjs"
+  },
+  "cloudflare": {
+    "bindings": {
+      "AI": {
+        "description": "Cloudflare AI and AI Gateway plan and write each Bot task."
+      },
+      "ARTIFACTS": {
+        "description": "R2 stores computer checkpoints and reviewable task artifacts."
+      },
+      "HQBOT_AGENT": {
+        "description": "A Durable Object stores the owner, teammate roster, and aggregate costs."
+      },
+      "HQBOT_TEAMMATE": {
+        "description": "One durable Think agent stores each teammate's chat, files, tools, schedules, and cost events."
+      },
+      "SANDBOX": {
+        "description": "One Cloudflare Sandbox runs each teammate's Bash, Chrome, and Linux GUI apps."
+      },
+      "LOADER": {
+        "description": "A Worker Loader runs connected-service code in an isolated Worker."
+      },
+      "CF_VERSION_METADATA": {
+        "description": "Version metadata binds health checks to the exact deployed revision."
+      },
+      "ASSETS": {
+        "description": "Worker Static Assets serves the HQBot web app."
+      }
+    }
+  },
+  "dependencies": {
+    "@ai-sdk/react": "4.0.88",
+    "@cloudflare/codemode": "0.5.1",
+    "@cloudflare/sandbox": "0.12.9",
+    "@cloudflare/think": "0.17.0",
+    "@novnc/novnc": "1.7.0",
+    "@radix-ui/react-avatar": "1.1.10",
+    "@radix-ui/react-dialog": "1.1.14",
+    "@radix-ui/react-label": "2.1.11",
+    "@radix-ui/react-progress": "1.1.12",
+    "@radix-ui/react-separator": "1.1.7",
+    "@radix-ui/react-slot": "1.2.3",
+    "@radix-ui/react-tabs": "1.1.12",
+    "agents": "0.22.0",
+    "ai": "7.0.85",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "micromark": "4.0.2",
+    "micromark-extension-gfm": "3.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-icons": "5.7.0",
+    "sonner": "2.0.6",
+    "tailwind-merge": "3.3.1",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-decorators": "8.0.2",
+    "@biomejs/biome": "2.5.3",
+    "@cloudflare/vite-plugin": "1.53.1",
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260830.1",
+    "@shadcn/helpers": "0.2.0",
+    "@types/node": "26.0.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.1.0",
+    "@vitest/coverage-v8": "4.1.11",
+    "autoprefixer": "10.4.21",
+    "happy-dom": "20.10.6",
+    "postcss": "8.5.23",
+    "tailwindcss": "3.4.17",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.125.0"
+  }
+}

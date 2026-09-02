@@ -1,0 +1,27 @@
+FROM docker.io/cloudflare/sandbox:0.12.9
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dbus-x11 fonts-liberation imagemagick openbox websockify x11vnc xdotool xterm xvfb && \
+    wget -q -O /tmp/google-chrome.deb \
+      https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get install -y --no-install-recommends /tmp/google-chrome.deb && \
+    rm -f /tmp/google-chrome.deb && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY scripts/start-desktop.sh /usr/local/bin/hqbot-desktop
+COPY scripts/control-browser.mjs /usr/local/bin/hqbot-browser-control
+COPY scripts/control-desktop.mjs /usr/local/bin/hqbot-desktop-control
+COPY scripts/computer-resources.sh /usr/local/bin/hqbot-computer-resources
+COPY scripts/run-agent-command.mjs /usr/local/bin/hqbot-run-agent-command
+COPY scripts/google-chrome-safe.sh /usr/local/bin/google-chrome
+RUN chmod 0755 \
+    /usr/local/bin/hqbot-browser-control \
+    /usr/local/bin/hqbot-computer-resources \
+    /usr/local/bin/hqbot-desktop \
+    /usr/local/bin/hqbot-desktop-control \
+    /usr/local/bin/hqbot-run-agent-command
+RUN chmod 0755 /usr/local/bin/google-chrome
+
+EXPOSE 6080

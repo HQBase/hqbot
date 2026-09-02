@@ -1,0 +1,2 @@
+# Choose a private value with at least 24 characters. It is used only for the first owner claim.
+HQBOT_SETUP_TOKEN=
