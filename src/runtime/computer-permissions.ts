@@ -15,6 +15,7 @@ export const COMPUTER_ACTIONS = new Set([
   "browser_tabs",
   "desktop_mouse",
   "desktop_keyboard",
+  "copy_file_to_computer",
   "delete_file"
 ]);
 export type ComputerPolicy = "review" | "allow";

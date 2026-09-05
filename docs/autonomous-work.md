@@ -30,6 +30,33 @@ workflow must cover approval, continued work, a saved deliverable, and restart r
 completion, duration, and cost. A 24 to 72 hour soak run is required before claiming that duration
 is proven. A short test cannot establish multi-day reliability.
 
+### Deployed test procedure
+
+Use `scripts/evaluate.mjs` with owner credentials supplied through `HQBOT_EVAL_USERNAME` and
+`HQBOT_EVAL_PASSWORD` in the environment. Set `HQBOT_EVAL_URL` for another installation. Do not
+put credentials in commands, state files, or test reports. The script records only safe IDs,
+times, state, revision tags, and cost estimates. It does not approve actions or change permissions.
+
+1. Run `node scripts/evaluate.mjs prepare /tmp/hqbot-smoke.json smoke`. This creates a separate
+   test teammate. Connect the public Cloudflare Documentation MCP server to that teammate.
+2. Run `node scripts/evaluate.mjs start /tmp/hqbot-smoke.json`. In HQBot, inspect and approve the
+   exact public documentation call and required file commands. Run `check` with the same state
+   file to inspect progress. The first completed task waits for the recovery test.
+3. Run `node scripts/evaluate.mjs recover /tmp/hqbot-smoke.json`. This saves the test computer,
+   stops and restores it, and asks the agent to verify the saved file in a second task. Review
+   its computer actions. Run `check` again. Keep the teammate and files as review evidence.
+4. Prepare a second test with `prepare /tmp/hqbot-soak.json soak 24` (up to 72 hours), then use
+   `start`. The agent uses durable hourly wake-ups with a fixed end time. Run `check` during the
+   test and after its deadline. Review the final file command. Use `stop` to cancel the test.
+
+The soak task runs in Cloudflare even when the local command ends. Local checks only collect
+measurements. Check at least once near the end of each UTC day to retain each day's cost estimate.
+Missing prices and unsettled requests stay visible. A test with no completion evidence cannot
+pass merely because its timer expired. Inspect milestone spacing in the final report. For restart
+coverage, deploy a revision while the soak task has a future wake-up and verify its next milestone.
+Record both revision tags. A passing soak establishes this workload and duration only; it does
+not establish continuous high-load performance or reliability for every connected service.
+
 ## Owner notifications
 
 The notification inbox keeps completion, failure, and input requests in workspace storage. Browser
