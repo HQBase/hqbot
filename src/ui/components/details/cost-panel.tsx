@@ -25,6 +25,18 @@ export function CostPanel({ budgetUsd, costs }: { budgetUsd: number; costs: Cost
           <CostValue label="Teammate" value={costs.selectedBot.estimatedUsd} />
           <CostValue label="Overall" value={costs.overall.estimatedUsd} />
         </div>
+        {Boolean(costs.selectedBot.unpricedRequests) && (
+          <p role="status" className="text-xs">
+            Price unavailable for {costs.selectedBot.unpricedRequests} model requests. The estimate
+            excludes these charges. Token and request limits still apply.
+          </p>
+        )}
+        {Boolean(costs.selectedBot.pendingRequests) && (
+          <p className="text-xs">
+            {costs.selectedBot.pendingRequests} model requests have reserved estimates. Failed
+            requests keep their reservation when the charge is unknown.
+          </p>
+        )}
         <Progress aria-label="Teammate daily cost budget" value={Math.min(100, usage)} />
         <p className="text-[11px] text-muted-foreground">
           {currency(costs.selectedBot.estimatedUsd)} of {currency(budgetUsd)} daily budget

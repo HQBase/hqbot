@@ -3,7 +3,6 @@ import type {
   ChatResponseResult,
   PrepareStepContext,
   StepConfig,
-  StepContext,
   ThinkSubmissionInspection,
   TurnConfig,
   TurnContext
@@ -15,10 +14,10 @@ import { createComputerBrowserTools } from "./runtime/computer-browser";
 import { createComputerDesktopTools } from "./runtime/computer-desktop";
 import { createComputerFileTools } from "./runtime/computer-files";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
-import { estimateModelUsage, identifyModel } from "./runtime/costs";
 import { createKnowledgeTools } from "./runtime/knowledge-tools";
 import type { LinuxProcessPollPayload } from "./runtime/managed-linux-process";
 import { mcpOAuthCallbackResponse, type TeammateConnection } from "./runtime/mcp";
+import { budgetedModel } from "./runtime/model-budget";
 import { listHQBotModels, modelTokenRates } from "./runtime/model-catalog";
 import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
 import { createStopProcessTool } from "./runtime/process-tools";
@@ -52,16 +51,24 @@ export class HQBotTeammate extends TeammateRuntime {
   storeMessages = false;
   storeTools = false;
 
-  private attemptedModel: HQBotModelId = GLM_PRIMARY_MODEL_ID;
   private modelCatalog: ReturnType<typeof listHQBotModels> | null = null;
 
   private modelFor(modelId: HQBotModelId): LanguageModel {
     return createHQBotModel({
       primaryModelId: modelId,
-      resolve: (id) => concreteLanguageModel(this.resolveModel(id)),
-      onAttempt: (id) => {
-        this.attemptedModel = id;
-      }
+      resolve: (id) =>
+        budgetedModel({
+          model: concreteLanguageModel(this.resolveModel(id)),
+          modelId: id,
+          botId: this.name,
+          taskId: () => this.currentTaskId(),
+          workspace: this.workspaceAgent,
+          rates: async () => {
+            this.modelCatalog ??= listHQBotModels(this.env.AI);
+            return modelTokenRates(await this.modelCatalog, id);
+          }
+        }),
+      onAttempt: () => undefined
     });
   }
 
@@ -172,20 +179,6 @@ export class HQBotTeammate extends TeammateRuntime {
           ("schedule" in result.output || "deleted" in result.output)
       );
     if (scheduleChanged) return { toolChoice: "none" } as unknown as StepConfig;
-  }
-
-  async onStepFinish(ctx: StepContext): Promise<void> {
-    const model = identifyModel(ctx.response.modelId, this.attemptedModel);
-    this.modelCatalog ??= listHQBotModels(this.env.AI);
-    await this.workspaceAgent.recordUsage(
-      estimateModelUsage({
-        botId: this.name,
-        taskId: this.currentTaskId(),
-        model,
-        rates: modelTokenRates(await this.modelCatalog, model),
-        usage: ctx.usage
-      })
-    );
   }
 
   async onChatResponse(result: ChatResponseResult): Promise<void> {

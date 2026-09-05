@@ -255,4 +255,9 @@ export function migrateWorkspace(sql: Sql): void {
   migrateEight(sql);
   migrateNine(sql);
   migrateTen(sql);
+  if (!isApplied(sql, 11)) {
+    sql`ALTER TABLE usage_events ADD COLUMN pricing_status TEXT NOT NULL DEFAULT 'known'`;
+    sql`ALTER TABLE usage_events ADD COLUMN settled INTEGER NOT NULL DEFAULT 1`;
+    finish(sql, 11);
+  }
 }

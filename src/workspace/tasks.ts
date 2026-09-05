@@ -18,6 +18,12 @@ function startOfUtcDay(): string {
 
 function costTotal(row?: Row): CostTotal {
   return {
+    ...(number(row ?? {}, "unpriced_requests")
+      ? { unpricedRequests: number(row ?? {}, "unpriced_requests") }
+      : {}),
+    ...(number(row ?? {}, "pending_requests")
+      ? { pendingRequests: number(row ?? {}, "pending_requests") }
+      : {}),
     estimatedUsd: number(row ?? {}, "estimated_usd"),
     inputUnits: number(row ?? {}, "input_units"),
     outputUnits: number(row ?? {}, "output_units")
@@ -132,25 +138,33 @@ export class WorkspaceTasks {
   getCosts(botId?: string | null, taskId?: string | null): CostSnapshot {
     const dayStartedAt = startOfUtcDay();
     const overall = this.sql<Row>`SELECT
+      SUM(CASE WHEN pricing_status = 'unknown' THEN 1 ELSE 0 END) AS unpriced_requests,
+      SUM(CASE WHEN settled = 0 THEN 1 ELSE 0 END) AS pending_requests,
       COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
       COALESCE(SUM(input_units), 0) AS input_units,
       COALESCE(SUM(output_units), 0) AS output_units
       FROM usage_events WHERE created_at >= ${dayStartedAt}`[0];
     const bot = botId
       ? this.sql<Row>`SELECT
-          COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
+          SUM(CASE WHEN pricing_status = 'unknown' THEN 1 ELSE 0 END) AS unpriced_requests,
+      SUM(CASE WHEN settled = 0 THEN 1 ELSE 0 END) AS pending_requests,
+      COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
           COALESCE(SUM(input_units), 0) AS input_units,
           COALESCE(SUM(output_units), 0) AS output_units
           FROM usage_events WHERE created_at >= ${dayStartedAt} AND bot_id = ${botId}`[0]
       : undefined;
     const task = taskId
       ? this.sql<Row>`SELECT
-          COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
+          SUM(CASE WHEN pricing_status = 'unknown' THEN 1 ELSE 0 END) AS unpriced_requests,
+      SUM(CASE WHEN settled = 0 THEN 1 ELSE 0 END) AS pending_requests,
+      COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
           COALESCE(SUM(input_units), 0) AS input_units,
           COALESCE(SUM(output_units), 0) AS output_units
           FROM usage_events WHERE task_id = ${taskId}`[0]
       : undefined;
     const overallServices = this.sql<Row>`SELECT service,
+      SUM(CASE WHEN pricing_status = 'unknown' THEN 1 ELSE 0 END) AS unpriced_requests,
+      SUM(CASE WHEN settled = 0 THEN 1 ELSE 0 END) AS pending_requests,
       COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
       COALESCE(SUM(input_units), 0) AS input_units,
       COALESCE(SUM(output_units), 0) AS output_units
@@ -158,7 +172,9 @@ export class WorkspaceTasks {
       GROUP BY service`;
     const botServices = botId
       ? this.sql<Row>`SELECT service,
-          COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
+          SUM(CASE WHEN pricing_status = 'unknown' THEN 1 ELSE 0 END) AS unpriced_requests,
+      SUM(CASE WHEN settled = 0 THEN 1 ELSE 0 END) AS pending_requests,
+      COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
           COALESCE(SUM(input_units), 0) AS input_units,
           COALESCE(SUM(output_units), 0) AS output_units
           FROM usage_events WHERE created_at >= ${dayStartedAt} AND bot_id = ${botId}
@@ -166,7 +182,9 @@ export class WorkspaceTasks {
       : [];
     const taskServices = taskId
       ? this.sql<Row>`SELECT service,
-          COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
+          SUM(CASE WHEN pricing_status = 'unknown' THEN 1 ELSE 0 END) AS unpriced_requests,
+      SUM(CASE WHEN settled = 0 THEN 1 ELSE 0 END) AS pending_requests,
+      COALESCE(SUM(estimated_usd), 0) AS estimated_usd,
           COALESCE(SUM(input_units), 0) AS input_units,
           COALESCE(SUM(output_units), 0) AS output_units
           FROM usage_events WHERE task_id = ${taskId}

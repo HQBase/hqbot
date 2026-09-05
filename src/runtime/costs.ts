@@ -42,6 +42,7 @@ export function estimateModelUsage(input: {
   );
 
   return {
+    ...(!rates ? { unpriced: true } : {}),
     botId: input.botId,
     taskId: input.taskId,
     model: input.model,

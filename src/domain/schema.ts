@@ -227,6 +227,13 @@ export const schemaMigrations: readonly SchemaMigration[] = [
       "ALTER TABLE tasks ADD COLUMN work_state TEXT",
       "ALTER TABLE tasks ADD COLUMN wake_at TEXT"
     ]
+  },
+  {
+    version: 11,
+    statements: [
+      "ALTER TABLE usage_events ADD COLUMN pricing_status TEXT NOT NULL DEFAULT 'known'",
+      "ALTER TABLE usage_events ADD COLUMN settled INTEGER NOT NULL DEFAULT 1"
+    ]
   }
 ];
 

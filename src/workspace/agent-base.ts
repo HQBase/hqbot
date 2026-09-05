@@ -11,12 +11,13 @@ import type {
   UsageInput,
   WorkspaceSnapshot
 } from "../domain/types";
-import type { ModelUsageDto, ResourceUsageDto } from "../runtime/types";
+import type { ModelReservationDto, ModelUsageDto, ResourceUsageDto } from "../runtime/types";
 import { WorkspaceAuth } from "./auth";
 import type { WorkspaceAutomations } from "./automations";
 import { checkSpendPolicy, positiveNumber } from "./budgets";
 import { WorkspaceCatalog } from "./catalog";
 import { migrateWorkspace } from "./migrations";
+import { reserveModelRequest } from "./model-budget";
 import { readWorkspaceSnapshot } from "./snapshot";
 import type { Sql } from "./sql";
 import { WorkspaceTasks } from "./tasks";
@@ -242,7 +243,22 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     return true;
   }
 
+  reserveModelRequest(input: ModelReservationDto): void {
+    this.ctx.storage.transactionSync(() =>
+      reserveModelRequest(this.db, this.env, this.catalog, this.tasks, input)
+    );
+    this.changed();
+  }
+
   recordUsage(usage: ModelUsageDto | UsageInput): void {
+    if ("eventId" in usage && usage.eventId) {
+      this
+        .db`UPDATE usage_events SET input_units = ${usage.inputTokens}, output_units = ${usage.outputTokens},
+        estimated_usd = ${usage.estimatedCostMicroUsd / 1_000_000}, pricing_status = ${usage.unpriced ? "unknown" : "known"}, settled = 1
+        WHERE id = ${usage.eventId} AND bot_id = ${usage.botId} AND settled = 0`;
+      this.changed();
+      return;
+    }
     const input: UsageInput =
       "estimatedCostMicroUsd" in usage
         ? {

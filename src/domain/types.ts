@@ -120,6 +120,8 @@ export interface UsageEvent {
 }
 
 export interface CostTotal {
+  unpricedRequests?: number;
+  pendingRequests?: number;
   estimatedUsd: number;
   inputUnits: number;
   outputUnits: number;

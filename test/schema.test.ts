@@ -17,7 +17,7 @@ describe("schema migrations", () => {
     expect(pendingMigrations([1, 2, 3, 4, 5, 6, 7])).toEqual(schemaMigrations.slice(7));
     expect(pendingMigrations([1, 2, 3, 4, 5, 6, 7, 8])).toEqual(schemaMigrations.slice(8));
     expect(pendingMigrations([1, 2, 3, 4, 5, 6, 7, 8, 9])).toEqual(schemaMigrations.slice(9));
-    expect(pendingMigrations([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])).toEqual([]);
+    expect(pendingMigrations([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])).toEqual(schemaMigrations.slice(10));
   });
 
   it("keeps versions ordered and unique", () => {

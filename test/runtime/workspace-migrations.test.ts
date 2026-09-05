@@ -145,7 +145,7 @@ describe("workspace migrations", () => {
     ).toBeUndefined();
     expect(database.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual(
       {
-        version: 10
+        version: 11
       }
     );
   });

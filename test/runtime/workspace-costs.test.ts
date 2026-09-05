@@ -34,7 +34,9 @@ describe("workspace cost snapshot", () => {
         input_units REAL NOT NULL,
         output_units REAL NOT NULL,
         estimated_usd REAL NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        pricing_status TEXT NOT NULL DEFAULT 'known',
+        settled INTEGER NOT NULL DEFAULT 1
       );
       CREATE TABLE bots (id TEXT PRIMARY KEY);
       CREATE TABLE routines (bot_id TEXT NOT NULL, active INTEGER NOT NULL);
@@ -48,7 +50,9 @@ describe("workspace cost snapshot", () => {
 
   it("separates AI tokens and computer seconds for each scope", () => {
     const today = new Date().toISOString();
-    const insert = database.prepare("INSERT INTO usage_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    const insert = database.prepare(
+      "INSERT INTO usage_events (id, bot_id, task_id, service, input_units, output_units, estimated_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    );
     insert.run("ai-a", "bot-a", "task-a", "workers-ai", 120, 30, 0.01, today);
     insert.run("sandbox-a", "bot-a", "task-a", "sandbox", 300, 0, 0.006168, today);
     insert.run("ai-b", "bot-b", "task-b", "workers-ai", 80, 20, 0.03, today);

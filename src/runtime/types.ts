@@ -41,7 +41,19 @@ export interface WorkspaceRoutineDto {
   nextRunAt: string;
 }
 
+export interface ModelReservationDto {
+  eventId: string;
+  botId: string;
+  taskId: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostMicroUsd: number;
+  unpriced: boolean;
+}
+
 export interface ModelUsageDto {
+  eventId?: string;
+  unpriced?: boolean;
   botId: string;
   taskId: string | null;
   model: HQBotModelId;
@@ -101,6 +113,7 @@ export interface WorkspaceAgentRpc {
   setTaskSubmission(taskId: string, submissionId: string): Promise<void>;
   syncTaskState(taskId: string, workState: string, wakeAt: string | null): Promise<void>;
   cancelTask(taskId: string): Promise<boolean>;
+  reserveModelRequest(input: ModelReservationDto): Promise<void>;
   recordUsage(usage: ModelUsageDto): Promise<void>;
   recordResourceUsage(usage: ResourceUsageDto): Promise<void>;
   markInteraction(
