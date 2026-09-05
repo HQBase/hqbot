@@ -170,7 +170,9 @@ describe("HQBot Worker authentication", () => {
       { version: 7 },
       { version: 8 },
       { version: 9 },
-      { version: 10 }
+      { version: 10 },
+      { version: 11 },
+      { version: 12 }
     ]);
     expect(await storage.exec("SELECT name FROM pragma_table_info('owner') ORDER BY cid")).toEqual(
       expect.arrayContaining([{ name: "username" }, { name: "password_hash" }])

@@ -23,14 +23,14 @@ export class TaskSupervision {
   ) {}
 
   configure(taskId: string, goal: string, criteria?: TaskCriterion[]): void {
+    if (criteria?.length && new Set(criteria.map((item) => item.id)).size !== criteria.length)
+      throw new Error("Completion criteria must have unique IDs");
     const value = JSON.stringify(
       criteria?.length ? criteria : [{ id: "result", description: goal }]
     );
     this
       .sql`INSERT OR IGNORE INTO hqbot_task_plans (task_id, criteria) VALUES (${taskId}, ${value})`;
     if (criteria?.length) {
-      const ids = new Set(criteria.map((item) => item.id));
-      if (ids.size !== criteria.length) throw new Error("Completion criteria must have unique IDs");
       const previous = this
         .sql<Row>`SELECT criteria, criteria_defined FROM hqbot_task_plans WHERE task_id = ${taskId}`[0];
       if (previous?.criteria_defined === 1 && text(previous, "criteria") !== value)

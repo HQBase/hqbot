@@ -24,6 +24,16 @@ export function repeatedStepResult(ctx: PrepareStepContext): boolean {
 }
 
 export function checkpointStep(ctx: PrepareStepContext, maxSteps: number): StepConfig | undefined {
+  if (
+    ctx.steps.at(-1)?.toolResults.some((result) => {
+      if (result.toolName !== "manage_task" || !result.output || typeof result.output !== "object")
+        return false;
+      return ["scheduled", "needs_user", "done"].includes(
+        String(Reflect.get(result.output, "state"))
+      );
+    })
+  )
+    return { toolChoice: "none" } as unknown as StepConfig;
   if (ctx.stepNumber >= Math.max(0, maxSteps - 3))
     return {
       activeTools: ["manage_task"],

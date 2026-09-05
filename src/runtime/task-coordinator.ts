@@ -86,6 +86,7 @@ export class TaskCoordinator {
     const taskId = current?.taskId ?? crypto.randomUUID();
     const generation = (current?.generation ?? 0) + 1;
     const createdAt = current?.createdAt ?? transitionAt;
+    this.options.supervisor.configure(taskId, goal, input.criteria);
     if (input.action === "needs_user") {
       const work = this.transition(predecessor, {
         taskId,
@@ -103,7 +104,6 @@ export class TaskCoordinator {
       if (!work) throw new Error("The task changed before its checkpoint was saved");
       if (current?.scheduleId)
         await this.options.cancelSchedule(current.scheduleId).catch(() => false);
-      this.options.supervisor.configure(work.taskId, goal, input.criteria);
       await this.syncProjection(work);
       await this.options.workspaceAgent.markInteraction(
         this.options.botId,
@@ -114,6 +114,7 @@ export class TaskCoordinator {
     }
 
     const scheduled = await this.scheduleWork({
+      taskId,
       checkpoint: input.checkpoint,
       current,
       goal,
@@ -121,7 +122,6 @@ export class TaskCoordinator {
       state: "scheduled",
       wakeAt: new Date(Date.now() + 1_000)
     });
-    this.options.supervisor.configure(scheduled.taskId, goal, input.criteria);
     return scheduled;
   }
 
@@ -137,6 +137,7 @@ export class TaskCoordinator {
   }
 
   private async scheduleWork(input: {
+    taskId?: string;
     checkpoint: string;
     current: ActiveWork | null;
     goal: string;
@@ -149,7 +150,7 @@ export class TaskCoordinator {
       throw new Error("wakeAt must be a future ISO date and time");
     }
     const transitionAt = new Date().toISOString();
-    const taskId = current?.taskId ?? crypto.randomUUID();
+    const taskId = input.taskId ?? current?.taskId ?? crypto.randomUUID();
     const generation = (current?.generation ?? 0) + 1;
     const createdAt = current?.createdAt ?? transitionAt;
     const payload: WorkResumePayload = {

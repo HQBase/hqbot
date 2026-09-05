@@ -19,7 +19,7 @@ function runningWork(): ActiveWork {
   };
 }
 
-function continuationHarness(submitError?: Error) {
+function continuationHarness(submitError?: Error, configure = vi.fn()) {
   let current = runningWork();
   const scheduleResume = vi.fn(async () => ({ id: "resume-1" }));
   const submitResume = submitError
@@ -70,7 +70,7 @@ function continuationHarness(submitError?: Error) {
   };
   const tasks = new TaskCoordinator({
     supervisor: {
-      configure: vi.fn(),
+      configure,
       verify: vi.fn(),
       observe: () => null,
       retryDelay: () => null
@@ -93,6 +93,25 @@ function continuationHarness(submitError?: Error) {
 }
 
 describe("task coordinator", () => {
+  it("rejects changed completion criteria before saving or scheduling work", async () => {
+    const runtime = continuationHarness(
+      undefined,
+      vi.fn(() => {
+        throw new Error("Completion criteria are already saved for this task");
+      })
+    );
+    const previous = runtime.current();
+    for (const action of ["continue", "needs_user"] as const)
+      await expect(
+        runtime.tasks.manage({
+          action,
+          checkpoint: "Changed criteria",
+          criteria: [{ id: "other", description: "Other" }]
+        })
+      ).rejects.toThrow("already saved");
+    expect(runtime.current()).toBe(previous);
+    expect(runtime.scheduleResume).not.toHaveBeenCalled();
+  });
   it("rejects manage_task before it enters the queue when Bash owns the task", () => {
     const tasks = new TaskCoordinator({
       supervisor: {
