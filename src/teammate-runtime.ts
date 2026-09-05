@@ -150,6 +150,14 @@ export abstract class TeammateRuntime extends Think<Env> {
     });
     return this.permissions;
   }
+  async restoreComputerBackup(id: string): Promise<void> {
+    if (this.tasks.active()) throw new Error("Stop the active task before restoring a backup");
+    await this.computerRuntime.restoreBackup(id);
+  }
+  saveComputerBackup(): Promise<void> {
+    return this.computerRuntime.checkpoint();
+  }
+
   getComputerPolicy() {
     return this.computerPermissions.get();
   }

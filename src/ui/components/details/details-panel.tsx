@@ -2,6 +2,7 @@ import type { BotSkill } from "../../../domain/types";
 import type { WorkspaceController } from "../../hooks/use-workspace";
 import { ActionHistoryPanel } from "./action-history-panel";
 import { AgentSettingsPanel } from "./agent-settings-panel";
+import { BackupsPanel } from "./backups-panel";
 import { ComputerPermissionsPanel } from "./computer-permissions-panel";
 import { CostPanel } from "./cost-panel";
 import { DesktopView } from "./desktop-view";
@@ -53,6 +54,7 @@ export function DetailsPanel({
           botId={selectedBot.id}
           needsApproval={selectedBot.status === "needs_approval"}
         />
+        <BackupsPanel botId={selectedBot.id} />
         <ActionHistoryPanel botId={selectedBot.id} />
         <CostPanel budgetUsd={selectedBot.dailyBudgetUsd} costs={snapshot.costs} />
       </div>

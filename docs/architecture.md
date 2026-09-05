@@ -201,3 +201,15 @@ The model selector reads the current Workers AI catalog and shows non-experiment
 models that advertise function calling. HQBot needs function calling for its computer, files, and
 connected tools. It uses `@cf/zai-org/glm-5.3-flash` by default and falls back to that model when
 another selected model cannot complete a call.
+
+## Controls for autonomous work
+
+See [Autonomous work and recovery](autonomous-work.md) for completion criteria, budget reservations,
+context compaction, approval identity, and validation requirements. Each model attempt reserves
+budget before the provider call, including fallback calls. Failed attempts keep a conservative
+reservation when their charge is unknown. Models with missing prices also have request and token
+limits. These estimates do not establish a precise Cloudflare bill.
+
+The default turn limit is 40 steps. Before that limit, the model must finish or save a checkpoint.
+An active task cannot finish from a text reply alone. It must record checks for each saved completion
+criterion, and required saved files must exist in the owner-scoped catalog and R2.

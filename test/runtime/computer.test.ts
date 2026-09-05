@@ -678,7 +678,7 @@ describe("teammate computer lifecycle", () => {
       "pkill -TERM -f '[g]oogle-chrome' || true; sleep 1",
       expect.anything()
     );
-    expect(artifacts.put).toHaveBeenCalledOnce();
+    expect(artifacts.put).toHaveBeenCalledTimes(2);
   });
 
   it("stops a managed process when its next computer reservation is over budget", async () => {

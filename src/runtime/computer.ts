@@ -1,4 +1,5 @@
 import type { Sandbox } from "@cloudflare/sandbox";
+import { backupKey, CHECKPOINT_STATE_KEY, saveComputerCheckpoint } from "./computer-backups";
 import { type ComputerControlLease, ComputerControlManager } from "./computer-control";
 import { COMPUTER_LEASE_KEY, type ComputerLease, ComputerLeaseManager } from "./computer-lease";
 import type {
@@ -8,7 +9,6 @@ import type {
   ComputerStatus
 } from "./computer-types";
 import {
-  checkpointComputer,
   isComputerPrepared,
   openLinuxDesktop,
   restoreComputer,
@@ -20,7 +20,7 @@ import {
 const RUNNING_KEY = "hqbot:computer:running";
 const STARTED_AT_KEY = "hqbot:computer:started-at";
 const OWNER_CONTROL_KEY = "hqbot:computer:owner-control-until";
-const CHECKPOINT_KEY = "hqbot:computer:checkpoint";
+const CHECKPOINT_KEY = CHECKPOINT_STATE_KEY;
 const OWNER_CONTROL_MS = 90_000;
 
 export class TeammateComputer {
@@ -100,25 +100,20 @@ export class TeammateComputer {
   }
 
   private async statusNow(): Promise<ComputerStatus> {
-    const checkpoint = await this.options.storage.get<{ updatedAt: string }>(CHECKPOINT_KEY);
+    const checkpoint = await this.options.storage.get<{ updatedAt: string; error?: string }>(
+      CHECKPOINT_KEY
+    );
     const running = Boolean(await this.options.storage.get<boolean>(RUNNING_KEY));
     const lease = await this.controls.read();
     const ownerControl = Boolean(
       running && lease?.state === "active" && lease.expiresAt > Date.now()
     );
-    if (!running) {
-      return {
-        checkpointAt: checkpoint?.updatedAt ?? null,
-        ownerControl,
-        resources: null,
-        running: false
-      };
-    }
     return {
+      ...(checkpoint?.error ? { checkpointError: checkpoint.error } : {}),
       checkpointAt: checkpoint?.updatedAt ?? null,
       ownerControl,
       resources: null,
-      running: true
+      running
     };
   }
 
@@ -126,17 +121,37 @@ export class TeammateComputer {
     return this.controls.run(() => this.checkpointNow(clean));
   }
 
-  private async checkpointNow(clean = false): Promise<void> {
+  private async checkpointNow(clean = false, preserveId?: string): Promise<void> {
     if (!(await this.options.storage.get<boolean>(RUNNING_KEY))) return;
-    const result = await checkpointComputer(
-      await this.prepare(),
-      this.options.env.ARTIFACTS,
-      this.options.botId,
-      clean
-    );
-    await this.options.storage.put(CHECKPOINT_KEY, {
-      size: result.size,
-      updatedAt: new Date().toISOString()
+    await saveComputerCheckpoint({
+      sandbox: await this.prepare(),
+      bucket: this.options.env.ARTIFACTS,
+      storage: this.options.storage,
+      botId: this.options.botId,
+      clean,
+      preserveId
+    });
+  }
+
+  restoreBackup(id: string): Promise<void> {
+    const key = backupKey(this.options.botId, id);
+    return this.controls.run(async () => {
+      if (this.options.hasManagedProcess?.())
+        throw new Error("Stop the current command before restoring a backup");
+      if (!(await this.options.env.ARTIFACTS.head(key))) throw new Error("Backup not found");
+      await this.checkpointNow(true, id);
+      await this.stopNow(false);
+      const sandbox = this.sandbox();
+      await sandbox.setKeepAlive(true);
+      try {
+        await restoreComputer(sandbox, this.options.env.ARTIFACTS, this.options.botId, key);
+        await this.options.storage.put(RUNNING_KEY, true);
+        await this.leases.touch({ eventId: `restore:${crypto.randomUUID()}`, taskId: null });
+        await this.checkpointNow(false);
+      } catch (cause) {
+        await this.stopNow(false, true).catch(() => undefined);
+        throw cause;
+      }
     });
   }
 

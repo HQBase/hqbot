@@ -68,7 +68,8 @@ export function DesktopView({ active = false, botId }: { active?: boolean; botId
       try {
         const status = await api<ComputerStatus>(endpoint);
         applyStatus(status);
-        if (!quiet || !status.running) setError("");
+        if (status.checkpointError) setError(status.checkpointError);
+        else if (!quiet || !status.running) setError("");
       } catch (cause) {
         if (!quiet) onError(errorMessage(cause, "The computer status could not load"));
       } finally {

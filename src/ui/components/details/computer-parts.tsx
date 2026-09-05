@@ -16,6 +16,7 @@ export interface ComputerResources {
 }
 
 export interface ComputerStatus {
+  checkpointError?: string;
   ownerControl: boolean;
   resources: ComputerResources | null;
   running: boolean;

@@ -104,3 +104,11 @@ computer-level readings and HQBot estimates. The Cloudflare dashboard and bill s
 The computer has no public VNC endpoint. An authenticated owner session protects its same-origin
 WebSocket. It receives no Cloudflare or MCP credentials. Public Internet access supports normal
 Linux tools, Chrome, and GUI applications. Treat downloaded programs and content as untrusted.
+
+## Backup versions
+
+Computer backups keeps the latest 10 versions in private R2 storage. The owner can save, export, or
+restore a version from the teammate details. Exports include saved browser sessions. The owner must
+stop an active task before restoring. HQBot saves the current workspace first and extracts the
+selected archive in a separate directory. A failed extraction preserves the saved backup and current
+files. Backup failures stay visible in the computer status and backup panel.

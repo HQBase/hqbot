@@ -6,6 +6,7 @@ export type ComputerControlPayload = { stop?: boolean; token: string };
 
 export interface ComputerStatus {
   checkpointAt: string | null;
+  checkpointError?: string;
   ownerControl: boolean;
   resources: ComputerResources | null;
   running: boolean;

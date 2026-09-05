@@ -125,10 +125,13 @@ export async function isComputerPrepared(sandbox: LinuxDesktopSandbox): Promise<
 export async function restoreComputer(
   sandbox: LinuxDesktopSandbox,
   bucket: CheckpointBucket,
-  botId: string
+  botId: string,
+  sourceKey = COMPUTER_CHECKPOINT_KEY(botId)
 ): Promise<{ restored: boolean; size: number }> {
-  const checkpoint = await bucket.get(COMPUTER_CHECKPOINT_KEY(botId));
+  const checkpoint = await bucket.get(sourceKey);
   if (!checkpoint) {
+    if (sourceKey !== COMPUTER_CHECKPOINT_KEY(botId))
+      throw new Error("The selected backup is no longer available");
     await sandbox.exec(`mkdir -p /workspace/hqbot && touch ${PREPARED_PATH}`);
     return { restored: false, size: 0 };
   }
@@ -181,7 +184,13 @@ export async function checkpointComputer(
   try {
     if (result.exitCode !== 0) throw new Error("The computer checkpoint could not be created");
     const file = await sandbox.readFile(CHECKPOINT_PATH, { encoding: "none" });
-    await bucket.put(COMPUTER_CHECKPOINT_KEY(botId), file.content, {
+    const versionKey = `teammates/${botId}/computer/backups/${new Date().toISOString()}-${crypto.randomUUID()}.tar.gz`;
+    await bucket.put(versionKey, file.content, {
+      httpMetadata: { contentType: "application/gzip" }
+    });
+    // Read a second stream after the version is durable. Tee can buffer a large archive in memory.
+    const latest = await sandbox.readFile(CHECKPOINT_PATH, { encoding: "none" });
+    await bucket.put(COMPUTER_CHECKPOINT_KEY(botId), latest.content, {
       httpMetadata: { contentType: "application/gzip" }
     });
     return { size: file.size };
