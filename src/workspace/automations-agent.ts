@@ -1,10 +1,10 @@
 import { getAgentByName } from "agents";
 import type { AutomationInput, RoutineRun } from "../domain/automations";
 import type { HQBotTeammate } from "../teammate";
-import { WorkspaceProjectsAgent } from "./projects-agent";
 import { WorkspaceRoutines } from "./routines";
+import { WorkspaceTeamWorkAgent } from "./team-work-agent";
 
-export class WorkspaceAutomationsAgent extends WorkspaceProjectsAgent {
+export class WorkspaceAutomationsAgent extends WorkspaceTeamWorkAgent {
   protected get routines() {
     return new WorkspaceRoutines(this.db);
   }

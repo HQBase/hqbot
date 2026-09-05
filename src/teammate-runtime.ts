@@ -57,6 +57,7 @@ export abstract class TeammateRuntime extends Think<Env> {
       modelId: id,
       botId: this.name,
       taskId,
+      teamWorkId: () => this.currentTeamWorkId(),
       workspace: this.workspaceAgent,
       rates: async () => {
         this.modelCatalog ??= listHQBotModels(this.env.AI);
@@ -332,6 +333,10 @@ export abstract class TeammateRuntime extends Think<Env> {
       serverExists: (id) => Boolean(this.getMcpServers().servers[id])
     });
     return this.integrations;
+  }
+
+  protected currentTeamWorkId(): Promise<string | undefined> {
+    return Promise.resolve(undefined);
   }
 
   protected currentTaskId(): string | null {

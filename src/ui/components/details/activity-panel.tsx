@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { ActionHistoryPanel } from "./action-history-panel";
 import { TaskProgressPanel } from "./task-progress-panel";
+import { TeamProgress } from "./team-progress";
 
 export function ActivityPanel({ botId, revision }: { botId: string; revision?: string }) {
   return (
@@ -14,6 +15,7 @@ export function ActivityPanel({ botId, revision }: { botId: string; revision?: s
         </TabsTrigger>
       </TabsList>
       <TabsContent value="progress">
+        <TeamProgress botId={botId} />
         <TaskProgressPanel botId={botId} revision={revision} />
       </TabsContent>
       <TabsContent value="actions">

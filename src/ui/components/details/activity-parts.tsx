@@ -1,6 +1,11 @@
 import { Badge } from "../ui/badge";
 
 const labels: Record<string, string> = {
+  active: "Working",
+  queued: "Queued",
+  submitted: "Working",
+  returned: "Needs review",
+  reviewed: "Reviewed",
   done: "Done",
   completed: "Complete",
   verified: "Verified",

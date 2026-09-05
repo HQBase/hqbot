@@ -76,6 +76,7 @@ export function botFromRow(row: Row): BotTeammate {
     title: text(row, "title"),
     description: text(row, "description"),
     brief: text(row, "brief"),
+    coordinationRole: row.coordination_role === "chief" ? "chief" : "member",
     pinned: row.pinned === 1,
     hidden: row.hidden === 1,
     status,

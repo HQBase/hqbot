@@ -68,7 +68,12 @@ export abstract class TeammateTeamRuntime extends TeammateMessagesRuntime {
       if (!(await this.workspaceAgent.canAccessBot(metadata.userId, this.name, true)))
         throw new Error("The member no longer has access to this teammate");
       await this.ctx.storage.put(teamActorKey, metadata.userId);
-    } else if (!metadata?.source || metadata.source === "project" || metadata.source === "routine")
+    } else if (
+      !metadata?.source ||
+      metadata.source === "project" ||
+      metadata.source === "routine" ||
+      metadata.source === "team-work"
+    )
       await this.ctx.storage.delete(teamActorKey);
     if (!(await this.teamActorAllowed()))
       throw new Error(

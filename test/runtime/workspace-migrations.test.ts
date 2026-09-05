@@ -186,4 +186,29 @@ describe("workspace migrations", () => {
     expect(database.prepare("SELECT * FROM tasks").all()).toEqual(before);
     expect(database.prepare("SELECT * FROM task_projections").all()).toEqual([]);
   });
+  it("updates version 23 with a stable group lead and preserves private resources", () => {
+    database = new DatabaseSync(":memory:");
+    database.exec("PRAGMA foreign_keys=ON");
+    applyThrough(database, 23);
+    database.exec(`INSERT INTO bots (id,name,title,description,brief,created_at,updated_at) VALUES
+      ('one','One','One','','','2026-09-05','2026-09-05'), ('two','Two','Two','','','2026-09-05','2026-09-05');
+      INSERT INTO projects(id,name,description,revision,created_at,updated_at) VALUES ('group','Group','',1,'2026-09-05','2026-09-05');
+      INSERT INTO project_teammates(project_id,bot_id) VALUES ('group','two'), ('group','one');
+      INSERT INTO memories(id,bot_id,content,created_at) VALUES ('private','two','Private preference','2026-09-05');`);
+    migrateWorkspace(sqlFor(database));
+    migrateWorkspace(sqlFor(database));
+    expect(database.prepare("SELECT lead_bot_id FROM projects").get()).toEqual({
+      lead_bot_id: "one"
+    });
+    expect(database.prepare("SELECT coordination_role FROM bots").all()).toEqual([
+      { coordination_role: "member" },
+      { coordination_role: "member" }
+    ]);
+    expect(database.prepare("SELECT bot_id,content FROM memories").get()).toEqual({
+      bot_id: "two",
+      content: "Private preference"
+    });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database.prepare("SELECT * FROM team_work").all()).toEqual([]);
+  });
 });

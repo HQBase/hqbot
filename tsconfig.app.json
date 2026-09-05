@@ -30,6 +30,7 @@
     "src/domain/push.ts",
     "src/domain/demonstrations.ts",
     "src/domain/skills.ts",
-    "src/domain/types.ts"
+    "src/domain/types.ts",
+    "src/domain/team-work.ts"
   ]
 }

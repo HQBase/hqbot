@@ -7,6 +7,7 @@ export const projectInput = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(2000).default(""),
   botIds: z.array(z.string().min(1).max(200)).min(1).max(12),
+  leadBotId: z.string().min(1).max(200).optional(),
   resources: z
     .array(
       z.object({

@@ -47,6 +47,10 @@
     "src/workspace/snapshot.ts",
     "src/workspace/tasks.ts",
     "src/workspace/task-projection.ts",
-    "test/env.d.ts"
+    "test/env.d.ts",
+    "src/workspace/team-work-store.ts",
+    "src/workspace/team-work.ts",
+    "src/workspace/team-work-delivery.ts",
+    "src/workspace/chief.ts"
   ]
 }

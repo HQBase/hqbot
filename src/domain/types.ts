@@ -9,6 +9,7 @@ export type TaskStatus =
   | "failed";
 
 export interface BotTeammate {
+  coordinationRole?: "chief" | "member";
   id: string;
   name: string;
   title: string;

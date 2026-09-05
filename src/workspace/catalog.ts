@@ -64,7 +64,9 @@ export class WorkspaceCatalog {
   private listBotsByVisibility(hidden: boolean): BotTeammate[] {
     return this.sql<Row>`SELECT * FROM bots
       WHERE hidden = ${hidden ? 1 : 0}
-      ORDER BY pinned DESC, COALESCE(last_interacted_at, created_at) DESC`.map(botFromRow);
+      ORDER BY (coordination_role = 'chief') DESC, pinned DESC, COALESCE(last_interacted_at, created_at) DESC`.map(
+      botFromRow
+    );
   }
 
   getBot(id: string): BotTeammate | null {

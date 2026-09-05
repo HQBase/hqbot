@@ -21,6 +21,12 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
     await agent.readNotification(notification[0]);
     return json({ saved: true });
   }
+  const teamProgress = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/team-work$/u);
+  if (request.method === "GET" && teamProgress?.[0]) {
+    const work = await agent.teamWorkForBot(teamProgress[0]);
+    const names = Object.fromEntries((await agent.listBots()).map((bot) => [bot.id, bot.name]));
+    return json({ work, names });
+  }
   const progress = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/task-progress$/u);
   if (request.method === "GET" && progress?.[0])
     return json(await (await teammate(env, progress[0])).getTaskProgress());

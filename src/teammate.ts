@@ -192,6 +192,17 @@ export class HQBotTeammate extends TeammateLocalRuntime {
       return { toolChoice: "none" } as unknown as StepConfig;
     const checkpoint = checkpointStep(ctx, this.turnStepLimit);
     if (checkpoint && !this.processes.active()) return checkpoint;
+    const coordinationChanged = ctx.steps
+      .at(-1)
+      ?.toolResults.some(
+        (result) =>
+          result.toolName === "coordinate" &&
+          typeof result.output === "object" &&
+          result.output !== null &&
+          (("waiting" in result.output && result.output.waiting) ||
+            ("state" in result.output && result.output.state === "completed"))
+      );
+    if (coordinationChanged) return { toolChoice: "none" } as unknown as StepConfig;
     const scheduleChanged = ctx.steps
       .at(-1)
       ?.toolResults.some(

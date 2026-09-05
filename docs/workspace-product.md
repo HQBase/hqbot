@@ -31,9 +31,20 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   unless the owner explicitly grants a matching rule; server read-only labels grant no authority.
   Computer tools retain exact-action receipts and unknown-outcome handling. Agents cannot change
   their own permission rules.
-- Projects explicitly select teammates and shared files or skills. Computer sessions and logins
-  stay separate. Group conversations and direct handoffs carry bounded context, ownership, and
-  durable delivery IDs. Stop, budget limits, and delegation depth limits also apply to handoffs.
+- Chief of Staff is the default pinned teammate for coordinating work. A team task has one saved
+  owner, completion criteria, a deadline, and a shared model cost limit. Model reservations count before requests start; unknown model prices block team work. Computer charges remain under the existing teammate and workspace limits. The owner gives specialists separate
+  assignments, reviews their returned evidence, and produces the final answer. Specialists cannot
+  pass the same assignment onward. The runtime rejects completion while assignments remain open
+  or results have not been reviewed. Delivery retries use stable IDs. Stopping the owner stops its
+  team task. Direct conversations with specialists remain available.
+- Projects explicitly select teammates and shared files or skills. Each group selects a lead;
+  a new group request goes to that lead by default. Computer sessions, memory, integrations, and
+  logins stay with each teammate. Chief of Staff can see the active roster and send bounded work
+  requests, but it cannot read private conversations or grant permissions to another agent.
+- Conversation info uses one consistent navigation list: Files, Integrations, Memory, Skills,
+  Routines, Permissions, Activity, Cost, and Agent settings. Activity contains Progress and Actions
+  tabs. Progress shows the current state, next wake, completion checks, and a readable timeline.
+  Actions show their outcome first; exact input, output, and record IDs are available on expansion.
 - Routines support intervals and calendar rules with an IANA time zone, editing, manual tests,
   pause/resume, and run history. Signed inbound events can start selected routines. Signature
   verification, timestamp checks where supported, replay protection, and bounded queues precede

@@ -23,6 +23,7 @@ export function budgetedModel(input: {
   modelId: HQBotModelId;
   botId: string;
   taskId: () => string | null;
+  teamWorkId?: () => Promise<string | undefined>;
   workspace: WorkspaceAgentRpc;
   rates: () => Promise<ModelTokenRates | null>;
 }): Exclude<LanguageModel, string> {
@@ -34,6 +35,7 @@ export function budgetedModel(input: {
       eventId: crypto.randomUUID(),
       botId: input.botId,
       taskId: input.taskId(),
+      teamWorkId: await input.teamWorkId?.(),
       inputTokens,
       outputTokens,
       unpriced: !rates,

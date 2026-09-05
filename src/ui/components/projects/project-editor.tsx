@@ -31,6 +31,8 @@ export function ProjectEditor({
   const [name, setName] = useState(project?.name ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [botIds, setBotIds] = useState(project?.botIds ?? []);
+  const [leadBotId, setLeadBotId] = useState(project?.leadBotId ?? project?.botIds[0] ?? "");
+  const selectedLead = botIds.includes(leadBotId) ? leadBotId : (botIds[0] ?? "");
   const [resources, setResources] = useState<ProjectInput["resources"]>(project?.resources ?? []);
   const [available, setAvailable] = useState<
     { kind: "file" | "skill"; id: string; botId: string; name: string }[]
@@ -76,6 +78,7 @@ export function ProjectEditor({
           name,
           description,
           botIds,
+          leadBotId: selectedLead,
           resources: resources.filter((item) => botIds.includes(item.botId))
         })
       });
@@ -144,6 +147,28 @@ export function ProjectEditor({
                   </label>
                 ))}
               </div>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="project-lead">Group lead</FieldLabel>
+              <select
+                id="project-lead"
+                value={selectedLead}
+                onChange={(event) => setLeadBotId(event.target.value)}
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                disabled={!botIds.length}
+              >
+                {!botIds.length && <option value="">Choose teammates first</option>}
+                {bots
+                  .filter((bot) => botIds.includes(bot.id))
+                  .map((bot) => (
+                    <option key={bot.id} value={bot.id}>
+                      {bot.name}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                The lead owns the final answer, assigns work, and checks each result.
+              </p>
             </Field>
             <Field>
               <FieldLabel>Shared files and skills</FieldLabel>

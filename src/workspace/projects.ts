@@ -18,6 +18,7 @@ export class WorkspaceProjects {
       name: text(row, "name"),
       description: text(row, "description"),
       revision: Number(row.revision),
+      leadBotId: text(row, "lead_bot_id"),
       createdAt: text(row, "created_at"),
       updatedAt: text(row, "updated_at"),
       botIds: this.sql<{
@@ -55,10 +56,18 @@ export class WorkspaceProjects {
           : this.catalog.listSkills(resource.botId).find((skill) => skill.id === resource.id);
       if (!exists) throw new Error("Shared resource not found");
     }
+    const leadBotId =
+      input.leadBotId ??
+      (current?.leadBotId && input.botIds.includes(current.leadBotId)
+        ? current.leadBotId
+        : input.botIds[0]);
+    if (!leadBotId || !input.botIds.includes(leadBotId))
+      throw new Error("The group lead must be a member");
     const id = current?.id ?? crypto.randomUUID();
     const stamp = now();
     this
       .sql`INSERT INTO projects (id, name, description, revision, created_at, updated_at) VALUES (${id}, ${input.name}, ${input.description}, 1, ${stamp}, ${stamp}) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, revision = projects.revision + 1, updated_at = excluded.updated_at`;
+    this.sql`UPDATE projects SET lead_bot_id = ${leadBotId} WHERE id = ${id}`;
     this.sql`DELETE FROM project_teammates WHERE project_id = ${id}`;
     this.sql`DELETE FROM project_resources WHERE project_id = ${id}`;
     for (const botId of input.botIds)

@@ -76,7 +76,12 @@ export function TeammateSidebar({
       project: null
     })),
     ...groups.map((project) => ({ id: project.id, time: project.updatedAt, bot: null, project }))
-  ].sort((a, b) => b.time.localeCompare(a.time));
+  ].sort(
+    (a, b) =>
+      Number(b.bot?.coordinationRole === "chief") - Number(a.bot?.coordinationRole === "chief") ||
+      Number(Boolean(b.bot?.pinned)) - Number(Boolean(a.bot?.pinned)) ||
+      b.time.localeCompare(a.time)
+  );
   const showArchived = archivedOpen || query.trim().length > 0;
 
   return (

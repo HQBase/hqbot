@@ -2,7 +2,8 @@ import type { ChatResponseResult } from "@cloudflare/think";
 import { automationTools } from "./runtime/automation-tool";
 import { teammateScheduledTasks } from "./runtime/schedules";
 import { teammateResponseText } from "./runtime/turn";
-import { activeDeliveryKey, TeammateProductRuntime } from "./teammate-product";
+import { TeammateCoordinationRuntime } from "./teammate-coordination";
+import { activeDeliveryKey } from "./teammate-product";
 
 const activeRunKey = "hqbot:active-routine-run";
 const startedRunKey = "hqbot:started-routine-run";
@@ -10,7 +11,7 @@ interface RunResult {
   text: string;
   failed: boolean;
 }
-export abstract class TeammateAutomationsRuntime extends TeammateProductRuntime {
+export abstract class TeammateAutomationsRuntime extends TeammateCoordinationRuntime {
   async getRoutineNextRun(id: string): Promise<string | null> {
     const schedules = await this.listSchedules();
     const match = schedules.find((schedule) => {
@@ -48,9 +49,9 @@ export abstract class TeammateAutomationsRuntime extends TeammateProductRuntime 
     const id = await this.ctx.storage.get<string>(activeRunKey);
     if (id && !(await this.workspaceAgent.routineRunForBot(id, this.name))) {
       await this.ctx.storage.delete(activeRunKey);
-      return false;
+      return super.otherInboundWork();
     }
-    return Boolean(id);
+    return Boolean(id) || super.otherInboundWork();
   }
   protected override productTools() {
     return {
@@ -68,6 +69,7 @@ export abstract class TeammateAutomationsRuntime extends TeammateProductRuntime 
     const run = await this.workspaceAgent.routineRunForBot(id, this.name);
     if (!run || !(await this.waitUntilStable({ timeout: 1 }))) return false;
     const current = await this.ctx.storage.get<string>(activeRunKey);
+    if (await this.currentTeamWorkId()) return false;
     if (current && current !== id && (await this.otherInboundWork())) return false;
     const group = await this.ctx.storage.get<string>(activeDeliveryKey);
     if (group && (await this.workspaceAgent.deliveryForBot(group, this.name))) return false;
@@ -128,6 +130,7 @@ export abstract class TeammateAutomationsRuntime extends TeammateProductRuntime 
   }
   protected override async productResponse(result: ChatResponseResult) {
     await super.productResponse(result);
+    if (await this.currentTeamWorkId()) return;
     const id = await this.ctx.storage.get<string>(activeRunKey);
     if (
       !id ||

@@ -4,6 +4,7 @@ import type { KnowledgeRpc } from "../domain/knowledge";
 import type { LocalDevice, LocalJob } from "../domain/local-devices";
 import type { HQBotModelId } from "../domain/models";
 import type { ProjectsRpc } from "../domain/projects";
+import type { TeamWorkRpc } from "../domain/team-work";
 import type { BotFile } from "../domain/types";
 import type { ActiveWork } from "./work";
 
@@ -54,6 +55,7 @@ export interface WorkspaceRoutineDto {
 }
 
 export interface ModelReservationDto {
+  teamWorkId?: string;
   eventId: string;
   botId: string;
   taskId: string | null;
@@ -64,6 +66,7 @@ export interface ModelReservationDto {
 }
 
 export interface ModelUsageDto {
+  teamWorkId?: string;
   eventId?: string;
   unpriced?: boolean;
   botId: string;
@@ -91,7 +94,7 @@ export interface SpendPolicyDto {
   reason: string | null;
 }
 
-export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc, AutomationsRpc {
+export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc, AutomationsRpc, TeamWorkRpc {
   getAdminPolicy(): Promise<AdminPolicy>;
   listLocalDevices(botId?: string): Promise<LocalDevice[]>;
   readLocalJob(botId: string, id: string): Promise<LocalJob | null>;

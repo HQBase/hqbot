@@ -19,7 +19,10 @@ export function GroupConversation({
   readOnly?: boolean;
 }) {
   const [messages, setMessages] = useState<ProjectMessage[]>([]);
-  const [recipients, setRecipients] = useState(project.botIds.slice(0, 6));
+  const recipients = [project.leadBotId ?? project.botIds[0]].filter((id): id is string =>
+    Boolean(id)
+  );
+  const lead = bots.find((bot) => bot.id === recipients[0]);
   const [prompt, setPrompt] = useState("");
   const [query, setQuery] = useState("");
   const [thread, setThread] = useState("");
@@ -140,8 +143,8 @@ export function GroupConversation({
             <div className="py-16 text-center">
               <h2 className="text-lg font-medium">Bring the team into the conversation</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-                Choose who should answer and describe the outcome. Teammates can pass work to each
-                other and bring their results back here.
+                Describe the outcome. The group lead assigns work, checks the results, and brings
+                one answer back here.
               </p>
             </div>
           )}
@@ -172,8 +175,6 @@ export function GroupConversation({
                     variant="ghost"
                     onClick={() => {
                       setReplyTo(message);
-                      if (message.senderBotId && project.botIds.includes(message.senderBotId))
-                        setRecipients([message.senderBotId]);
                     }}
                   >
                     {readOnly ? "Read reply" : "Reply"}
@@ -202,31 +203,11 @@ export function GroupConversation({
           className="flex shrink-0 flex-col gap-3 border-t bg-background px-5 py-4"
           onSubmit={(event) => void send(event)}
         >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Ask</span>
-            {bots
-              .filter((bot) => project.botIds.includes(bot.id))
-              .map((bot) => (
-                <Button
-                  size="sm"
-                  key={bot.id}
-                  type="button"
-                  variant={recipients.includes(bot.id) ? "secondary" : "ghost"}
-                  aria-pressed={recipients.includes(bot.id)}
-                  onClick={() =>
-                    setRecipients((current) =>
-                      current.includes(bot.id)
-                        ? current.filter((id) => id !== bot.id)
-                        : current.length < 6
-                          ? [...current, bot.id]
-                          : current
-                    )
-                  }
-                >
-                  @{bot.name}
-                </Button>
-              ))}
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Led by{" "}
+            <span className="font-medium text-foreground">{lead?.name ?? "the group lead"}</span> ·
+            One owner for the final answer
+          </p>
           {replyTo && (
             <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2 text-xs">
               <span className="truncate">Replying to: {replyTo.content}</span>
@@ -267,7 +248,7 @@ export function GroupConversation({
           <p className="text-xs text-muted-foreground">
             {busy
               ? "Sending…"
-              : "Each teammate replies when it is free. Its budget and permissions still apply."}
+              : "Your group lead coordinates the work. Each teammate keeps its own permissions."}
           </p>
         </form>
       )}
