@@ -8,3 +8,8 @@ coverage/
 *.tsbuildinfo
 *.log
 .DS_Store
+
+clients/apple/build/
+clients/android/.gradle/
+clients/android/**/build/
+clients/android/local.properties
