@@ -62,3 +62,7 @@ not establish continuous high-load performance or reliability for every connecte
 The notification inbox keeps completion, failure, and input requests in workspace storage. Browser
 alerts are optional and work while HQBot is open. They do not contain task prompts or results.
 Task progress shows saved criteria, milestones, and completion evidence in teammate details.
+
+Each turn supplies the current UTC time for scheduling. The agent calls a required computer tool
+once; the runtime creates its approval card. Finite tasks save their next checkpoint with a
+one-time schedule. They do not need a computer command only to read the clock.

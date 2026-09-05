@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 export function evaluationPrompt(run) {
   const criteria = `Save completion criteria with manage_task: id=report, description=Verified saved test report, artifactName=hqbot-${run.mode}.txt. Keep these criteria for this task.`;
-  const deliver = `Create /workspace/hqbot-${run.mode}.txt with the marker ${run.id}, actual UTC times, and a brief account of the checks you performed. Save it with upload_file, verify it, and finish with manage_task done and artifact evidence. Request approval for each computer action that needs it.`;
+  const deliver = `Create /workspace/hqbot/hqbot-${run.mode}.txt with the marker ${run.id}, actual UTC times, and a brief account of the checks you performed. Save it with upload_file, verify it, and finish with manage_task done and artifact evidence. Request approval for each computer action that needs it.`;
   if (run.mode === "smoke")
     return `Run the HQBot deployed acceptance test in this dedicated test teammate. ${criteria} Discover the connected public Cloudflare Documentation MCP server. Use it to find the official Durable Objects alarm documentation. Request approval for the exact remote call and wait. After approval, use the returned documentation in the report with its source URL. ${deliver} Do not use any other connection or personal data.`;
   return `Run a ${run.hours} hour autonomous endurance test. ${criteria} The fixed end time is ${run.endAt}. Until that time, save a new numbered milestone with the actual UTC time each hour and use schedule create_once for the next wake-up. Keep the same task and fixed end time. Each checkpoint must include the milestone number, all previous milestone times, and the next step so it survives compaction. Do not create recurring schedules. Do not finish early or keep an idle computer running. After the end time, ${deliver} Include every milestone time in the report. Do not use connected services or personal data.`;
@@ -181,7 +181,7 @@ async function main() {
       const { routine } = await api(`${root}/routines`, {
         name: "HQBot recovery test",
         intervalMinutes: 43200,
-        prompt: `Verify computer recovery in this dedicated test. Read /workspace/hqbot-smoke.txt after the owner restored its backup. Check the marker ${run.id}. Save criteria for artifactName=hqbot-recovery.txt, then write and upload that file with the checked marker and UTC time. Use manage_task done with evidence. Request approval for each required computer action. Do not use connected services.`
+        prompt: `Verify computer recovery in this dedicated test. Read /workspace/hqbot/hqbot-smoke.txt after the owner restored its backup. Check the marker ${run.id}. Save criteria for artifactName=hqbot-recovery.txt, then write and upload that file with the checked marker and UTC time. Use manage_task done with evidence. Request approval for each required computer action. Do not use connected services.`
       });
       try {
         await api(`${root}/routines/${routine.id}/run`, {});
