@@ -54,6 +54,59 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("searches saved work and validates discussion sources before accepting notes", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Search work" }, session)
+    ).json()) as { teammate: { id: string } };
+    const { project } = (await (
+      await post("/api/projects", { name: "Search project", botIds: [teammate.id] }, session)
+    ).json()) as { project: { id: string } };
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    await storage.exec(
+      "INSERT INTO project_messages (id,project_id,content,created_at) VALUES (?,?,?,?)",
+      "message",
+      project.id,
+      "Verified invoice total",
+      new Date().toISOString()
+    );
+    const source = { kind: "project", id: project.id, messageId: "message" };
+    expect(
+      (
+        await post("/api/discussions", {
+          ...source,
+          noteId: crypto.randomUUID(),
+          content: "Reviewed"
+        })
+      ).status
+    ).toBe(401);
+    expect(
+      (
+        await post(
+          "/api/discussions",
+          { ...source, messageId: "missing", noteId: crypto.randomUUID(), content: "Reviewed" },
+          session
+        )
+      ).status
+    ).toBe(404);
+    const note = { ...source, noteId: crypto.randomUUID(), content: "Reviewed" };
+    expect((await post("/api/discussions", note, session)).status).toBe(200);
+    expect((await post("/api/discussions", note, session)).status).toBe(200);
+    const read = await request(`/api/discussions?${new URLSearchParams(source)}`, {
+      headers: { Cookie: session }
+    });
+    expect(await read.json()).toMatchObject({
+      content: "Verified invoice total",
+      notes: [{ content: "Reviewed" }]
+    });
+    const results = await request("/api/search?q=invoice", { headers: { Cookie: session } });
+    expect(await results.json()).toMatchObject({
+      hits: [{ kind: "project", text: "Verified invoice total" }]
+    });
+  });
+
   it("queues an uploaded demonstration once and cancels it through Stop", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const { teammate } = (await (

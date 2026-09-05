@@ -174,10 +174,12 @@ describe("AgentMessage", () => {
       />
     );
 
-    const links = [...view.container.querySelectorAll<HTMLAnchorElement>("a")];
-    expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      "/api/bots/bot-1/files/left-1",
-      "/api/bots/bot-1/files/right-1"
+    const links = [
+      ...view.container.querySelectorAll<HTMLButtonElement>("button[aria-label^=Preview]")
+    ];
+    expect(links.map((link) => link.getAttribute("aria-label"))).toEqual([
+      "Preview source-left.jpg",
+      "Preview source-right.jpg"
     ]);
     expect(links.map((link) => link.querySelector("img")?.getAttribute("src"))).toEqual([
       "/api/bots/bot-1/files/left-1",

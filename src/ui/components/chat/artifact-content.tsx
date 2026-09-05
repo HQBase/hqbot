@@ -1,7 +1,6 @@
-import { PiFile } from "react-icons/pi";
-
 import type { ArtifactReference } from "../../../domain/types";
 import { fileUrl } from "../../lib/files";
+import { FilePreview } from "./file-preview";
 
 export function computerScreenshot(value: unknown): { label: string; url: string } | null {
   let candidate = value;
@@ -82,21 +81,7 @@ export function ArtifactLinks({
   return (
     <div className={previews ? "grid gap-2 sm:grid-cols-2" : "flex flex-wrap gap-2"}>
       {files.map((file) => (
-        <a
-          className="overflow-hidden rounded-lg border border-divider bg-muted/40 text-xs hover:bg-muted"
-          href={fileUrl(file)}
-          key={file.id}
-          rel="noreferrer"
-          target="_blank"
-        >
-          {previews && file.contentType.startsWith("image/") ? (
-            <img alt={file.name} className="max-h-72 w-full object-contain" src={fileUrl(file)} />
-          ) : null}
-          <span className="flex items-center gap-2 px-2.5 py-2">
-            <PiFile className="shrink-0" />
-            <span className="truncate">{file.name}</span>
-          </span>
-        </a>
+        <FilePreview key={file.id} file={file} thumbnail={previews} />
       ))}
     </div>
   );

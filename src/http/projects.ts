@@ -32,7 +32,11 @@ export async function handleProjects(request: Request, env: Env): Promise<Respon
           messages: await agent.projectMessages(
             project.id,
             undefined,
-            url.searchParams.get("before") ?? undefined
+            url.searchParams.get("before") ?? undefined,
+            {
+              query: (url.searchParams.get("query") ?? "").slice(0, 200),
+              thread: (url.searchParams.get("thread") ?? "").slice(0, 300)
+            }
           )
         });
       if (request.method === "POST")

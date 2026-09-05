@@ -7,10 +7,15 @@ import { WorkspaceProjects } from "./projects";
 import { now, type Row, text } from "./sql";
 
 export class WorkspaceCollaboration extends WorkspaceProjects {
-  messages(projectId: string, botId?: string, before?: string): ProjectMessage[] {
+  messages(
+    projectId: string,
+    botId?: string,
+    before?: string,
+    options: { query?: string; thread?: string } = {}
+  ): ProjectMessage[] {
     this.assertMember(projectId, botId);
     return this
-      .sql<Row>`SELECT * FROM project_messages WHERE project_id = ${projectId} AND (${before ?? null} IS NULL OR created_at || ':' || id < ${before ?? ""}) ORDER BY created_at DESC, id DESC LIMIT 100`
+      .sql<Row>`WITH RECURSIVE thread(id) AS (SELECT id FROM project_messages WHERE project_id = ${projectId} AND id = ${options.thread ?? ""} UNION SELECT m.id FROM project_messages m JOIN thread t ON m.parent_id = t.id WHERE m.project_id = ${projectId}) SELECT * FROM project_messages WHERE project_id = ${projectId} AND (${options.thread ?? ""} = '' OR id IN (SELECT id FROM thread)) AND (${options.query ?? ""} = '' OR instr(lower(content),lower(${options.query ?? ""})) > 0) AND (${before ?? null} IS NULL OR created_at || ':' || id < ${before ?? ""}) ORDER BY created_at DESC, id DESC LIMIT 100`
       .map((row) => ({
         id: text(row, "id"),
         projectId,

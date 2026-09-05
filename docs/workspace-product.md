@@ -58,7 +58,7 @@ separate gate at the end of this list.
 - [x] Device push, durable delivery, and notification preferences.
 - [x] Connector catalog and setup controls.
 - [x] Demonstration recording and draft skill generation.
-- [ ] Threads, reactions, mentions, search, and safe artifact previews.
+- [x] Threads, reactions, mentions, search, and safe artifact previews.
 - [ ] Bot duplication, template import/export, and revocable public sharing.
 - [ ] Responsive workspace UI and installable web app.
 - [ ] Desktop client and opt-in local execution companion.
@@ -69,6 +69,20 @@ separate gate at the end of this list.
 Native store publication needs the maintainer's signing accounts. Source/build validation and store
 publication are separate release states. Long-duration reliability remains subject to the existing
 endurance test; do not wait 24 hours to finish immediate validation.
+
+## Message context and search
+
+Search covers saved teammate history, project messages, files, skills, and memory. Search teammate
+histories in bounded pages and show unavailable histories. Do not claim that a partial page searched
+the full workspace. A result opens its saved text and discussion. Discussions hold human notes and
+reactions; an explicit Ask teammate action copies the chosen context into a conversation draft.
+Project replies retain their parent message and selected teammate mentions. Reactions use explicit
+set/remove operations, so retries cannot toggle a reaction twice. Validate each source message on
+the server. Deleting a teammate or project removes its discussions.
+
+File previews show raster images, video, and bounded plain text or Markdown. Show HTML and SVG as
+source text. Never run uploaded scripts or load remote resources from a preview. Other file types
+remain available as downloads.
 
 ## Inbound events
 

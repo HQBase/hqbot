@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { PiBell, PiBookOpen, PiCalendar, PiChatCircle, PiFolder, PiList } from "react-icons/pi";
+import {
+  PiBell,
+  PiBookOpen,
+  PiCalendar,
+  PiChatCircle,
+  PiFolder,
+  PiList,
+  PiMagnifyingGlass
+} from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
@@ -12,15 +20,16 @@ import { SkillDialog } from "./dialogs/skill-dialog";
 import { InboxPage } from "./inbox/inbox-page";
 import { LibraryPage } from "./library/library-page";
 import { ProjectsPage } from "./projects/projects-page";
+import { SearchPage } from "./search/search-page";
 import { TeammateSidebar } from "./teammate-sidebar";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
-  const [page, setPage] = useState<"chat" | "library" | "projects" | "automations" | "inbox">(() =>
-    new URL(location.href).searchParams.get("page") === "inbox" ? "inbox" : "chat"
-  );
+  const [page, setPage] = useState<
+    "chat" | "library" | "projects" | "automations" | "inbox" | "search"
+  >(() => (new URL(location.href).searchParams.get("page") === "inbox" ? "inbox" : "chat"));
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
   );
@@ -40,7 +49,17 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
   const snapshot = controller.snapshot;
   if (!snapshot) return null;
   const pageContent =
-    page === "inbox" ? (
+    page === "search" ? (
+      <SearchPage
+        controller={controller}
+        onAsk={(botId, text) => {
+          const bot = snapshot.bots.find((item) => item.id === botId);
+          if (bot) controller.selectBot(bot);
+          setPrompt(text);
+          setPage("chat");
+        }}
+      />
+    ) : page === "inbox" ? (
       <InboxPage controller={controller} onConversation={() => setPage("chat")} />
     ) : page === "automations" ? (
       <AutomationsPage controller={controller} onConversation={() => setPage("chat")} />
@@ -74,6 +93,16 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
           className="mb-4 flex shrink-0 flex-col gap-1 border-b border-divider pb-3"
         >
           <span className="px-3 py-2 text-sm font-semibold">HQBot</span>
+          <Button
+            className="justify-start"
+            variant={page === "search" ? "secondary" : "ghost"}
+            onClick={() => {
+              setPage("search");
+              controller.setMobileChatOpen(true);
+            }}
+          >
+            <PiMagnifyingGlass /> Search
+          </Button>
           <Button
             className="justify-start"
             variant={page === "inbox" ? "secondary" : "ghost"}

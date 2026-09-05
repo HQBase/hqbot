@@ -33,8 +33,13 @@ export class WorkspaceProjectsAgent extends WorkspaceProductAgent {
     this.changed();
     return deleted;
   }
-  projectMessages(projectId: string, botId?: string, before?: string) {
-    return this.projects.messages(projectId, botId, before);
+  projectMessages(
+    projectId: string,
+    botId?: string,
+    before?: string,
+    options?: { query?: string; thread?: string }
+  ) {
+    return this.projects.messages(projectId, botId, before, options);
   }
   projectResources(projectId: string, botId: string) {
     return this.projects.resources(projectId, botId);

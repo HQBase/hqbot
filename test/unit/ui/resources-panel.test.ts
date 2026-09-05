@@ -95,12 +95,11 @@ describe("ResourcesPanel", () => {
     expect(render([{ ...routine, intervalMinutes: 1 }])).toContain("Every 1 minute");
   });
 
-  it("links each durable file to its bot-scoped content route", () => {
+  it("offers a preview for each durable file", () => {
     const html = render([], [file]);
 
     expect(html).toContain("result.jpg");
-    expect(html).toContain('href="/api/bots/bot-1/files/file-1"');
-    expect(html).toContain('target="_blank"');
+    expect(html).toContain('aria-label="Preview result.jpg"');
   });
 
   it("shows a one-time waiting task with a cancel action", () => {

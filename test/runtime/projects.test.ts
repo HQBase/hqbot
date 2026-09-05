@@ -22,6 +22,44 @@ beforeEach(() => {
     catalog.createBot(id, { name: id, title: id, description: id }, id, "test", 2);
 });
 afterEach(() => db.close());
+it("finds older project text and includes nested replies in a thread", () => {
+  const project = projects.save({ name: "Threads", botIds: ["one"] });
+  projects.send(null, {
+    id: "root",
+    projectId: project.id,
+    content: "Original invoice",
+    recipientIds: ["one"]
+  });
+  projects.send(null, {
+    id: "child",
+    projectId: project.id,
+    content: "Check total",
+    parentId: "root",
+    recipientIds: ["one"]
+  });
+  projects.send(null, {
+    id: "nested",
+    projectId: project.id,
+    content: "Nested reply",
+    parentId: "child",
+    recipientIds: ["one"]
+  });
+  projects.send(null, {
+    id: "outside-thread",
+    projectId: project.id,
+    content: "Other work",
+    recipientIds: ["one"]
+  });
+  expect(
+    projects
+      .messages(project.id, undefined, undefined, { thread: "root" })
+      .map((item) => item.id)
+      .sort()
+  ).toEqual(["child", "nested", "root"]);
+  expect(
+    projects.messages(project.id, undefined, undefined, { query: "invoice" }).map((item) => item.id)
+  ).toEqual(["root"]);
+});
 it("shares only selected resources with project members and revokes access on edit", () => {
   catalog.createFile({
     id: "file",

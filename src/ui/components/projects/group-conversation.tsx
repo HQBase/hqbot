@@ -4,6 +4,7 @@ import type { Project, ProjectMessage } from "../../../domain/projects";
 import type { BotTeammate } from "../../../domain/types";
 import { api, errorMessage } from "../../lib/api";
 import { AgentMessage } from "../chat/agent-message";
+import { MessageDiscussion } from "../chat/message-discussion";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
@@ -13,6 +14,8 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
   const [recipients, setRecipients] = useState(project.botIds.slice(0, 6));
   const [prompt, setPrompt] = useState("");
   const [query, setQuery] = useState("");
+  const [thread, setThread] = useState("");
+  const filter = new URLSearchParams({ query, thread }).toString();
   const [replyTo, setReplyTo] = useState<ProjectMessage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -23,7 +26,7 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
     async (signal?: AbortSignal) => {
       try {
         const result = await api<{ messages: ProjectMessage[] }>(
-          `/api/projects/${project.id}/messages`,
+          `/api/projects/${project.id}/messages?${filter}`,
           { signal }
         );
         if (!signal?.aborted) {
@@ -38,10 +41,11 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
         if (!signal?.aborted) setError(errorMessage(cause, "Messages could not load"));
       }
     },
-    [project.id]
+    [project.id, filter]
   );
   useEffect(() => {
     const controller = new AbortController();
+    setMessages([]);
     void load(controller.signal);
     const timer = window.setInterval(() => {
       if (!document.hidden) void load(controller.signal);
@@ -59,7 +63,7 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
     const content = JSON.stringify({
       content: prompt.trim(),
       recipientIds: recipients,
-      parentId: replyTo?.id
+      parentId: replyTo?.id ?? (thread || undefined)
     });
     if (request.current.content !== content) request.current = { id: crypto.randomUUID(), content };
     try {
@@ -93,6 +97,17 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
         aria-label="Project conversation"
       >
         <div className="mx-auto flex max-w-3xl flex-col gap-6">
+          {thread && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setThread("");
+                setReplyTo(null);
+              }}
+            >
+              Back to all messages
+            </Button>
+          )}
           {hasOlder && messages[0] && (
             <Button
               variant="ghost"
@@ -101,7 +116,7 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
                 if (!oldest) return;
                 try {
                   const result = await api<{ messages: ProjectMessage[] }>(
-                    `/api/projects/${project.id}/messages?before=${encodeURIComponent(`${oldest.createdAt}:${oldest.id}`)}`
+                    `/api/projects/${project.id}/messages?${filter}&before=${encodeURIComponent(`${oldest.createdAt}:${oldest.id}`)}`
                   );
                   setMessages((current) => [...result.messages, ...current]);
                   setHasOlder(result.messages.length === 100);
@@ -155,6 +170,17 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
                   >
                     Reply
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setThread(message.parentId ?? message.id)}
+                  >
+                    View thread
+                  </Button>
+                  <MessageDiscussion
+                    source={{ kind: "project", id: project.id, messageId: message.id }}
+                    onAsk={setPrompt}
+                  />
                 </div>
               </div>
             ))}

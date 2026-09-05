@@ -11,6 +11,7 @@ import { handleDemonstrations } from "./http/demonstrations";
 import { handleDesktop } from "./http/desktop";
 import { handleEventSettings, handleInboundEvent } from "./http/events";
 import { handleKnowledge } from "./http/knowledge";
+import { handleMessages } from "./http/messages";
 import { handlePermissions } from "./http/permissions";
 import { handleProjects } from "./http/projects";
 import { handlePush } from "./http/push";
@@ -86,6 +87,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     handleDemonstrations,
     handleResources,
     handleKnowledge,
+    handleMessages,
     handlePermissions,
     handleProjects,
     handleDesktop,
@@ -103,7 +105,7 @@ async function staticAsset(request: Request, env: Env): Promise<Response> {
   const headers = new Headers(response.headers);
   headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; base-uri 'none'; connect-src 'self' wss:; font-src 'self'; frame-ancestors 'none'; frame-src https:; img-src 'self' blob: data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    "default-src 'self'; base-uri 'none'; connect-src 'self' wss:; font-src 'self'; frame-ancestors 'none'; frame-src https:; img-src 'self' blob: data:; media-src 'self' blob:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'"
   );
   headers.set("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
   headers.set("Referrer-Policy", "no-referrer");

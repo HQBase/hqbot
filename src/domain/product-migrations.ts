@@ -63,5 +63,13 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE TABLE IF NOT EXISTS demonstrations (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, name TEXT NOT NULL, notes TEXT NOT NULL, video_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE, frames_json TEXT NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, skill_id TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
       `CREATE INDEX IF NOT EXISTS demonstration_queue ON demonstrations(state, updated_at)`
     ]
+  },
+  {
+    version: 19,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS message_discussions (id TEXT PRIMARY KEY, kind TEXT NOT NULL, source_id TEXT NOT NULL, message_id TEXT NOT NULL, bot_id TEXT REFERENCES bots(id) ON DELETE CASCADE, project_id TEXT REFERENCES projects(id) ON DELETE CASCADE, UNIQUE(kind, source_id, message_id))`,
+      `CREATE TABLE IF NOT EXISTS discussion_notes (id TEXT PRIMARY KEY, discussion_id TEXT NOT NULL REFERENCES message_discussions(id) ON DELETE CASCADE, user_id TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS message_reactions (discussion_id TEXT NOT NULL REFERENCES message_discussions(id) ON DELETE CASCADE, user_id TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(discussion_id, user_id, emoji))`
+    ]
   }
 ];

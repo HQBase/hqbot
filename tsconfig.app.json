@@ -13,6 +13,7 @@
     "verbatimModuleSyntax": true
   },
   "include": [
+    "src/domain/messages.ts",
     "src/ui/**/*.ts",
     "src/ui/**/*.tsx",
     "src/domain/models.ts",

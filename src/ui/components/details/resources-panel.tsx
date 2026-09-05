@@ -19,8 +19,8 @@ import type {
   BotTask,
   BotTeammate
 } from "../../../domain/types";
-import { fileUrl } from "../../lib/files";
 import { formatInterval } from "../../lib/format";
+import { FilePreview } from "../chat/file-preview";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DetailsSection } from "./details-section";
@@ -144,18 +144,7 @@ export function ResourcesPanel({
         {files.length === 0 ? (
           <EmptyText>Files attached in chat stay with {bot.name}.</EmptyText>
         ) : (
-          files.map((file) => (
-            <a
-              className="flex items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-muted"
-              href={fileUrl(file)}
-              key={file.id}
-              rel="noreferrer"
-              target="_blank"
-            >
-              <PiFile className="shrink-0 text-tertiary" />
-              <span className="truncate">{file.name}</span>
-            </a>
-          ))
+          files.map((file) => <FilePreview key={file.id} file={file} />)
         )}
       </ResourceSection>
       {memories.length > 0 ? (

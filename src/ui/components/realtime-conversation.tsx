@@ -3,7 +3,6 @@ import { useAgent } from "agents/react";
 import type { UIMessage } from "ai";
 import {
   type ChangeEvent,
-  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,13 +20,12 @@ import { integrationActionDetails, type TeammateIntegrationClient } from "../lib
 import { AgentMessage, type AgentPart, ThinkingIndicator } from "./chat/agent-message";
 import { ApprovalCard } from "./chat/approval-card";
 import { ChatComposer, type ComposerFile } from "./chat/chat-composer";
+import { ConversationMessage } from "./chat/conversation-message";
 import { Shimmer } from "./chat/shimmer";
 import { ConversationHeader } from "./conversation-header";
 
 type LocalFile = ComposerFile & { file: File };
 const STREAM_PAUSE_MS = 700;
-
-const MemoizedAgentMessage = memo(AgentMessage);
 
 export function RealtimeConversation({
   bot,
@@ -346,11 +344,11 @@ export function RealtimeConversation({
           ) : null}
           {visibleMessages.map((message) =>
             message.role === "user" || message.role === "assistant" ? (
-              <MemoizedAgentMessage
+              <ConversationMessage
                 key={message.id}
-                name={message.role === "user" ? "You" : bot.name}
-                parts={message.parts as unknown as AgentPart[]}
-                speaker={message.role}
+                message={message}
+                bot={bot}
+                onAsk={onPromptChange}
               />
             ) : null
           )}

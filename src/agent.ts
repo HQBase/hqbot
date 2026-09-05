@@ -3,7 +3,7 @@ import { getAgentByName } from "agents";
 import type { BotTeammate } from "./domain/types";
 import { teammateSandbox } from "./runtime/desktop";
 import type { HQBotTeammate } from "./teammate";
-import { WorkspaceDemonstrationsAgent } from "./workspace/demonstrations-agent";
+import { WorkspaceMessagesAgent } from "./workspace/messages-agent";
 
 interface BotDeletionPayload {
   artifactKeys: string[];
@@ -16,7 +16,7 @@ function durableObjectIsInactive(cause: unknown): boolean {
   return cause instanceof Error && cause.message.includes("no longer active");
 }
 
-export class HQBotAgent extends WorkspaceDemonstrationsAgent {
+export class HQBotAgent extends WorkspaceMessagesAgent {
   async setBotHidden(id: string, hidden: boolean): Promise<BotTeammate | null> {
     const current = this.catalog.getBot(id);
     if (!current || current.hidden === hidden) return current;
