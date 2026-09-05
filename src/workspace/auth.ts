@@ -12,19 +12,19 @@ function encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function randomToken(bytes: number): string {
+export function randomToken(bytes: number): string {
   return encode(crypto.getRandomValues(new Uint8Array(bytes)))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
 }
 
-async function digest(value: string): Promise<string> {
+export async function digest(value: string): Promise<string> {
   const result = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return encode(new Uint8Array(result));
 }
 
-async function derive(password: string, salt: string, iterations: number): Promise<string> {
+export async function derive(password: string, salt: string, iterations: number): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -45,7 +45,7 @@ async function derive(password: string, salt: string, iterations: number): Promi
   return encode(new Uint8Array(bits));
 }
 
-function equal(left: string, right: string): boolean {
+export function equal(left: string, right: string): boolean {
   let difference = left.length ^ right.length;
   const length = Math.max(left.length, right.length);
   for (let index = 0; index < length; index += 1) {
@@ -73,7 +73,7 @@ export interface OwnerLoginResult {
 }
 
 export class WorkspaceAuth {
-  constructor(private readonly sql: Sql) {}
+  constructor(protected readonly sql: Sql) {}
 
   hasOwner(): boolean {
     return this.sql<{ id: string }>`SELECT id FROM owner WHERE id = 'owner'`.length > 0;
@@ -134,7 +134,7 @@ export class WorkspaceAuth {
     return token;
   }
 
-  private canAttempt(key: string, failureLimit: number): boolean {
+  protected canAttempt(key: string, failureLimit: number): boolean {
     const row = this.sql<LoginLimitRow>`SELECT failures, window_started_at, blocked_until
       FROM login_limits WHERE key_hash = ${key}`[0];
     if (!row) return true;
@@ -147,7 +147,7 @@ export class WorkspaceAuth {
     return row.failures < failureLimit;
   }
 
-  private recordFailure(key: string, failureLimit: number): void {
+  protected recordFailure(key: string, failureLimit: number): void {
     const timestamp = now();
     const row = this.sql<LoginLimitRow>`SELECT failures, window_started_at, blocked_until
       FROM login_limits WHERE key_hash = ${key}`[0];

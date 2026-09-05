@@ -1,3 +1,4 @@
+import type { AdminPolicy } from "../domain/admin-policy";
 import type { AutomationsRpc, RoutineSchedule } from "../domain/automations";
 import type { KnowledgeRpc } from "../domain/knowledge";
 import type { HQBotModelId } from "../domain/models";
@@ -84,6 +85,8 @@ export interface SpendPolicyDto {
 }
 
 export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc, AutomationsRpc {
+  getAdminPolicy(): Promise<AdminPolicy>;
+  canAccessBot(userId: string, botId: string, write?: boolean): Promise<boolean>;
   getBot(botId: string): Promise<WorkspaceBotDto | null>;
   listMemories(
     botId: string,

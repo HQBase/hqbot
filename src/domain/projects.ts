@@ -34,6 +34,7 @@ export interface ProjectMessage {
   createdAt: string;
 }
 export interface CollaborationRequest {
+  requesterId?: string;
   id: string;
   projectId: string;
   content: string;
@@ -42,6 +43,7 @@ export interface CollaborationRequest {
   parentDeliveryId?: string;
 }
 export interface CollaborationDelivery {
+  requesterId?: string;
   id: string;
   projectId: string;
   messageId: string;

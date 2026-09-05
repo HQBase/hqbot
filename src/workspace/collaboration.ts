@@ -5,6 +5,7 @@ import type {
 } from "../domain/projects";
 import { WorkspaceProjects } from "./projects";
 import { now, type Row, text } from "./sql";
+import { WorkspaceTeam } from "./team";
 
 export class WorkspaceCollaboration extends WorkspaceProjects {
   messages(
@@ -73,6 +74,9 @@ export class WorkspaceCollaboration extends WorkspaceProjects {
         : null;
     if (input.parentDeliveryId && (!parent || parent.projectId !== project.id))
       throw new Error("Handoff context is no longer active");
+    const requesterId = parent?.requesterId ?? input.requesterId;
+    if (requesterId && !new WorkspaceTeam(this.sql).canProject(requesterId, project.id, true))
+      throw new Error("The member cannot start work in this project");
     const depth = parent ? parent.depth + 1 : 0;
     const rootId = parent?.rootId ?? input.id;
     if (depth > 4)
@@ -93,7 +97,7 @@ export class WorkspaceCollaboration extends WorkspaceProjects {
       throw new Error("The work queue is full. Wait for current work to finish.");
     const stamp = now();
     this
-      .sql`INSERT INTO project_messages (id, project_id, sender_bot_id, content, parent_id, created_at) VALUES (${input.id}, ${project.id}, ${senderBotId}, ${input.content.trim()}, ${input.parentId ?? null}, ${stamp})`;
+      .sql`INSERT INTO project_messages (id, project_id, sender_bot_id, content, parent_id, created_at, requester_id) VALUES (${input.id}, ${project.id}, ${senderBotId}, ${input.content.trim()}, ${input.parentId ?? null}, ${stamp}, ${requesterId ?? null})`;
     for (const botId of input.recipientIds)
       this
         .sql`INSERT INTO collaboration_deliveries (id, project_id, message_id, bot_id, sender_bot_id, root_id, depth, state, created_at, updated_at) VALUES (${`${input.id}:${botId}`}, ${project.id}, ${input.id}, ${botId}, ${senderBotId}, ${rootId}, ${depth}, 'pending', ${stamp}, ${stamp})`;
@@ -108,8 +112,17 @@ export class WorkspaceCollaboration extends WorkspaceProjects {
   }
   delivery(id: string, botId: string): CollaborationDelivery | null {
     const row = this
-      .sql<Row>`SELECT d.*, m.content FROM collaboration_deliveries d JOIN project_messages m ON m.id = d.message_id JOIN project_teammates p ON p.project_id = d.project_id AND p.bot_id = d.bot_id WHERE d.id = ${id} AND d.bot_id = ${botId} AND d.state IN ('pending', 'submitted')`[0];
+      .sql<Row>`SELECT d.*, m.content, m.requester_id FROM collaboration_deliveries d JOIN project_messages m ON m.id = d.message_id JOIN project_teammates p ON p.project_id = d.project_id AND p.bot_id = d.bot_id WHERE d.id = ${id} AND d.bot_id = ${botId} AND d.state IN ('pending', 'submitted')`[0];
     if (!row || this.catalog.getBot(botId)?.hidden) return null;
+    if (
+      row.requester_id &&
+      !new WorkspaceTeam(this.sql).canProject(
+        text(row, "requester_id"),
+        text(row, "project_id"),
+        true
+      )
+    )
+      return null;
     if (
       typeof row.sender_bot_id === "string" &&
       !this.list(row.sender_bot_id).some((project) => project.id === row.project_id)
@@ -118,6 +131,7 @@ export class WorkspaceCollaboration extends WorkspaceProjects {
     return {
       id,
       projectId: text(row, "project_id"),
+      requesterId: row.requester_id ? text(row, "requester_id") : undefined,
       messageId: text(row, "message_id"),
       botId,
       senderBotId: row.sender_bot_id === null ? null : text(row, "sender_bot_id"),
@@ -145,7 +159,7 @@ export class WorkspaceCollaboration extends WorkspaceProjects {
     if (!job) return;
     const stamp = now();
     this
-      .sql`INSERT OR IGNORE INTO project_messages (id, project_id, sender_bot_id, content, parent_id, created_at) VALUES (${`reply:${id}`}, ${job.projectId}, ${botId}, ${content.slice(0, 12000)}, ${job.messageId}, ${stamp})`;
+      .sql`INSERT OR IGNORE INTO project_messages (id, project_id, sender_bot_id, content, parent_id, created_at, requester_id) VALUES (${`reply:${id}`}, ${job.projectId}, ${botId}, ${content.slice(0, 12000)}, ${job.messageId}, ${stamp}, ${job.requesterId ?? null})`;
     this.state(id, failed ? "failed" : "completed");
     if (
       !failed &&

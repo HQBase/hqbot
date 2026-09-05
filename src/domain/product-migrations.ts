@@ -79,5 +79,17 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE TABLE IF NOT EXISTS template_shares (id TEXT PRIMARY KEY, name TEXT NOT NULL, template_json TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT)`,
       `CREATE TRIGGER IF NOT EXISTS purge_imported_template BEFORE DELETE ON bots BEGIN UPDATE template_imports SET template_json = '{}' WHERE bot_id = OLD.id; END`
     ]
+  },
+  {
+    version: 21,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS team_users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE, role TEXT NOT NULL, disabled INTEGER NOT NULL DEFAULT 0, salt TEXT NOT NULL, password_hash TEXT NOT NULL, iterations INTEGER NOT NULL, created_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS team_sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES team_users(id) ON DELETE CASCADE, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS team_projects (user_id TEXT NOT NULL REFERENCES team_users(id) ON DELETE CASCADE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, PRIMARY KEY(user_id, project_id))`,
+      `CREATE TABLE IF NOT EXISTS team_invites (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, role TEXT NOT NULL, projects_json TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT, revoked_at TEXT, created_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS access_audit (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, action TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL)`,
+      `ALTER TABLE project_messages ADD COLUMN requester_id TEXT`,
+      `CREATE TABLE IF NOT EXISTS admin_policy (id INTEGER PRIMARY KEY CHECK(id=1), policy_json TEXT NOT NULL)`
+    ]
   }
 ];

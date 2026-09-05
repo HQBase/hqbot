@@ -42,10 +42,8 @@ export async function handleAuth(request: Request, env: Env): Promise<Response |
 
   if (request.method === "GET" && url.pathname === "/api/auth/status") {
     const token = cookieValue(request);
-    return json({
-      configured: await agent.hasOwner(),
-      authenticated: Boolean(token && (await agent.validateOwnerSession(token)))
-    });
+    const user = token ? await agent.identifySession(token) : null;
+    return json({ configured: await agent.hasOwner(), authenticated: Boolean(user), user });
   }
 
   const crossOrigin = requireSameOrigin(request);
@@ -63,7 +61,7 @@ export async function handleAuth(request: Request, env: Env): Promise<Response |
 
   if (request.method === "POST" && url.pathname === "/api/auth/login") {
     const body = await readJson(request);
-    const result = await agent.loginOwner(
+    const result = await agent.loginAccount(
       cleanString(body, "username", 80),
       password(body),
       await loginAttemptKey(request)
@@ -74,7 +72,21 @@ export async function handleAuth(request: Request, env: Env): Promise<Response |
       });
     }
     if (!result.token) return json({ error: "The username or password is incorrect" }, 401);
-    return json({ authenticated: true }, 200, { "Set-Cookie": sessionCookie(result.token) });
+    return json({ authenticated: true, user: await agent.identifySession(result.token) }, 200, {
+      "Set-Cookie": sessionCookie(result.token)
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/accept-invitation") {
+    const body = await readJson(request);
+    const token = await agent.acceptInvitation(
+      cleanString(body, "invitation", 100),
+      cleanString(body, "username", 80),
+      password(body)
+    );
+    return json({ authenticated: true, user: await agent.identifySession(token) }, 201, {
+      "Set-Cookie": sessionCookie(token)
+    });
   }
 
   if (request.method === "POST" && url.pathname === "/api/auth/logout") {

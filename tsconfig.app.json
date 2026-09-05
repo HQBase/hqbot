@@ -13,6 +13,8 @@
     "verbatimModuleSyntax": true
   },
   "include": [
+    "src/domain/admin-policy.ts",
+    "src/domain/team.ts",
     "src/domain/templates.ts",
     "src/domain/messages.ts",
     "src/ui/**/*.ts",

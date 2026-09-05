@@ -28,6 +28,7 @@ export class ComputerPermissions {
       approve: (id: string) => Promise<unknown>;
       reject: (id: string) => Promise<unknown>;
       isActive: () => Promise<boolean>;
+      authorize?: (name: string, input: unknown) => Promise<void>;
       beforeDecision?: (id: string, approved: boolean) => Promise<void>;
       uncertain: () => Promise<void>;
       permission?: (action: string, input: unknown, fallback: ComputerPolicy) => PermissionDecision;
@@ -75,7 +76,8 @@ export class ComputerPermissions {
             description: typeof tool.description === "string" ? tool.description : name,
             inputSchema: tool.inputSchema,
             kind: "durable-pause",
-            approval: ({ input }) => {
+            approval: async ({ input }) => {
+              await this.host.authorize?.(name, input);
               const value = input as Record<string, unknown>;
               const observeOnly =
                 (name === "computer_session" &&
@@ -92,6 +94,7 @@ export class ComputerPermissions {
             timeoutMs: 180_000,
             idempotencyKey: ({ ctx }) => `computer:${ctx.toolCallId}`,
             execute: async (input, ctx) => {
+              await this.host.authorize?.(name, input);
               if (!(await this.host.isActive())) throw new Error("The teammate is not active");
               if (this.host.permission?.(name, input, this.get()) === "deny")
                 throw new Error("An owner permission rule blocks this action");

@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { PiCloudCheck, PiLockKey, PiRobot, PiUser } from "react-icons/pi";
 
+import type { Principal } from "../../domain/team";
 import { api, errorMessage } from "../lib/api";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -8,10 +9,13 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "./u
 import { Input } from "./ui/input";
 import { Spinner } from "./ui/spinner";
 
-type AuthStatus = { authenticated: boolean; configured: boolean };
-type AccessMode = "checking" | "create" | "login";
+type AuthStatus = { authenticated: boolean; configured: boolean; user?: Principal };
+type AccessMode = "checking" | "create" | "login" | "join";
 
-export function AccessGate({ onAuthenticated }: { onAuthenticated: () => void }) {
+export function AccessGate({ onAuthenticated }: { onAuthenticated: (user?: Principal) => void }) {
+  const [invitation] = useState(
+    () => new URLSearchParams(location.hash.slice(1)).get("invite") ?? ""
+  );
   const [mode, setMode] = useState<AccessMode>("checking");
   const [setupCode, setSetupCode] = useState("");
   const [username, setUsername] = useState("");
@@ -25,8 +29,8 @@ export function AccessGate({ onAuthenticated }: { onAuthenticated: () => void })
     void api<AuthStatus>("/api/auth/status")
       .then((status) => {
         if (!active) return;
-        if (status.authenticated) onAuthenticated();
-        else setMode(status.configured ? "login" : "create");
+        if (status.authenticated) onAuthenticated(status.user);
+        else setMode(invitation ? "join" : status.configured ? "login" : "create");
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -36,26 +40,35 @@ export function AccessGate({ onAuthenticated }: { onAuthenticated: () => void })
     return () => {
       active = false;
     };
-  }, [onAuthenticated]);
+  }, [onAuthenticated, invitation]);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
-    if (mode === "create" && password !== confirmation) {
+    if ((mode === "create" || mode === "join") && password !== confirmation) {
       setError("The passwords do not match");
       return;
     }
     setPending(true);
     setError("");
     try {
-      await api(mode === "create" ? "/api/auth/bootstrap" : "/api/auth/login", {
-        body: JSON.stringify({
-          password,
-          setupCode: mode === "create" ? setupCode : undefined,
-          username
-        }),
-        method: "POST"
-      });
-      onAuthenticated();
+      const result = await api<{ user?: Principal }>(
+        mode === "join"
+          ? "/api/auth/accept-invitation"
+          : mode === "create"
+            ? "/api/auth/bootstrap"
+            : "/api/auth/login",
+        {
+          body: JSON.stringify({
+            password,
+            invitation: mode === "join" ? invitation : undefined,
+            setupCode: mode === "create" ? setupCode : undefined,
+            username
+          }),
+          method: "POST"
+        }
+      );
+      if (mode === "join") history.replaceState(null, "", location.pathname);
+      onAuthenticated(result.user);
     } catch (cause) {
       setError(errorMessage(cause, mode === "create" ? "Owner setup failed" : "Sign-in failed"));
     } finally {
@@ -73,7 +86,7 @@ export function AccessGate({ onAuthenticated }: { onAuthenticated: () => void })
     );
   }
 
-  const creating = mode === "create";
+  const creating = mode === "create" || mode === "join";
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-rail p-4 text-foreground">
       <Card className="w-full max-w-md bg-reader">
@@ -83,19 +96,25 @@ export function AccessGate({ onAuthenticated }: { onAuthenticated: () => void })
           </span>
           <div className="flex flex-col gap-1.5">
             <CardTitle className="text-xl">
-              {creating ? "Create the HQBot owner" : "Welcome back"}
+              {mode === "join"
+                ? "Join the workspace"
+                : creating
+                  ? "Create the HQBot owner"
+                  : "Welcome back"}
             </CardTitle>
             <CardDescription>
-              {creating
-                ? "Set the first local account for this Cloudflare installation."
-                : "Sign in to your self-hosted workspace."}
+              {mode === "join"
+                ? "Choose your own account for this invitation."
+                : creating
+                  ? "Set the first local account for this Cloudflare installation."
+                  : "Sign in to your self-hosted workspace."}
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)}>
             <FieldGroup>
-              {creating ? (
+              {mode === "create" ? (
                 <PasswordField
                   autoComplete="one-time-code"
                   description="Use the private code that you chose during deployment."
@@ -144,15 +163,33 @@ export function AccessGate({ onAuthenticated }: { onAuthenticated: () => void })
                 pending ||
                 !username.trim() ||
                 password.length < 12 ||
-                (creating && setupCode.length < 24)
+                (mode === "create" && setupCode.length < 24)
               }
               size="field"
               type="submit"
             >
               {pending ? <Spinner data-icon="inline-start" /> : null}
-              {pending ? "Please wait…" : creating ? "Create owner" : "Sign in"}
+              {pending
+                ? "Please wait…"
+                : mode === "join"
+                  ? "Join workspace"
+                  : creating
+                    ? "Create owner"
+                    : "Sign in"}
             </Button>
           </form>
+          {mode === "join" && (
+            <Button
+              variant="ghost"
+              className="mt-3 w-full"
+              onClick={() => {
+                history.replaceState(null, "", location.pathname);
+                setMode("login");
+              }}
+            >
+              Already joined? Sign in
+            </Button>
+          )}
           <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
             <PiCloudCheck className="size-4" /> Passwords and sessions stay in your Cloudflare
             account

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { projectInput } from "../domain/projects";
-import { json, pathMatch, readJson, workspace } from "./common";
+import { json, pathMatch, readJson, requestPrincipal, workspace } from "./common";
 
 const messageInput = z.object({
   id: z.string().min(1).max(200),
@@ -44,7 +44,8 @@ export async function handleProjects(request: Request, env: Env): Promise<Respon
           {
             message: await agent.sendCollaboration(null, {
               ...messageInput.parse(await readJson(request)),
-              projectId: project.id
+              projectId: project.id,
+              requesterId: (await requestPrincipal(request, env))?.id
             })
           },
           202

@@ -1,7 +1,7 @@
 import { getAgentByName } from "agents";
-
 import type { HQBotAgent } from "../agent";
 import { ARCHIVED_TEAMMATE_ERROR } from "../domain/lifecycle";
+import type { Principal } from "../domain/team";
 import type { HQBotTeammate } from "../teammate";
 
 export const sessionCookieName = "__Host-hqbot_session";
@@ -111,4 +111,9 @@ export function pathMatch(path: string, pattern: RegExp): string[] | null {
   } catch {
     return null;
   }
+}
+
+export async function requestPrincipal(request: Request, env: Env): Promise<Principal | null> {
+  const token = cookieValue(request);
+  return token ? (await workspace(env)).identifySession(token) : null;
 }

@@ -46,6 +46,7 @@ interface TeammateIntegrationsOptions {
   effects: TeammateExternalEffects;
   env: Env;
   isActive: () => Promise<boolean>;
+  authorizeServer?: (url: string) => Promise<void>;
   loader: ConstructorParameters<typeof DynamicWorkerExecutor>[0]["loader"];
   list: () => TeammateConnection[];
   markEffectUncertain: () => Promise<void>;
@@ -81,6 +82,7 @@ export class TeammateIntegrations {
       throw new Error("Restore this teammate before you add a connection");
     }
     const url = cleanConnectionUrl(input.url);
+    await this.options.authorizeServer?.(url);
     if (this.list().some((connection) => connection.url === url))
       throw new Error(
         "This server is already connected. Remove it first to replace its credentials."
@@ -283,22 +285,25 @@ export class TeammateIntegrations {
   }
 
   private runtime() {
-    const connectors = this.options
-      .readyServers()
-      .map(
-        ({ connection, id, name }) =>
-          new TeammateMcpConnector(
-            this.options.ctx,
-            this.options.env,
-            id,
-            name,
-            connection,
-            this.options.effects,
-            this.options.markEffectUncertain,
-            this.options.permission,
-            this.options.isActive
-          )
-      );
+    const connectors = this.options.readyServers().map(
+      ({ connection, id, name }) =>
+        new TeammateMcpConnector(
+          this.options.ctx,
+          this.options.env,
+          id,
+          name,
+          connection,
+          this.options.effects,
+          this.options.markEffectUncertain,
+          this.options.permission,
+          this.options.isActive,
+          async () => {
+            const url = this.list().find((item) => item.id === id)?.url;
+            if (!url) throw new Error("Connection was removed");
+            await this.options.authorizeServer?.(url);
+          }
+        )
+    );
     return createCodemodeRuntime({
       ctx: this.options.ctx,
       connectors,

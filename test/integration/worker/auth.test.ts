@@ -54,6 +54,87 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("enforces named team access on HTTP, files, agent routes, and revocation", async () => {
+    const ownerSession = cookie(await post("/api/auth/bootstrap", owner));
+    const createBot = async (brief: string) =>
+      (
+        (await (await post("/api/bots", { brief }, ownerSession)).json()) as {
+          teammate: { id: string };
+        }
+      ).teammate;
+    const shared = await createBot("Shared research");
+    const privateBot = await createBot("Private work");
+    const { project } = (await (
+      await post("/api/projects", { name: "Shared project", botIds: [shared.id] }, ownerSession)
+    ).json()) as { project: { id: string } };
+    const invite = await post(
+      "/api/team/invitations",
+      { role: "member", projectIds: [project.id] },
+      ownerSession
+    );
+    expect(invite.status).toBe(201);
+    const { token } = (await invite.json()) as { token: string };
+    const accepted = await post("/api/auth/accept-invitation", {
+      invitation: token,
+      username: "alex",
+      password: "member correct horse battery"
+    });
+    expect(accepted.status).toBe(201);
+    const memberSession = cookie(accepted);
+    const { user } = (await accepted.json()) as { user: { id: string } };
+    expect(
+      await (await request("/api/team/workspace", { headers: { Cookie: memberSession } })).json()
+    ).toMatchObject({
+      user: { role: "member" },
+      bots: [{ id: shared.id }],
+      projects: [{ id: project.id }]
+    });
+    const get = (path: string) => request(path, { headers: { Cookie: memberSession } });
+    expect((await get("/api/snapshot")).status).toBe(403);
+    expect((await get(`/api/team/bots/${privateBot.id}`)).status).toBe(403);
+    expect((await get(`/api/bots/${privateBot.id}/files/fake`)).status).toBe(403);
+    expect((await get(`/agents/hqbot-teammate/${shared.id}`)).status).toBe(401);
+    expect((await get("/agents/hqbot-agent/hqbot")).status).toBe(401);
+    expect((await get(`/api/team/bots/${shared.id}`)).status).toBe(200);
+    expect(
+      (await post("/api/team/invitations", { role: "admin", projectIds: [] }, memberSession)).status
+    ).toBe(400);
+    expect(
+      (await post("/api/templates/publish", { id: crypto.randomUUID() }, memberSession)).status
+    ).toBe(403);
+    const changed = await request(`/api/team/members/${user.id}`, {
+      method: "PATCH",
+      headers: { Cookie: ownerSession, Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "viewer", disabled: false, projectIds: [project.id] })
+    });
+    expect(changed.status).toBe(200);
+    expect((await get(`/api/team/bots/${shared.id}`)).status).toBe(401);
+    const viewerSession = cookie(
+      await post("/api/auth/login", { username: "alex", password: "member correct horse battery" })
+    );
+    expect(
+      (
+        await post(
+          `/api/team/bots/${shared.id}/messages`,
+          { id: crypto.randomUUID(), prompt: "Do work" },
+          viewerSession
+        )
+      ).status
+    ).toBe(403);
+    expect(
+      (await request(`/api/team/bots/${shared.id}`, { headers: { Cookie: viewerSession } })).status
+    ).toBe(200);
+    const policy = await post(
+      "/api/team/policy",
+      { mode: "connectors-only", origins: ["https://docs.mcp.cloudflare.com"] },
+      ownerSession
+    );
+    expect(policy.status).toBe(200);
+    expect(
+      (await post("/api/team/policy", { mode: "standard", origins: [] }, viewerSession)).status
+    ).toBe(403);
+  });
+
   it("imports safe templates and revokes the public link without exposing private fields", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const { teammate } = (await (
@@ -624,7 +705,10 @@ describe("HQBot Worker authentication", () => {
     expect((await post("/api/auth/logout", undefined, bootstrapSession)).status).toBe(200);
     const login = await post("/api/auth/login", owner);
     expect(login.status).toBe(200);
-    expect(await login.json()).toEqual({ authenticated: true });
+    expect(await login.json()).toEqual({
+      authenticated: true,
+      user: { id: "owner", username: "owner", role: "owner" }
+    });
     const loginSession = cookie(login);
     expect((await request("/api/snapshot", { headers: { Cookie: loginSession } })).status).toBe(
       200

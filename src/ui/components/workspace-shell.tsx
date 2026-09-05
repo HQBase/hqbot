@@ -1,35 +1,54 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   PiBell,
   PiBookOpen,
   PiCalendar,
   PiChatCircle,
   PiFolder,
+  PiGear,
   PiList,
   PiMagnifyingGlass
 } from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
-import { AutomationsPage } from "./automations/automations-page";
+
 import { ConversationPanel } from "./conversation-panel";
 import { DetailsPanel } from "./details/details-panel";
 import { ConnectionDialog } from "./dialogs/connection-dialog";
 import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
-import { InboxPage } from "./inbox/inbox-page";
-import { LibraryPage } from "./library/library-page";
-import { TemplatesPage } from "./library/templates-page";
-import { ProjectsPage } from "./projects/projects-page";
-import { SearchPage } from "./search/search-page";
+
 import { TeammateSidebar } from "./teammate-sidebar";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
+const AutomationsPage = lazy(() =>
+  import("./automations/automations-page").then((module) => ({ default: module.AutomationsPage }))
+);
+const InboxPage = lazy(() =>
+  import("./inbox/inbox-page").then((module) => ({ default: module.InboxPage }))
+);
+const LibraryPage = lazy(() =>
+  import("./library/library-page").then((module) => ({ default: module.LibraryPage }))
+);
+const TemplatesPage = lazy(() =>
+  import("./library/templates-page").then((module) => ({ default: module.TemplatesPage }))
+);
+const ProjectsPage = lazy(() =>
+  import("./projects/projects-page").then((module) => ({ default: module.ProjectsPage }))
+);
+const SearchPage = lazy(() =>
+  import("./search/search-page").then((module) => ({ default: module.SearchPage }))
+);
+const SettingsPage = lazy(() =>
+  import("./settings/settings-page").then((module) => ({ default: module.SettingsPage }))
+);
+
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
   const [page, setPage] = useState<
-    "chat" | "library" | "projects" | "automations" | "inbox" | "search" | "templates"
+    "chat" | "library" | "projects" | "automations" | "inbox" | "search" | "templates" | "settings"
   >(() => (new URL(location.href).searchParams.get("page") === "inbox" ? "inbox" : "chat"));
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
@@ -50,7 +69,9 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
   const snapshot = controller.snapshot;
   if (!snapshot) return null;
   const pageContent =
-    page === "templates" ? (
+    page === "settings" ? (
+      <SettingsPage controller={controller} />
+    ) : page === "templates" ? (
       <TemplatesPage
         controller={controller}
         onBack={() => setPage("library")}
@@ -165,6 +186,16 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
           >
             <PiCalendar /> Automations
           </Button>
+          <Button
+            className="justify-start"
+            variant={page === "settings" ? "secondary" : "ghost"}
+            onClick={() => {
+              setPage("settings");
+              controller.setMobileChatOpen(true);
+            }}
+          >
+            <PiGear /> Settings
+          </Button>
         </nav>
       }
       archivedBots={snapshot.archivedBots}
@@ -193,7 +224,17 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
                 </Button>
                 <span className="ml-2 text-sm font-medium">HQBot</span>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">{pageContent}</div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <Suspense
+                  fallback={
+                    <p role="status" className="p-6 text-sm text-muted-foreground">
+                      Loading…
+                    </p>
+                  }
+                >
+                  {pageContent}
+                </Suspense>
+              </div>
             </>
           ) : (
             <ConversationPanel
@@ -210,7 +251,17 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
           <div className="relative min-w-0 flex-1 overflow-hidden rounded-[24px] border border-divider bg-reader shadow-sm">
             <div className="flex h-full min-w-0">
               {page !== "chat" ? (
-                <div className="min-w-0 flex-1 overflow-y-auto">{pageContent}</div>
+                <div className="min-w-0 flex-1 overflow-y-auto">
+                  <Suspense
+                    fallback={
+                      <p role="status" className="p-6 text-sm text-muted-foreground">
+                        Loading…
+                      </p>
+                    }
+                  >
+                    {pageContent}
+                  </Suspense>
+                </div>
               ) : (
                 <>
                   <ConversationPanel

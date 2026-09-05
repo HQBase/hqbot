@@ -63,7 +63,7 @@ separate gate at the end of this list.
 - [ ] Responsive workspace UI and installable web app.
 - [ ] Desktop client and opt-in local execution companion.
 - [ ] iOS and Android clients and build instructions.
-- [ ] Team roles, invitations, access checks, and administration.
+- [x] Team roles, invitations, access checks, and administration.
 - [ ] Fresh/update migration tests, full local gates, rendered UI checks, and deployed acceptance.
 
 Native store publication needs the maintainer's signing accounts. Source/build validation and store
@@ -93,6 +93,27 @@ text, so show the complete candidate before download or publication. Imports use
 ID and create a separate teammate. Imported skills start as drafts and all routines start paused.
 Public links contain a frozen template. Revoking the link removes public access; a downloaded copy
 cannot be recalled. Keep public template access separate from workspace authentication.
+
+## Named team access
+
+The owner retains control of credentials, tool approvals, permission grants, and installation
+settings. Administrators manage invitations and member access. Members can read and work with
+teammates in their assigned projects. Viewers can only read. Administrators see all projects.
+Project access grants the full history and files of each included teammate. A teammate must not be
+used across confidential projects that need separate histories. State this before access is saved.
+
+Team accounts use their own interface and narrow HTTP actions. They cannot call the owner Agent
+RPC or open its realtime socket. Recheck account and project access for each HTTP action and each
+agent turn from a team request. Revoking access closes future reads and stops queued team work.
+Invitations expire after seven days, are single use, and store only a token hash. Audit account,
+invitation, membership, and team work changes without storing message or tool content in the audit.
+
+The owner can restrict agent network work to selected MCP server origins. In this mode, disable
+computer, browser, shell, and local command tools because arbitrary commands could bypass a URL
+filter. Check the current policy before connecting and before each MCP call. The selected remote
+service can have its own capabilities; the origin list does not filter that service's internal
+network. Existing scoped action approvals still apply. Members cannot create recurring routines or
+new schedules; those persistent changes remain with the owner.
 
 ## Inbound events
 

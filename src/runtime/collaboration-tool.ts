@@ -5,7 +5,8 @@ import type { ProjectsRpc } from "../domain/projects";
 export function collaborationTools(
   workspace: ProjectsRpc,
   botId: string,
-  deliveryId: () => Promise<string | undefined>
+  deliveryId: () => Promise<string | undefined>,
+  requesterId: () => Promise<string | undefined> = async () => undefined
 ): ToolSet {
   return {
     collaborate: tool({
@@ -35,7 +36,8 @@ export function collaborationTools(
         return workspace.sendCollaboration(botId, {
           ...input,
           id: `handoff:${botId}:${context.toolCallId}`,
-          parentDeliveryId: await deliveryId()
+          parentDeliveryId: await deliveryId(),
+          requesterId: await requesterId()
         });
       }
     })

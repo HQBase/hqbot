@@ -1,7 +1,9 @@
 import { useCallback, useState } from "react";
 import { PiWarning } from "react-icons/pi";
 
+import type { Principal } from "../domain/team";
 import { AccessGate } from "./components/access-gate";
+import { TeamWorkspace } from "./components/team/team-workspace";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 import { Spinner } from "./components/ui/spinner";
@@ -10,9 +12,14 @@ import { useWorkspace } from "./hooks/use-workspace";
 
 export function App() {
   const [authenticated, setAuthenticated] = useState(false);
-  const openWorkspace = useCallback(() => setAuthenticated(true), []);
+  const [user, setUser] = useState<Principal | null>(null);
+  const openWorkspace = useCallback((current?: Principal) => {
+    setUser(current ?? null);
+    setAuthenticated(true);
+  }, []);
   const closeWorkspace = useCallback(() => setAuthenticated(false), []);
   if (!authenticated) return <AccessGate onAuthenticated={openWorkspace} />;
+  if (user && user.role !== "owner") return <TeamWorkspace onSignedOut={closeWorkspace} />;
   return <AuthenticatedWorkspace onSignedOut={closeWorkspace} />;
 }
 

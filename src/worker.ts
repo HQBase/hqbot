@@ -6,7 +6,7 @@ import { handleAuth } from "./http/auth";
 import { handleAutomations } from "./http/automations";
 import { handleBackups } from "./http/backups";
 import { handleBots } from "./http/bots";
-import { json, requireOwner, requireSameOrigin, workspace } from "./http/common";
+import { json, requestPrincipal, requireOwner, requireSameOrigin, workspace } from "./http/common";
 import { handleDemonstrations } from "./http/demonstrations";
 import { handleDesktop } from "./http/desktop";
 import { handleEventSettings, handleInboundEvent } from "./http/events";
@@ -16,6 +16,7 @@ import { handlePermissions } from "./http/permissions";
 import { handleProjects } from "./http/projects";
 import { handlePush } from "./http/push";
 import { handleResources } from "./http/resources";
+import { handleTeam } from "./http/team";
 import { handlePublicTemplate, handleTemplates } from "./http/templates";
 import { HQBotTeammate } from "./teammate";
 
@@ -76,6 +77,11 @@ async function health(env: Env): Promise<Response> {
 }
 
 async function handleApi(request: Request, env: Env): Promise<Response> {
+  const user = await requestPrincipal(request, env);
+  if (user && (user.role !== "owner" || new URL(request.url).pathname.startsWith("/api/team/"))) {
+    const response = await handleTeam(request, env, user);
+    if (response) return response;
+  }
   const unauthorized = await requireOwner(request, env);
   if (unauthorized) return unauthorized;
   const crossOrigin = requireSameOrigin(request);

@@ -9,7 +9,15 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 
-export function GroupConversation({ project, bots }: { project: Project; bots: BotTeammate[] }) {
+export function GroupConversation({
+  project,
+  bots,
+  readOnly = false
+}: {
+  project: Project;
+  bots: BotTeammate[];
+  readOnly?: boolean;
+}) {
   const [messages, setMessages] = useState<ProjectMessage[]>([]);
   const [recipients, setRecipients] = useState(project.botIds.slice(0, 6));
   const [prompt, setPrompt] = useState("");
@@ -168,7 +176,7 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
                         setRecipients([message.senderBotId]);
                     }}
                   >
-                    Reply
+                    {readOnly ? "Read reply" : "Reply"}
                   </Button>
                   <Button
                     size="sm"
@@ -177,88 +185,92 @@ export function GroupConversation({ project, bots }: { project: Project; bots: B
                   >
                     View thread
                   </Button>
-                  <MessageDiscussion
-                    source={{ kind: "project", id: project.id, messageId: message.id }}
-                    onAsk={setPrompt}
-                  />
+                  {!readOnly && (
+                    <MessageDiscussion
+                      source={{ kind: "project", id: project.id, messageId: message.id }}
+                      onAsk={setPrompt}
+                    />
+                  )}
                 </div>
               </div>
             ))}
           <div ref={end} />
         </div>
       </div>
-      <form
-        className="flex shrink-0 flex-col gap-3 border-t bg-background px-5 py-4"
-        onSubmit={(event) => void send(event)}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Ask</span>
-          {bots
-            .filter((bot) => project.botIds.includes(bot.id))
-            .map((bot) => (
+      {!readOnly && (
+        <form
+          className="flex shrink-0 flex-col gap-3 border-t bg-background px-5 py-4"
+          onSubmit={(event) => void send(event)}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Ask</span>
+            {bots
+              .filter((bot) => project.botIds.includes(bot.id))
+              .map((bot) => (
+                <Button
+                  size="sm"
+                  key={bot.id}
+                  type="button"
+                  variant={recipients.includes(bot.id) ? "secondary" : "ghost"}
+                  aria-pressed={recipients.includes(bot.id)}
+                  onClick={() =>
+                    setRecipients((current) =>
+                      current.includes(bot.id)
+                        ? current.filter((id) => id !== bot.id)
+                        : current.length < 6
+                          ? [...current, bot.id]
+                          : current
+                    )
+                  }
+                >
+                  @{bot.name}
+                </Button>
+              ))}
+          </div>
+          {replyTo && (
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2 text-xs">
+              <span className="truncate">Replying to: {replyTo.content}</span>
               <Button
-                size="sm"
-                key={bot.id}
+                size="icon"
+                variant="ghost"
                 type="button"
-                variant={recipients.includes(bot.id) ? "secondary" : "ghost"}
-                aria-pressed={recipients.includes(bot.id)}
-                onClick={() =>
-                  setRecipients((current) =>
-                    current.includes(bot.id)
-                      ? current.filter((id) => id !== bot.id)
-                      : current.length < 6
-                        ? [...current, bot.id]
-                        : current
-                  )
-                }
+                aria-label="Cancel reply"
+                onClick={() => setReplyTo(null)}
               >
-                @{bot.name}
+                <PiX />
               </Button>
-            ))}
-        </div>
-        {replyTo && (
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2 text-xs">
-            <span className="truncate">Replying to: {replyTo.content}</span>
+            </div>
+          )}
+          <div className="flex items-end gap-3">
+            <Textarea
+              aria-label="Message project teammates"
+              className="min-h-20 flex-1 resize-none"
+              value={prompt}
+              maxLength={12000}
+              placeholder="What should we work on?"
+              onChange={(event) => setPrompt(event.target.value)}
+            />
             <Button
+              type="submit"
+              disabled={busy || !prompt.trim() || !recipients.length}
+              aria-label="Send group message"
               size="icon"
-              variant="ghost"
-              type="button"
-              aria-label="Cancel reply"
-              onClick={() => setReplyTo(null)}
             >
-              <PiX />
+              <PiArrowUp />
             </Button>
           </div>
-        )}
-        <div className="flex items-end gap-3">
-          <Textarea
-            aria-label="Message project teammates"
-            className="min-h-20 flex-1 resize-none"
-            value={prompt}
-            maxLength={12000}
-            placeholder="What should we work on?"
-            onChange={(event) => setPrompt(event.target.value)}
-          />
-          <Button
-            type="submit"
-            disabled={busy || !prompt.trim() || !recipients.length}
-            aria-label="Send group message"
-            size="icon"
-          >
-            <PiArrowUp />
-          </Button>
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {busy
+              ? "Sending…"
+              : "Each teammate replies when it is free. Its budget and permissions still apply."}
           </p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          {busy
-            ? "Sending…"
-            : "Each teammate replies when it is free. Its budget and permissions still apply."}
-        </p>
-      </form>
+        </form>
+      )}
     </div>
   );
 }

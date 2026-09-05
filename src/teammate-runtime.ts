@@ -1,5 +1,6 @@
 import { Think } from "@cloudflare/think";
 import type { LanguageModel } from "ai";
+import { assertAgentToolPolicy, assertConnectorPolicy } from "./domain/admin-policy";
 import type { PermissionRuleInput } from "./domain/permissions";
 import { ActionHistory } from "./runtime/action-history";
 import { TeammateComputer } from "./runtime/computer";
@@ -72,6 +73,9 @@ export abstract class TeammateRuntime extends Think<Env> {
 
   protected get workspaceAgent(): WorkspaceAgentRpc {
     return this.env.HQBOT_AGENT.getByName(this.env.HQBOT_ID) as unknown as WorkspaceAgentRpc;
+  }
+  protected async assertAgentToolAllowed(name: string, _input: unknown): Promise<void> {
+    assertAgentToolPolicy(await this.workspaceAgent.getAdminPolicy(), name);
   }
   protected async canAct(): Promise<boolean> {
     const bot = await this.workspaceAgent.getBot(this.name);
@@ -155,6 +159,7 @@ export abstract class TeammateRuntime extends Think<Env> {
   protected get computerPermissions(): ComputerPermissions {
     this.permissions ??= new ComputerPermissions(this.sql.bind(this) as Sql, {
       pending: () => this.pendingApprovals(),
+      authorize: (name, input) => this.assertAgentToolAllowed(name, input),
       permission: (action, input, fallback) =>
         this.permissionRules.decide("computer", action, input, fallback),
       beforeDecision: async (id, approved) => {
@@ -264,6 +269,8 @@ export abstract class TeammateRuntime extends Think<Env> {
 
   protected get integrationRuntime(): TeammateIntegrations {
     this.integrations ??= new TeammateIntegrations({
+      authorizeServer: async (url) =>
+        assertConnectorPolicy(await this.workspaceAgent.getAdminPolicy(), url),
       permission: (connector, action, input) =>
         this.permissionRules.decide(connector, action, input),
       history: new ActionHistory(this.sql.bind(this) as Sql),

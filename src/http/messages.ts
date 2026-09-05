@@ -1,10 +1,12 @@
 import { messageSource, type SearchHit } from "../domain/messages";
-import { json, readJson, teammate, workspace } from "./common";
+import { json, readJson, requestPrincipal, teammate, workspace } from "./common";
 
 export async function handleMessages(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
   if (!["/api/search", "/api/discussions"].includes(url.pathname)) return null;
   const agent = await workspace(env);
+  const user = await requestPrincipal(request, env);
+  if (!user) return json({ error: "Sign in to continue" }, 401);
   if (url.pathname === "/api/search" && request.method === "GET") {
     const query = (url.searchParams.get("q") ?? "").trim().slice(0, 200);
     if (!query) return json({ hits: [], nextOffset: null, unavailable: [] });
@@ -34,12 +36,12 @@ export async function handleMessages(request: Request, env: Env): Promise<Respon
         : await agent.projectMessage(source.id, source.messageId);
     if (content === null) return json({ error: "Message not found" }, 404);
     if (request.method === "GET")
-      return json({ content, ...(await agent.readDiscussion(source, "owner")) });
+      return json({ content, ...(await agent.readDiscussion(source, user.id)) });
     if (request.method === "POST")
       return json(
         body.action === "react"
-          ? await agent.reactToMessage(source, "owner", body)
-          : await agent.addDiscussionNote(source, "owner", {
+          ? await agent.reactToMessage(source, user.id, body)
+          : await agent.addDiscussionNote(source, user.id, {
               id: body.noteId,
               content: body.content
             })
