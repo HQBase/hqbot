@@ -30,7 +30,8 @@ Each teammate keeps its own files, memory, integrations, credentials, routines, 
 logins. A group is a project conversation with selected teammates. Its info sidebar shows members
 and shared files and skills. Use **Edit group** to choose exactly which items to share.
 
-Unread badges and approval cards show what needs attention. The small bell below the conversation
+Unread badges and approval cards show what needs attention. Approval cards also refresh when
+background work asks for review, and after the chat reconnects. The small bell below the conversation
 list opens saved updates. The search button beside the list filter, or Cmd+K on Mac and Ctrl+K
 elsewhere, searches messages and saved work. Search results can prepare a conversation draft.
 

@@ -1,18 +1,11 @@
 import { useAgentChat } from "@cloudflare/think/react";
 import { useAgent } from "agents/react";
 import type { UIMessage } from "ai";
-import {
-  type ChangeEvent,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react";
+import { type ChangeEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { IntegrationApproval } from "../../domain/actions";
 import type { BotTeammate } from "../../domain/types";
 import { useInitialMessageDelivery } from "../hooks/use-initial-message-delivery";
+import { useIntegrationApprovals } from "../hooks/use-integration-approvals";
 import type { WorkspaceController } from "../hooks/use-workspace";
 import { artifactReferences, uploadArtifacts } from "../lib/artifact-upload";
 import { isInternalContinuation } from "../lib/internal-messages";
@@ -49,7 +42,13 @@ export function RealtimeConversation({
     credentials: "include",
     throttle: 50
   });
-  const [approvals, setApprovals] = useState<IntegrationApproval[]>([]);
+  const { approvals, refreshApprovals } = useIntegrationApprovals({
+    botId: bot.id,
+    botStatus: bot.status,
+    chatStatus: chat.status,
+    ready: agent.ready,
+    stub: agent.stub
+  });
   const [resolving, setResolving] = useState<string | null>(null);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [admitting, setAdmitting] = useState(false);
@@ -69,18 +68,10 @@ export function RealtimeConversation({
   useEffect(() => {
     promptRef.current = prompt;
   }, [prompt]);
-  const refreshApprovals = useCallback(async () => {
-    try {
-      setApprovals(await agent.stub.listIntegrationApprovals());
-    } catch {
-      // A reconnect or terminal close will retry when chat becomes ready.
-    }
-  }, [agent.stub]);
   useEffect(() => {
     if (chat.status !== "ready") return;
-    void refreshApprovals();
     void controller.load(bot.id);
-  }, [bot.id, chat.status, controller.load, refreshApprovals]);
+  }, [bot.id, chat.status, controller.load]);
   const pendingInitialMessage = useInitialMessageDelivery({
     botId: bot.id,
     controller,
