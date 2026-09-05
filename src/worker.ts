@@ -3,6 +3,7 @@ import { routeAgentRequest } from "agents";
 import { HQBotAgent } from "./agent";
 import { handleArtifacts } from "./http/artifacts";
 import { handleAuth } from "./http/auth";
+import { handleAutomations } from "./http/automations";
 import { handleBackups } from "./http/backups";
 import { handleBots } from "./http/bots";
 import { json, requireOwner, requireSameOrigin, workspace } from "./http/common";
@@ -76,6 +77,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   if (crossOrigin) return crossOrigin;
   for (const handler of [
     handleBots,
+    handleAutomations,
     handleResources,
     handleKnowledge,
     handlePermissions,

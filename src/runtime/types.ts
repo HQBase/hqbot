@@ -1,3 +1,4 @@
+import type { AutomationsRpc, RoutineSchedule } from "../domain/automations";
 import type { KnowledgeRpc } from "../domain/knowledge";
 import type { HQBotModelId } from "../domain/models";
 import type { ProjectsRpc } from "../domain/projects";
@@ -35,6 +36,7 @@ export interface WorkspaceSkillDto {
 }
 
 export interface WorkspaceRoutineDto {
+  schedule?: RoutineSchedule;
   id: string;
   name: string;
   prompt: string;
@@ -81,7 +83,7 @@ export interface SpendPolicyDto {
   reason: string | null;
 }
 
-export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc {
+export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc, AutomationsRpc {
   getBot(botId: string): Promise<WorkspaceBotDto | null>;
   listMemories(
     botId: string,

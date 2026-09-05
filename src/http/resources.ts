@@ -146,21 +146,6 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
     return json({ routine }, 201);
   }
 
-  const run = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/routines\/([^/]+)\/run$/u);
-  if (request.method === "POST" && run?.[0] && run[1]) {
-    const unavailable = await requireActiveTeammate(agent, run[0]);
-    if (unavailable) return unavailable;
-    const routine = (await agent.listRoutines(run[0])).find((item) => item.id === run[1]);
-    if (!routine) return json({ error: "Routine not found" }, 404);
-    const submission = await (await teammate(env, run[0])).submitChat({
-      prompt: `[hqbot:routine-run]\n${routine.name}\n\n${routine.prompt}`,
-      submissionId: `routine:${routine.id}:${crypto.randomUUID()}`
-    });
-    return submission
-      ? json(submission, 202)
-      : json({ error: "This routine run was stopped before it started" }, 409);
-  }
-
   const routine = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/routines\/([^/]+)$/u);
   if (routine?.[0] && routine[1] && request.method === "PATCH") {
     const body = await readJson(request);

@@ -71,11 +71,15 @@ export function requireSameOrigin(request: Request): Response | null {
   return null;
 }
 
-export async function readJson(request: Request): Promise<Record<string, unknown>> {
+export async function readJson(
+  request: Request,
+  allowEmpty = false
+): Promise<Record<string, unknown>> {
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > 100_000) throw new Error("Request body is too large");
   const raw = await request.text();
   if (raw.length > 100_000) throw new Error("Request body is too large");
+  if (allowEmpty && !raw.trim()) return {};
   const value: unknown = JSON.parse(raw);
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Request body must be a JSON object");

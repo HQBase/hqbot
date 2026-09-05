@@ -178,6 +178,10 @@ export function createComputerFileTools(options: ComputerFileToolsOptions): Tool
     execute: async ({ fileId }) => {
       const file = await options.catalog.getFile(fileId, options.botId);
       if (!file) return { deleted: false, fileId };
+      if (file.botId !== options.botId)
+        throw new Error(
+          "Shared project files are read-only. Ask the owner to remove or replace the source file."
+        );
       await deleteArtifact(options.bucket, options.catalog, file);
       return { deleted: true, fileId };
     },

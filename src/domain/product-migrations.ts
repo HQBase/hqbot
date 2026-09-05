@@ -30,5 +30,14 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE TABLE IF NOT EXISTS collaboration_deliveries (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, message_id TEXT NOT NULL REFERENCES project_messages(id) ON DELETE CASCADE, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, sender_bot_id TEXT, root_id TEXT NOT NULL, depth INTEGER NOT NULL, response INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
       `CREATE INDEX IF NOT EXISTS collaboration_pending ON collaboration_deliveries(state, created_at)`
     ]
+  },
+  {
+    version: 15,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS routine_settings (routine_id TEXT PRIMARY KEY REFERENCES routines(id) ON DELETE CASCADE, revision INTEGER NOT NULL, schedule_json TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS routine_runs (id TEXT PRIMARY KEY, routine_id TEXT NOT NULL REFERENCES routines(id) ON DELETE CASCADE, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, source TEXT NOT NULL, state TEXT NOT NULL, prompt TEXT NOT NULL, result TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS routine_run_queue ON routine_runs(state, updated_at)`,
+      `CREATE INDEX IF NOT EXISTS routine_run_history ON routine_runs(routine_id, created_at)`
+    ]
   }
 ];

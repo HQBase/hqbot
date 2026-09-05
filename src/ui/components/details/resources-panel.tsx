@@ -10,7 +10,7 @@ import {
   PiTrash,
   PiX
 } from "react-icons/pi";
-
+import { routineScheduleLabel } from "../../../domain/automations";
 import type {
   BotFile,
   BotMemory,
@@ -104,7 +104,9 @@ export function ResourcesPanel({
               <span className="min-w-0">
                 <strong className="block truncate text-xs">{routine.name}</strong>
                 <small className="block text-[11px] text-muted-foreground">
-                  Every {formatInterval(routine.intervalMinutes)}
+                  {routine.schedule
+                    ? routineScheduleLabel(routine.schedule)
+                    : `Every ${formatInterval(routine.intervalMinutes)}`}
                 </small>
               </span>
               <span className="flex shrink-0 items-center gap-1">

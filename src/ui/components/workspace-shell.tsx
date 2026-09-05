@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { PiBookOpen, PiChatCircle, PiFolder, PiList } from "react-icons/pi";
+import { PiBookOpen, PiCalendar, PiChatCircle, PiFolder, PiList } from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
+import { AutomationsPage } from "./automations/automations-page";
 import { ConversationPanel } from "./conversation-panel";
 import { DetailsPanel } from "./details/details-panel";
 import { ConnectionDialog } from "./dialogs/connection-dialog";
@@ -17,7 +18,7 @@ import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
-  const [page, setPage] = useState<"chat" | "library" | "projects">("chat");
+  const [page, setPage] = useState<"chat" | "library" | "projects" | "automations">("chat");
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
   );
@@ -37,7 +38,9 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
   const snapshot = controller.snapshot;
   if (!snapshot) return null;
   const pageContent =
-    page === "projects" ? (
+    page === "automations" ? (
+      <AutomationsPage controller={controller} onConversation={() => setPage("chat")} />
+    ) : page === "projects" ? (
       <ProjectsPage controller={controller} />
     ) : (
       <LibraryPage controller={controller} />
@@ -96,6 +99,16 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
             }}
           >
             <PiFolder /> Projects
+          </Button>
+          <Button
+            className="justify-start"
+            variant={page === "automations" ? "secondary" : "ghost"}
+            onClick={() => {
+              setPage("automations");
+              controller.setMobileChatOpen(true);
+            }}
+          >
+            <PiCalendar /> Automations
           </Button>
         </nav>
       }

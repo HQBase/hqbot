@@ -1,3 +1,4 @@
+import type { RoutineSchedule } from "./automations";
 export type TaskSource = "chat";
 export type TaskStatus =
   | "queued"
@@ -33,6 +34,7 @@ export interface BotMemory {
 }
 
 export interface BotRoutine {
+  schedule?: RoutineSchedule;
   id: string;
   botId: string;
   name: string;

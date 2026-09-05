@@ -47,7 +47,8 @@ describe("RoutineDialog", () => {
       ["720", "12 hours"],
       ["1440", "1 day"],
       ["10080", "1 week"],
-      ["43200", "30 days"]
+      ["43200", "30 days"],
+      ["custom", "Other interval…"]
     ]);
     await view.unmount();
   });

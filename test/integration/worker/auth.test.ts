@@ -53,6 +53,77 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("schedules local calendar times and updates the native schedule after editing", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Calendar test", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    const saved = await post(
+      "/api/automations",
+      {
+        botId: teammate.id,
+        name: "Morning brief",
+        prompt: "Check official sources",
+        schedule: {
+          kind: "calendar",
+          days: [1, 2, 3, 4, 5],
+          time: "09:00",
+          timezone: "America/Toronto"
+        }
+      },
+      session
+    );
+    expect(saved.status).toBe(200);
+    const { routine } = (await saved.json()) as { routine: { id: string; revision: number } };
+    const read = async () =>
+      (await (
+        await request(`/api/bots/${teammate.id}/routines/${routine.id}/runs`, {
+          headers: { Cookie: session }
+        })
+      ).json()) as { runs: unknown[]; nextRunAt: string };
+    const first = await read();
+    expect(first.nextRunAt).toBeTypeOf("string");
+    expect(first.runs).toEqual([]);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Toronto",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      weekday: "short"
+    }).formatToParts(new Date(first.nextRunAt));
+    expect(parts.find((part) => part.type === "hour")?.value).toBe("09");
+    expect(["Mon", "Tue", "Wed", "Thu", "Fri"]).toContain(
+      parts.find((part) => part.type === "weekday")?.value
+    );
+    const edited = await post(
+      "/api/automations",
+      {
+        id: routine.id,
+        revision: routine.revision,
+        botId: teammate.id,
+        name: "Morning brief",
+        prompt: "Check official sources",
+        schedule: {
+          kind: "calendar",
+          days: [1, 2, 3, 4, 5],
+          time: "10:30",
+          timezone: "America/Toronto"
+        }
+      },
+      session
+    );
+    expect(edited.status).toBe(200);
+    const next = (await read()).nextRunAt;
+    expect(next).not.toBe(first.nextRunAt);
+    expect(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/Toronto",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).format(new Date(next))
+    ).toBe("10:30");
+  });
   it("serves persistent knowledge, scoped permissions, and projects through authenticated routes", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const created = await post(
@@ -369,15 +440,9 @@ describe("HQBot Worker authentication", () => {
       undefined,
       session
     );
-    const manualRunBody = (await manualRun.json()) as {
-      accepted: boolean;
-      submissionId: string;
-    };
-    expect(manualRun.status).toBe(202);
-    expect(manualRunBody).toEqual({
-      accepted: true,
-      submissionId: expect.stringMatching(`^routine:${acceptedBody.routine.id}:`)
-    });
+    const manualRunBody = (await manualRun.json()) as { run: { id: string; state: string } };
+    expect(manualRun.status, JSON.stringify(manualRunBody)).toBe(202);
+    expect(manualRunBody).toMatchObject({ run: { id: expect.any(String), state: "queued" } });
 
     const workspaceStorage = await server
       .getWorker()
@@ -386,17 +451,19 @@ describe("HQBot Worker authentication", () => {
       { count: 0 }
     ]);
 
-    const teammateStorage = await server
-      .getWorker()
-      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: teammate.id });
-    const submissions = await teammateStorage.exec(
-      "SELECT submission_id, messages_json FROM cf_think_submissions WHERE submission_id = ?",
-      manualRunBody.submissionId
+    const runs = await workspaceStorage.exec(
+      "SELECT id, prompt FROM routine_runs WHERE id = ?",
+      manualRunBody.run.id
     );
-    expect(submissions).toHaveLength(1);
-    expect(String(submissions[0]?.messages_json)).toContain(
-      "[hqbot:routine-run]\\nMinute check\\n\\nCheck for updates"
+    expect(runs).toHaveLength(1);
+    expect(String(runs[0]?.prompt)).toContain("Check for updates");
+    const history = await request(
+      `/api/bots/${teammate.id}/routines/${acceptedBody.routine.id}/runs`,
+      { headers: { Cookie: session } }
     );
+    expect(await history.json()).toMatchObject({
+      runs: [{ id: manualRunBody.run.id, source: "manual" }]
+    });
 
     const rejected = await post(
       `/api/bots/${teammate.id}/routines`,

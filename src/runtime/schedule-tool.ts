@@ -115,6 +115,7 @@ export function createScheduleTool(options: {
         const existing = routines.find(
           (routine) =>
             routine.name === input.name &&
+            (!routine.schedule || routine.schedule.kind === "interval") &&
             routine.prompt === input.prompt &&
             routine.intervalMinutes === input.everyMinutes
         );

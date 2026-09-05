@@ -63,7 +63,7 @@ export async function saveArtifact(input: {
   } catch (cause) {
     try {
       const existing = await input.catalog.getFile(id, input.botId);
-      if (existing) return existing;
+      if (existing?.botId === input.botId && existing.key === key) return existing;
     } catch {
       // Keep the object when a committed catalog write cannot be ruled out.
       throw cause;

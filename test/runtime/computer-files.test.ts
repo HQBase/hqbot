@@ -103,6 +103,25 @@ function harness(initialFiles: BotFile[] = [], initialObjects: Array<[string, Ui
 }
 
 describe("computer file tools", () => {
+  it("can read a shared file but cannot delete its owner's object", async () => {
+    const runtime = harness();
+    const shared: BotFile = {
+      id: "shared",
+      botId: "another",
+      name: "report.txt",
+      key: "files/another/report",
+      size: 1,
+      contentType: "text/plain",
+      taskId: null,
+      createdAt
+    };
+    vi.mocked(runtime.catalog.getFile).mockResolvedValue(shared);
+    await expect(execute(runtime.tools.delete_file, { fileId: "shared" })).rejects.toThrow(
+      "read-only"
+    );
+    expect(runtime.catalog.deleteFile).not.toHaveBeenCalled();
+    expect(runtime.bucket.delete).not.toHaveBeenCalled();
+  });
   it("returns current usage when file-tool input is invalid", () => {
     const runtime = harness();
 

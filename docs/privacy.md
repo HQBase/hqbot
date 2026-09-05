@@ -27,7 +27,7 @@ the owner connects.
 - Structured browser tools have full control of Chrome. Desktop tools send whole-desktop
   screenshots to the selected Workers AI model and control the pointer and keyboard in any visible
   Linux application. Keep sensitive accounts and applications closed or signed out unless you
-  intend the teammate to use them. Computer actions use the owner-selected permission policy. Review is the default. Allow grants code execution and browser or desktop actions to that teammate. Remote MCP calls still need separate approval.
+  intend the teammate to use them. Computer actions use the owner-selected permission policy. Review is the default. Allow grants code execution and browser or desktop actions to that teammate. Remote MCP calls need review unless an explicit owner permission rule allows the matching action.
 - Ask the teammate for computer control before you enter a password, passkey, MFA code, or CAPTCHA.
   The teammate can also offer control when it needs a private login step. New model browser,
   desktop, and Bash actions pause while owner control is active. HQBot stops an active model

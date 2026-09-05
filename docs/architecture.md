@@ -48,8 +48,11 @@ wait until a future time, wait for a long Linux process, or wait for the owner. 
 compact checkpoint stay in the same teammate Durable Object as the conversation.
 
 The `schedule` tool creates one-time or recurring future work. Think stores a one-time schedule as
-the active task. It reconciles a recurring schedule from the teammate routine records into durable
-scheduled turns.
+the active task. The `manage_automation` tool and Automations page also support calendar routines
+with an IANA time zone. Think reconciles routine records into durable timers. Each occurrence
+enters a workspace queue with a stable ID. The teammate accepts it when current work, approvals,
+and budget permit. Manual tests use the same queue and keep their own run history. A paused
+routine accepts manual tests. Stop cancels queued and active runs.
 
 HQBot keeps the complete merged Think tool set available on each normal turn. This includes the
 teammate computer tools, `manage_task`, and `schedule`. HQBot does not apply a second

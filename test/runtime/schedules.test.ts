@@ -3,6 +3,46 @@ import { describe, expect, it, vi } from "vitest";
 import { teammateScheduledTasks } from "../../src/runtime/schedules";
 
 describe("teammate schedules", () => {
+  it("dispatches calendar occurrences with their time zone and durable occurrence ID", async () => {
+    const dispatch = vi.fn(async () => undefined);
+    const tasks = teammateScheduledTasks(
+      [
+        {
+          id: "calendar",
+          name: "Morning brief",
+          prompt: "Check updates",
+          active: true,
+          intervalMinutes: 1440,
+          nextRunAt: "",
+          schedule: {
+            kind: "calendar",
+            days: [5, 1, 1],
+            time: "09:30",
+            timezone: "America/Toronto"
+          }
+        },
+        {
+          id: "event",
+          name: "Issue opened",
+          prompt: "Review",
+          active: true,
+          intervalMinutes: 1440,
+          nextRunAt: "",
+          schedule: { kind: "event" }
+        }
+      ],
+      vi.fn(async () => undefined),
+      dispatch
+    );
+    expect(tasks.routine_calendar).toMatchObject({
+      schedule: "every week on monday,friday at 09:30",
+      timezone: "America/Toronto"
+    });
+    expect(tasks.routine_event).toBeUndefined();
+    const context = { idempotencyKey: "occurrence-1", scheduledFor: 123 } as never;
+    await tasks.routine_calendar?.handler?.(context);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ id: "calendar" }), context);
+  });
   it("uses one hourly computer recovery checkpoint and keeps active routines", async () => {
     const checkpoint = vi.fn().mockResolvedValue(undefined);
     const tasks = teammateScheduledTasks(

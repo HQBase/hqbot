@@ -21,7 +21,6 @@ import type { LinuxProcessPollPayload } from "./runtime/managed-linux-process";
 import { mcpOAuthCallbackResponse, type TeammateConnection } from "./runtime/mcp";
 import { createStopProcessTool } from "./runtime/process-tools";
 import { createScheduleTool } from "./runtime/schedule-tool";
-import { teammateScheduledTasks } from "./runtime/schedules";
 import { clearLegacyScreenshotReplayError } from "./runtime/screenshot-replay-recovery";
 import { suspendTeammateWork } from "./runtime/suspension";
 import { taskManagementInput } from "./runtime/task-management";
@@ -35,11 +34,11 @@ import {
 import { checkpointStep, DEFAULT_TURN_STEPS, repeatedStepResult } from "./runtime/turn-supervision";
 import { GLM_PRIMARY_MODEL_ID, type TeammateChatSubmission } from "./runtime/types";
 import { migrateTeammateWork, type WorkResumePayload } from "./runtime/work";
-import { TeammateProductRuntime } from "./teammate-product";
+import { TeammateAutomationsRuntime } from "./teammate-automations";
 import { FIRST_MESSAGE_STOPPED_KEY } from "./teammate-runtime";
 import type { Sql } from "./workspace/sql";
 
-export class HQBotTeammate extends TeammateProductRuntime {
+export class HQBotTeammate extends TeammateAutomationsRuntime {
   maxSteps = DEFAULT_TURN_STEPS;
   contextOverflow = {
     reactive: true,
@@ -245,12 +244,6 @@ export class HQBotTeammate extends TeammateProductRuntime {
 
   protected onSubmissionStatus(submission: ThinkSubmissionInspection): Promise<void> {
     return this.tasks.run(() => this.tasks.settleSubmission(submission));
-  }
-
-  async getScheduledTasks() {
-    return teammateScheduledTasks(await this.workspaceAgent.listRoutines(this.name), () =>
-      this.computerRuntime.recoveryCheckpoint()
-    );
   }
 
   @callable()
