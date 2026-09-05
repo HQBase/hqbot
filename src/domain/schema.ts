@@ -234,6 +234,13 @@ export const schemaMigrations: readonly SchemaMigration[] = [
       "ALTER TABLE usage_events ADD COLUMN pricing_status TEXT NOT NULL DEFAULT 'known'",
       "ALTER TABLE usage_events ADD COLUMN settled INTEGER NOT NULL DEFAULT 1"
     ]
+  },
+  {
+    version: 12,
+    statements: [
+      "CREATE TABLE notifications (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, task_id TEXT, kind TEXT NOT NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT, FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE)",
+      "CREATE INDEX notifications_unread ON notifications(read_at, created_at)"
+    ]
   }
 ];
 

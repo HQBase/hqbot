@@ -28,6 +28,7 @@
     "src/workspace/mail-realtime.ts",
     "src/workspace/migrations.ts",
     "src/workspace/model-budget.ts",
+    "src/workspace/notifications.ts",
     "src/workspace/platform-footprint.ts",
     "src/workspace/sql.ts",
     "src/workspace/snapshot.ts",

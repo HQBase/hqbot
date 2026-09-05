@@ -158,6 +158,17 @@ export abstract class TeammateRuntime extends Think<Env> {
     return this.computerRuntime.checkpoint();
   }
 
+  getTaskProgress() {
+    const work = this.tasks.current();
+    return work
+      ? {
+          work,
+          criteria: this.taskSupervision.criteria(work.taskId),
+          milestones: this.taskSupervision.milestones(work.taskId)
+        }
+      : null;
+  }
+
   getComputerPolicy() {
     return this.computerPermissions.get();
   }

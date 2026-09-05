@@ -7,6 +7,7 @@ import { ComputerPermissionsPanel } from "./computer-permissions-panel";
 import { CostPanel } from "./cost-panel";
 import { DesktopView } from "./desktop-view";
 import { ResourcesPanel } from "./resources-panel";
+import { TaskProgressPanel } from "./task-progress-panel";
 
 export function DetailsPanel({
   controller,
@@ -54,6 +55,7 @@ export function DetailsPanel({
           botId={selectedBot.id}
           needsApproval={selectedBot.status === "needs_approval"}
         />
+        <TaskProgressPanel botId={selectedBot.id} revision={snapshot.activeTask?.updatedAt} />
         <BackupsPanel botId={selectedBot.id} />
         <ActionHistoryPanel botId={selectedBot.id} />
         <CostPanel budgetUsd={selectedBot.dailyBudgetUsd} costs={snapshot.costs} />

@@ -18,6 +18,7 @@ import { checkSpendPolicy, positiveNumber } from "./budgets";
 import { WorkspaceCatalog } from "./catalog";
 import { migrateWorkspace } from "./migrations";
 import { reserveModelRequest } from "./model-budget";
+import { WorkspaceNotifications } from "./notifications";
 import { readWorkspaceSnapshot } from "./snapshot";
 import type { Sql } from "./sql";
 import { WorkspaceTasks } from "./tasks";
@@ -107,6 +108,22 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     status: BotTeammate["status"] = "working"
   ): void {
     const current = this.catalog.getBot(botId);
+    if (status === "needs_approval" && current?.status !== "needs_approval")
+      new WorkspaceNotifications(this.db).add(
+        crypto.randomUUID(),
+        botId,
+        null,
+        "approval",
+        "Action needs your approval"
+      );
+    if (status === "idle" && current?.status === "working")
+      new WorkspaceNotifications(this.db).add(
+        crypto.randomUUID(),
+        botId,
+        null,
+        occurredAtOrMessage.includes("failed") ? "failed" : "reply",
+        occurredAtOrMessage.includes("failed") ? "Work failed" : "Reply ready"
+      );
     const isTimestamp = !Number.isNaN(Date.parse(occurredAtOrMessage));
     this.catalog.markInteraction(
       botId,
@@ -284,6 +301,11 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
       inputUnits: usage.units,
       estimatedUsd: usage.estimatedCostMicroUsd / 1_000_000
     });
+    this.changed();
+  }
+
+  readNotification(id: string): void {
+    this.tasks.readNotification(id);
     this.changed();
   }
 

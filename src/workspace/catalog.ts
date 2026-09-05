@@ -205,6 +205,7 @@ export class WorkspaceCatalog {
     this.sql`DELETE FROM memories WHERE bot_id = ${id}`;
     this.sql`DELETE FROM routines WHERE bot_id = ${id}`;
     this.sql`DELETE FROM skills WHERE bot_id = ${id}`;
+    this.sql`DELETE FROM notifications WHERE bot_id = ${id}`;
     return this.sql<{ id: string }>`DELETE FROM bots WHERE id = ${id} RETURNING id`.length > 0;
   }
 

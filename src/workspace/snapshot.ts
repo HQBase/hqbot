@@ -18,6 +18,7 @@ export function readWorkspaceSnapshot(
   const tasks = selectedBot ? taskStore.listTasks(selectedBot.id) : [];
   const activeTask = tasks.find((task) => !terminal(task.status)) ?? tasks[0] ?? null;
   return {
+    notifications: taskStore.listNotifications(),
     bots,
     archivedBots,
     selectedBot,

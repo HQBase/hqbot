@@ -260,4 +260,9 @@ export function migrateWorkspace(sql: Sql): void {
     sql`ALTER TABLE usage_events ADD COLUMN settled INTEGER NOT NULL DEFAULT 1`;
     finish(sql, 11);
   }
+  if (!isApplied(sql, 12)) {
+    sql`CREATE TABLE notifications (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, task_id TEXT, kind TEXT NOT NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT, FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE)`;
+    sql`CREATE INDEX notifications_unread ON notifications(read_at, created_at)`;
+    finish(sql, 12);
+  }
 }

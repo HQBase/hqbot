@@ -16,6 +16,15 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
   const url = new URL(request.url);
   const agent = await workspace(env);
 
+  const notification = pathMatch(url.pathname, /^\/api\/notifications\/([^/]+)\/read$/u);
+  if (request.method === "POST" && notification?.[0]) {
+    await agent.readNotification(notification[0]);
+    return json({ saved: true });
+  }
+  const progress = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/task-progress$/u);
+  if (request.method === "GET" && progress?.[0])
+    return json(await (await teammate(env, progress[0])).getTaskProgress());
+
   const permissions = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/computer-permissions$/u);
   if (permissions?.[0]) {
     const unavailable = await requireActiveTeammate(agent, permissions[0]);

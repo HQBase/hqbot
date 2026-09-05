@@ -6,6 +6,7 @@ import type {
   CostTotal,
   UsageInput
 } from "../domain/types";
+import { WorkspaceNotifications } from "./notifications";
 import { readCloudflareResourceFootprint } from "./platform-footprint";
 import { activityFromRow, now, number, type Row, type Sql, taskFromRow } from "./sql";
 
@@ -71,6 +72,19 @@ export class WorkspaceTasks {
   }
 
   syncTaskState(taskId: string, workState: string, wakeAt: string | null): void {
+    const current = this.getTask(taskId);
+    if (
+      current &&
+      current.workState !== workState &&
+      ["needs_user", "uncertain"].includes(workState)
+    )
+      new WorkspaceNotifications(this.sql).add(
+        crypto.randomUUID(),
+        current.botId,
+        taskId,
+        "input",
+        "Task needs your input"
+      );
     this.sql`UPDATE tasks SET work_state = ${workState}, wake_at = ${wakeAt},
       updated_at = ${now()} WHERE id = ${taskId}`;
   }
@@ -102,13 +116,33 @@ export class WorkspaceTasks {
       VALUES (${id}, ${taskId}, ${phase}, ${title}, ${detail}, ${now()})`;
   }
 
+  listNotifications() {
+    return new WorkspaceNotifications(this.sql).list();
+  }
+  readNotification(id: string): void {
+    new WorkspaceNotifications(this.sql).read(id);
+  }
+  private notifyTask(taskId: string, kind: string, title: string): void {
+    const task = this.getTask(taskId);
+    if (task)
+      new WorkspaceNotifications(this.sql).add(
+        `${taskId}:${kind}`,
+        task.botId,
+        taskId,
+        kind,
+        title
+      );
+  }
+
   completeTask(taskId: string, result: string): void {
+    this.notifyTask(taskId, "completed", "Task completed");
     this.sql`UPDATE tasks SET status = 'completed', result = ${result},
       error = NULL, updated_at = ${now()} WHERE id = ${taskId}`;
     this.addActivity(taskId, "completed", "Work completed", "The result is ready in this chat.");
   }
 
   failTask(taskId: string, error: string): void {
+    this.notifyTask(taskId, "failed", "Task failed");
     const message = error.slice(0, 500);
     this.sql`UPDATE tasks SET status = 'failed', error = ${message}, updated_at = ${now()}
       WHERE id = ${taskId}`;

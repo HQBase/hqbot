@@ -29,3 +29,9 @@ continuation, budget limits, lost processes, context recovery, and backup failur
 workflow must cover approval, continued work, a saved deliverable, and restart recovery. Record
 completion, duration, and cost. A 24 to 72 hour soak run is required before claiming that duration
 is proven. A short test cannot establish multi-day reliability.
+
+## Owner notifications
+
+The notification inbox keeps completion, failure, and input requests in workspace storage. Browser
+alerts are optional and work while HQBot is open. They do not contain task prompts or results.
+Task progress shows saved criteria, milestones, and completion evidence in teammate details.

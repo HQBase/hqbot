@@ -7,6 +7,7 @@ import { DetailsPanel } from "./details/details-panel";
 import { ConnectionDialog } from "./dialogs/connection-dialog";
 import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
+import { NotificationInbox } from "./notification-inbox";
 import { TeammateSidebar } from "./teammate-sidebar";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
@@ -47,6 +48,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
 
   const sidebar = (
     <TeammateSidebar
+      footer={<NotificationInbox controller={controller} />}
       archivedBots={snapshot.archivedBots}
       bots={snapshot.bots}
       selectedId={controller.selectedBot?.id ?? null}

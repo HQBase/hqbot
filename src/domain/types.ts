@@ -94,7 +94,18 @@ export interface BotActivity {
   createdAt: string;
 }
 
+export interface TaskNotification {
+  id: string;
+  botId: string;
+  taskId: string | null;
+  kind: string;
+  title: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
 export interface WorkspaceSnapshot {
+  notifications?: TaskNotification[];
   bots: BotTeammate[];
   archivedBots: BotTeammate[];
   selectedBot: BotTeammate | null;

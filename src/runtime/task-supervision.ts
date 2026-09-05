@@ -99,6 +99,6 @@ export class TaskSupervision {
 
   milestones(taskId: string) {
     return this
-      .sql<Row>`SELECT state, checkpoint, evidence, created_at FROM hqbot_task_milestones WHERE task_id = ${taskId} ORDER BY created_at DESC LIMIT 100`;
+      .sql<Row>`SELECT id, state, checkpoint, evidence, created_at FROM hqbot_task_milestones WHERE task_id = ${taskId} ORDER BY created_at DESC LIMIT 100`;
   }
 }

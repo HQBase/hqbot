@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   PiArchive,
   PiCaretDown,
@@ -20,6 +20,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
 export function TeammateSidebar({
+  footer,
   archivedBots,
   bots,
   selectedId,
@@ -27,6 +28,7 @@ export function TeammateSidebar({
   onLogout,
   onSelect
 }: {
+  footer?: ReactNode;
   archivedBots: TeammateSummary[];
   bots: TeammateSummary[];
   selectedId: string | null;
@@ -131,6 +133,7 @@ export function TeammateSidebar({
       >
         <PiPlus data-icon="inline-start" /> New teammate
       </Button>
+      {footer}
       <div className="mt-2 grid grid-cols-2 gap-1 border-t border-divider px-1 pt-2">
         <Button
           aria-label={`Use ${theme === "dark" ? "light" : "dark"} appearance`}
