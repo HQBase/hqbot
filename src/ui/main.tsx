@@ -11,6 +11,9 @@ import "./styles.css";
 async function loadRootComponent(): Promise<ComponentType> {
   const uiLab =
     window.location.pathname === "/__ui" || window.location.pathname.startsWith("/__ui/");
+  if (import.meta.env.DEV && window.location.pathname === "/__ui/workspace/phone") {
+    return (await import("./features/ui-lab/workspace-phone-preview")).WorkspacePhonePreview;
+  }
   if (import.meta.env.DEV && window.location.pathname === "/__ui/workspace") {
     return (await import("./features/ui-lab/workspace-preview")).WorkspacePreview;
   }

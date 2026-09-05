@@ -25,7 +25,7 @@ vi.mock("../../../src/ui/components/details/cost-panel", () => ({
 describe("DetailsPanel", () => {
   it("puts cost after every other teammate detail", () => {
     const controller = {
-      selectedBot: { dailyBudgetUsd: 1, id: "bot-1", modelId: null },
+      selectedBot: { dailyBudgetUsd: 1, id: "bot-1", name: "Milo", modelId: null },
       selectedTask: null,
       setDialog: vi.fn(),
       setModel: vi.fn(),
@@ -41,16 +41,20 @@ describe("DetailsPanel", () => {
       <DetailsPanel controller={controller} onUseSkill={vi.fn()} />
     );
 
-    for (const marker of ["settings-marker", "computer-marker", "resources-marker"]) {
+    for (const marker of ["settings-marker"]) {
       expect(html.indexOf("cost-marker")).toBeGreaterThan(html.indexOf(marker));
     }
-    expect(html.match(/computer-marker/g)).toHaveLength(1);
+    expect(html).not.toContain("computer-marker");
+    expect(html).toContain("Conversation info");
+    expect(html).toContain("Integrations");
+    expect(html).toContain("Memory");
+    expect(html).toContain("Routines");
     expect(html.endsWith("</aside>")).toBe(true);
   });
 
   it("replaces teammate details when the selected teammate changes", async () => {
     const controller = {
-      selectedBot: { dailyBudgetUsd: 1, id: "bot-1", modelId: null },
+      selectedBot: { dailyBudgetUsd: 1, id: "bot-1", name: "Milo", modelId: null },
       selectedTask: null,
       setDialog: vi.fn(),
       setModel: vi.fn(),

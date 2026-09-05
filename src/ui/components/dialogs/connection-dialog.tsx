@@ -10,14 +10,7 @@ import { connectionsFromUpdate, httpsUrl, type McpConnection, mcpStatusLabel } f
 import { ConnectorPicker } from "../connections/connector-picker";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "../ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "../ui/field";
 import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
@@ -32,11 +25,13 @@ interface TeammateMcpAgent {
 export function ConnectionDialog({
   bot,
   open,
-  onOpenChange
+  onOpenChange,
+  embedded = false
 }: {
   bot: BotTeammate;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  embedded?: boolean;
 }) {
   const [connections, setConnections] = useState<McpConnection[]>([]);
   const [preset, setPreset] = useState<ConnectorPreset>();
@@ -116,121 +111,132 @@ export function ConnectionDialog({
   }
 
   const archived = bot.hidden;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] w-[min(92vw,640px)] overflow-y-auto">
+  const content = (
+    <>
+      {embedded ? (
+        <p className="text-sm text-muted-foreground">
+          Connections for {bot.name}. Other teammates keep their own connections.
+        </p>
+      ) : (
         <DialogHeader>
           <DialogTitle>Connections</DialogTitle>
           <DialogDescription>
             Choose a service for {bot.name}, then connect and sign in.
           </DialogDescription>
         </DialogHeader>
+      )}
 
-        <section aria-label={`Connections for ${bot.name}`} className="grid gap-2">
-          <div className="flex items-center justify-between gap-3 text-xs font-medium">
-            <span>Connected tools</span>
-            <Badge variant="outline">{connections.length}</Badge>
-          </div>
-          <div className="max-h-52 overflow-y-auto rounded-lg border bg-muted/20 p-1">
-            {loading ? (
-              <p className="flex items-center justify-center gap-2 px-3 py-6 text-xs text-muted-foreground">
-                <Spinner /> Loading connections…
-              </p>
-            ) : connections.length === 0 ? (
-              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                No MCP servers connected yet.
-              </p>
-            ) : (
-              <ul className="m-0 list-none p-0">
-                {connections.map((connection) => (
-                  <ConnectionRow
-                    connection={connection}
-                    key={connection.id}
-                    removing={removingId === connection.id}
-                    onRemove={() => void remove(connection)}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
+      <section aria-label={`Connections for ${bot.name}`} className="grid gap-2">
+        <div className="flex items-center justify-between gap-3 text-xs font-medium">
+          <span>Connected tools</span>
+          <Badge variant="outline">{connections.length}</Badge>
+        </div>
+        <div className="max-h-52 overflow-y-auto rounded-lg border bg-muted/20 p-1">
+          {loading ? (
+            <p className="flex items-center justify-center gap-2 px-3 py-6 text-xs text-muted-foreground">
+              <Spinner /> Loading connections…
+            </p>
+          ) : connections.length === 0 ? (
+            <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+              No MCP servers connected yet.
+            </p>
+          ) : (
+            <ul className="m-0 list-none p-0">
+              {connections.map((connection) => (
+                <ConnectionRow
+                  connection={connection}
+                  key={connection.id}
+                  removing={removingId === connection.id}
+                  onRemove={() => void remove(connection)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
-        <ConnectorPicker
-          selected={preset}
-          onSelect={(item) => {
-            setPreset(item);
-            setDisplayName(item?.name ?? "");
-            setUrl(item?.url ?? "https://");
-            setToken("");
-            setError("");
-          }}
-        />
+      <ConnectorPicker
+        selected={preset}
+        onSelect={(item) => {
+          setPreset(item);
+          setDisplayName(item?.name ?? "");
+          setUrl(item?.url ?? "https://");
+          setToken("");
+          setError("");
+        }}
+      />
 
-        <form
-          className="flex flex-col gap-4 border-t pt-4"
-          onSubmit={(event) => void submit(event)}
-        >
-          <h3 className="text-xs font-medium">
-            {preset ? `Connect ${preset.name}` : "Add a custom MCP server"}
-          </h3>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="mcp-name">Display name</FieldLabel>
-              <Input
-                id="mcp-name"
-                maxLength={80}
-                placeholder="GitHub"
-                required
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-              />
-            </Field>
-            <Field data-invalid={error ? true : undefined}>
-              <FieldLabel htmlFor="mcp-url">HTTPS MCP URL</FieldLabel>
-              <Input
-                aria-invalid={error ? true : undefined}
-                id="mcp-url"
-                maxLength={2_000}
-                pattern="https://.*"
-                required
-                type="url"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="mcp-token">Bearer token (optional)</FieldLabel>
-              <Input
-                autoComplete="off"
-                id="mcp-token"
-                maxLength={4_000}
-                placeholder="Use only when the server requires one"
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-              />
-              <FieldDescription>Leave blank for OAuth or public servers.</FieldDescription>
-            </Field>
-          </FieldGroup>
-          {error ? <FieldError>{error}</FieldError> : null}
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <PiShieldCheck /> Saved credentials are never shown. Calls need approval unless a
-            matching permission rule allows them.
-          </p>
-          <DialogFooter>
+      <form className="flex flex-col gap-4 border-t pt-4" onSubmit={(event) => void submit(event)}>
+        <h3 className="text-xs font-medium">
+          {preset ? `Connect ${preset.name}` : "Add a custom MCP server"}
+        </h3>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="mcp-name">Display name</FieldLabel>
+            <Input
+              id="mcp-name"
+              maxLength={80}
+              placeholder="GitHub"
+              required
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+            />
+          </Field>
+          <Field data-invalid={error ? true : undefined}>
+            <FieldLabel htmlFor="mcp-url">HTTPS MCP URL</FieldLabel>
+            <Input
+              aria-invalid={error ? true : undefined}
+              id="mcp-url"
+              maxLength={2_000}
+              pattern="https://.*"
+              required
+              type="url"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="mcp-token">Bearer token (optional)</FieldLabel>
+            <Input
+              autoComplete="off"
+              id="mcp-token"
+              maxLength={4_000}
+              placeholder="Use only when the server requires one"
+              type="password"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+            />
+            <FieldDescription>Leave blank for OAuth or public servers.</FieldDescription>
+          </Field>
+        </FieldGroup>
+        {error ? <FieldError>{error}</FieldError> : null}
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <PiShieldCheck /> Saved credentials are never shown. Calls need approval unless a matching
+          permission rule allows them.
+        </p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {!embedded && (
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Close
             </Button>
-            <Button
-              disabled={archived || pending || !displayName.trim() || !url.trim()}
-              title={archived ? "Restore this teammate before you add a connection" : undefined}
-              type="submit"
-            >
-              {pending ? <Spinner data-icon="inline-start" /> : <PiLink data-icon="inline-start" />}
-              Add connection
-            </Button>
-          </DialogFooter>
-        </form>
+          )}
+          <Button
+            disabled={archived || pending || !displayName.trim() || !url.trim()}
+            title={archived ? "Restore this teammate before you add a connection" : undefined}
+            type="submit"
+          >
+            {pending ? <Spinner data-icon="inline-start" /> : <PiLink data-icon="inline-start" />}
+            Add connection
+          </Button>
+        </div>
+      </form>
+    </>
+  );
+  if (embedded) return <div className="flex min-w-0 flex-col gap-5">{content}</div>;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] w-[min(92vw,640px)] overflow-y-auto">
+        {content}
       </DialogContent>
     </Dialog>
   );

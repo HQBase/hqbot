@@ -1,6 +1,6 @@
 # Teammate templates
 
-Open **Library → Templates**. Choose a teammate, then select the skills and routines to include.
+Open **New conversation → Use a template**. Choose a teammate, then select the skills and routines to include.
 Select **Review and copy** to inspect the profile and full instructions.
 
 - **Create teammate** makes a separate teammate. Its skills start as drafts and its routines are paused.

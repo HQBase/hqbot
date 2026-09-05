@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
 import { interact, renderComponent } from "./render";
@@ -13,7 +13,12 @@ vi.mock("../../../src/ui/components/details/details-panel", () => ({
   DetailsPanel: () => <div data-details-panel />
 }));
 vi.mock("../../../src/ui/components/teammate-sidebar", () => ({
-  TeammateSidebar: ({ header }: { header: ReactNode }) => <div data-teammate-sidebar>{header}</div>
+  TeammateSidebar: ({ header, footer }: { header: ReactNode; footer: ReactNode }) => (
+    <div data-teammate-sidebar>
+      {header}
+      {footer}
+    </div>
+  )
 }));
 
 import { WorkspaceShell } from "../../../src/ui/components/workspace-shell";
@@ -27,7 +32,11 @@ vi.mock("../../../src/ui/components/settings/settings-page", () => ({
 vi.mock("../../../src/ui/components/search/search-page", () => ({
   SearchPage: () => <div data-page="search" />
 }));
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ projects: [] })));
+});
 afterEach(() => {
+  vi.unstubAllGlobals();
   window.history.replaceState(null, "", "/");
   vi.restoreAllMocks();
 });
@@ -65,9 +74,9 @@ it("restores workspace pages and supports keyboard search and browser navigation
   } as unknown as WorkspaceController;
   const view = await renderComponent(<WorkspaceShell controller={controller} />);
   await vi.waitFor(() =>
-    expect(view.container.querySelector('[data-page="projects"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-page="projects"]')).not.toBeNull()
   );
-  expect(view.container.querySelector('[data-page="projects"]')).not.toBeNull();
+  expect(document.body.querySelector('[data-page="projects"]')).not.toBeNull();
   await interact(() => {
     window.dispatchEvent(
       new KeyboardEvent("keydown", { key: "k", metaKey: true, cancelable: true })
@@ -76,7 +85,7 @@ it("restores workspace pages and supports keyboard search and browser navigation
   expect(new URL(window.location.href).searchParams.get("page")).toBe("search");
   await interact(() => {
     [...view.container.querySelectorAll("button")]
-      .find((button) => button.textContent?.includes("Settings"))
+      .find((button) => button.getAttribute("aria-label") === "Settings")
       ?.click();
   });
   expect(new URL(window.location.href).searchParams.get("page")).toBe("settings");
@@ -84,6 +93,6 @@ it("restores workspace pages and supports keyboard search and browser navigation
   await interact(() => {
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
-  expect(view.container.querySelector('[data-page="projects"]')).not.toBeNull();
+  expect(document.body.querySelector('[data-page="projects"]')).not.toBeNull();
   await view.unmount();
 });

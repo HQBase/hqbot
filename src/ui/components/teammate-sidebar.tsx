@@ -8,11 +8,14 @@ import {
   PiPlus,
   PiPushPinSimpleFill,
   PiSignOut,
-  PiSun
+  PiSun,
+  PiUsers
 } from "react-icons/pi";
 
+import type { Project } from "../../domain/projects";
 import type { BotTeammate } from "../../domain/types";
 import { useTheme } from "../features/theme/theme-provider";
+import { cn } from "../lib/cn";
 import { initials, relativeTime } from "../lib/format";
 import type { TeammateSummary } from "../types";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -27,7 +30,11 @@ export function TeammateSidebar({
   selectedId,
   onCreate,
   onLogout,
-  onSelect
+  onSelect,
+  projects = [],
+  selectedProjectId,
+  onSelectProject,
+  onSearch
 }: {
   header?: ReactNode;
   footer?: ReactNode;
@@ -37,6 +44,10 @@ export function TeammateSidebar({
   onCreate: () => void;
   onLogout: () => void;
   onSelect: (bot: BotTeammate) => void;
+  projects?: Project[];
+  selectedProjectId?: string | null;
+  onSelectProject?: (project: Project) => void;
+  onSearch?: () => void;
 }) {
   const { setTheme, theme } = useTheme();
   const [query, setQuery] = useState("");
@@ -54,17 +65,27 @@ export function TeammateSidebar({
 
   const visible = useMemo(() => filterAndSort(bots, query), [bots, query]);
   const visibleArchived = useMemo(() => filterAndSort(archivedBots, query), [archivedBots, query]);
+  const groups = projects.filter((project) =>
+    `${project.name} ${project.description}`.toLowerCase().includes(query.trim().toLowerCase())
+  );
+  const conversations = [
+    ...visible.map((bot) => ({
+      id: bot.id,
+      time: bot.lastInteractedAt ?? bot.updatedAt,
+      bot,
+      project: null
+    })),
+    ...groups.map((project) => ({ id: project.id, time: project.updatedAt, bot: null, project }))
+  ].sort((a, b) => b.time.localeCompare(a.time));
   const showArchived = archivedOpen || query.trim().length > 0;
 
   return (
     <aside className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-[24px] border border-divider bg-sidebar p-2 shadow-sm">
       {header}
       <div className="mb-3 flex h-9 items-center justify-between gap-3 px-3.5 pr-0">
-        <span className="truncate text-sm font-semibold leading-none tracking-tight">
-          Teammates
-        </span>
+        <span className="truncate text-sm font-semibold leading-none tracking-tight">Messages</span>
         <Button
-          aria-label="New teammate"
+          aria-label="New conversation"
           className="size-10 min-h-10 min-w-10 text-tertiary"
           size="icon"
           type="button"
@@ -74,31 +95,70 @@ export function TeammateSidebar({
           <PiPlus />
         </Button>
       </div>
-      <div className="relative mb-2 px-1.5">
+      <div className="relative mb-2 flex items-center gap-1 px-1.5">
         <PiMagnifyingGlass className="pointer-events-none absolute left-4 top-1/2 size-3.5 -translate-y-1/2 text-tertiary" />
         <Input
-          aria-label="Search teammates"
-          className="h-9 bg-muted/70 pl-8 text-xs shadow-none"
+          aria-label="Filter conversations"
+          className="h-9 min-w-0 bg-muted/70 pl-8 text-xs shadow-none"
           placeholder="Search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
+        {onSearch && (
+          <Button
+            aria-label="Search messages and files"
+            size="icon"
+            variant="ghost"
+            onClick={onSearch}
+          >
+            <PiMagnifyingGlass />
+          </Button>
+        )}
       </div>
-      <nav aria-label="Teammates" className="min-h-0 flex-1 overflow-y-auto">
-        {visible.length === 0 && (!showArchived || visibleArchived.length === 0) ? (
+      <nav aria-label="Conversations" className="min-h-0 flex-1 overflow-y-auto">
+        {conversations.length === 0 && (!showArchived || visibleArchived.length === 0) ? (
           <div className="px-4 py-10 text-center text-xs text-muted-foreground">
-            {query ? "No teammates match this search." : "Create your first teammate."}
+            {query ? "No conversations match this search." : "Create your first teammate."}
           </div>
         ) : (
-          visible.map((bot) => (
-            <TeammateRow
-              bot={bot}
-              key={bot.id}
-              now={now}
-              selected={selectedId === bot.id}
-              onSelect={onSelect}
-            />
-          ))
+          conversations.map(({ bot, project }) =>
+            bot ? (
+              <TeammateRow
+                bot={bot}
+                key={bot.id}
+                now={now}
+                selected={!selectedProjectId && selectedId === bot.id}
+                onSelect={onSelect}
+              />
+            ) : project ? (
+              <button
+                key={project.id}
+                type="button"
+                aria-current={selectedProjectId === project.id ? "page" : undefined}
+                className={cn(
+                  "grid w-full grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl px-3 py-3 text-left hover:bg-hover",
+                  selectedProjectId === project.id && "bg-selected"
+                )}
+                onClick={() => onSelectProject?.(project)}
+              >
+                <Avatar className="size-10">
+                  <AvatarFallback>
+                    <PiUsers />
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0">
+                  <strong className="block truncate text-[13px] font-medium">{project.name}</strong>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {project.botIds.length} teammates ·{" "}
+                    {project.description || "Group conversation"}
+                  </span>
+                </span>
+                <time className="self-start text-[11px] text-tertiary">
+                  {relativeTime(project.updatedAt, now)}
+                </time>
+              </button>
+            ) : null
+          )
         )}
         {archivedBots.length > 0 ? (
           <div className="mt-2 border-t border-divider pt-2">
@@ -128,34 +188,27 @@ export function TeammateSidebar({
           </div>
         ) : null}
       </nav>
-      <Button
-        className="btn-liquid-glass mt-2 h-10 w-full justify-start rounded-full px-3.5"
-        type="button"
-        variant="ghost"
-        onClick={onCreate}
-      >
-        <PiPlus data-icon="inline-start" /> New teammate
-      </Button>
-      {footer}
-      <div className="mt-2 grid grid-cols-2 gap-1 border-t border-divider px-1 pt-2">
-        <Button
-          aria-label={`Use ${theme === "dark" ? "light" : "dark"} appearance`}
-          className="h-9 justify-start px-2 text-xs text-muted-foreground"
-          type="button"
-          variant="ghost"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? <PiSun /> : <PiMoon />} Appearance
-        </Button>
-        <Button
-          className="h-9 justify-start px-2 text-xs text-muted-foreground"
-          type="button"
-          variant="ghost"
-          onClick={onLogout}
-        >
-          <PiSignOut /> Sign out
-        </Button>
-      </div>
+      {footer ?? (
+        <div className="mt-2 grid grid-cols-2 gap-1 border-t border-divider px-1 pt-2">
+          <Button
+            aria-label={`Use ${theme === "dark" ? "light" : "dark"} appearance`}
+            className="h-9 justify-start px-2 text-xs text-muted-foreground"
+            type="button"
+            variant="ghost"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <PiSun /> : <PiMoon />} Appearance
+          </Button>
+          <Button
+            className="h-9 justify-start px-2 text-xs text-muted-foreground"
+            type="button"
+            variant="ghost"
+            onClick={onLogout}
+          >
+            <PiSignOut /> Sign out
+          </Button>
+        </div>
+      )}
     </aside>
   );
 }

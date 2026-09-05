@@ -5,13 +5,20 @@ tracks delivery. Existing behavior stays supported while each change is built an
 
 ## Everyday interface
 
-Conversations are the main work surface. The left navigation contains Inbox, Teammates, Projects,
-Library, and Automations. Search finds messages and saved work. A conversation opens its computer
-or task details only when needed. Settings holds access, usage, connections, devices, and recovery.
-The same layout must work on a phone. Each action shows progress, an outcome, or a useful error.
-The conversation shows the computer and details panel by default on desktop. A labeled Computer
-button remains available at every screen size. Phones start with the panel closed. The owner can
-close the desktop panel and open it again without creating a new teammate.
+Conversations are the main work surface. The left side holds search and one conversation list for
+teammates and project groups. New conversation controls create a teammate or group, or use a
+template. Small settings and updates controls replace the dashboard navigation. Unread badges and
+approval cards keep updates attached to their conversations. Search can find saved work across
+the workspace. Settings holds account, people, network, and device controls.
+
+The right sidebar starts closed. Clicking the conversation name or its info button opens
+Conversation info. For a teammate, this contains files, connections, memory, skills, routines,
+permissions, profile, progress, history, and costs. Memory, skill, connection, and routine controls
+remain bound to that teammate. The Computer button opens the live computer in the same right-side
+area, with a way back to info. Group info shows its members and explicitly shared resources.
+Changing conversations resets the panel so controls cannot target the previous conversation.
+On phones, info and computer open in a sheet. Closing a panel restores the message view without
+stopping work or losing a draft. Existing page links remain usable during the transition.
 
 ## Product rules
 

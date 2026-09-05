@@ -9,6 +9,7 @@ export function WorkspacePreview() {
   const [selectedBot, selectBot] = useState(labBots[0]);
   const [mobileChatOpen, setMobileChatOpen] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsView, setDetailsView] = useState<"info" | "computer">("info");
   const [dialog, setDialog] = useState<string | null>(null);
   const done = async () => undefined;
   const controller = {
@@ -42,6 +43,12 @@ export function WorkspacePreview() {
     mobileChatOpen,
     setMobileChatOpen,
     detailsOpen,
+    detailsView,
+    setDetailsView,
+    openDetails: (view: "info" | "computer" = "info") => {
+      setDetailsView(view);
+      setDetailsOpen(true);
+    },
     setDetailsOpen,
     dialog,
     setDialog,

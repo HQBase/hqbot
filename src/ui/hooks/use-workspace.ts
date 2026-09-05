@@ -26,9 +26,8 @@ export function useWorkspace(onSignedOut: () => void) {
   } | null>(null);
   const [newTeammate, setNewTeammate] = useState(false);
   const [mobileChatOpen, setMobileChatOpen] = useState(true);
-  const [detailsOpen, setDetailsOpen] = useState(
-    () => !window.matchMedia("(max-width: 1023px)").matches
-  );
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsView, setDetailsView] = useState<"info" | "computer">("info");
   const [dialog, setDialog] = useState<DialogName>(null);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -107,13 +106,17 @@ export function useWorkspace(onSignedOut: () => void) {
   const selectedTask = newTeammate ? null : (snapshot?.activeTask ?? snapshot?.tasks[0] ?? null);
 
   function selectBot(bot: BotTeammate): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set("botId", bot.id);
+    window.history.replaceState(null, "", url);
     setError("");
     selectedBotRef.current = bot.id;
     newTeammateRef.current = false;
     setSelectedBotId(bot.id);
     setNewTeammate(false);
     setMobileChatOpen(true);
-    if (window.matchMedia("(max-width: 1023px)").matches) setDetailsOpen(false);
+    setDetailsOpen(false);
+    setDetailsView("info");
     void load(bot.id);
   }
 
@@ -145,7 +148,8 @@ export function useWorkspace(onSignedOut: () => void) {
             }
           : current
       );
-      setDetailsOpen(true);
+      setDetailsOpen(false);
+      setDetailsView("info");
       await load(createdTeammate.id);
     } catch (cause) {
       setError(errorMessage(cause, "The teammate could not be created"));
@@ -333,6 +337,11 @@ export function useWorkspace(onSignedOut: () => void) {
     deleteSelectedBot,
     deleteRoutine,
     detailsOpen,
+    detailsView,
+    openDetails: (view: "info" | "computer" = "info") => {
+      setDetailsView(view);
+      setDetailsOpen(true);
+    },
     dialog,
     error: error || loadError,
     load,
@@ -349,6 +358,7 @@ export function useWorkspace(onSignedOut: () => void) {
     sending,
     setRoutineActive,
     setDetailsOpen,
+    setDetailsView,
     setDialog,
     setError,
     setMobileChatOpen,

@@ -45,7 +45,7 @@ describe("TeammateSidebar", () => {
 
     expect(html.indexOf("Latest teammate")).toBeLessThan(html.indexOf("Older teammate"));
     expect(html).not.toContain("Recent work");
-    expect(html).toContain("Teammates");
+    expect(html).toContain("Conversations");
     expect(html).toContain("Appearance");
     expect(html).toContain("Sign out");
   });

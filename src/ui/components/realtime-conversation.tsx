@@ -293,7 +293,8 @@ export function RealtimeConversation({
         }
         working={teammateActive}
         onBack={() => controller.setMobileChatOpen(false)}
-        onDetails={() => controller.setDetailsOpen(true)}
+        onDetails={() => controller.openDetails()}
+        onComputer={() => controller.openDetails("computer")}
         onStop={() => void stop()}
       />
       <div

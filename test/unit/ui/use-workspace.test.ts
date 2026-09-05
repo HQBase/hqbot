@@ -40,12 +40,13 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 afterEach(() => {
   currentController = null;
+  window.history.replaceState(null, "", "/");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe("new teammate chat", () => {
-  it("shows computer details by default on desktop", async () => {
+  it("keeps the sidebar closed until info or computer is requested", async () => {
     vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
     vi.stubGlobal(
       "fetch",
@@ -56,11 +57,15 @@ describe("new teammate chat", () => {
         )
     );
     const view = await renderComponent(createElement(WorkspaceHarness));
+    expect(controller().detailsOpen).toBe(false);
+    await interact(() => controller().openDetails("computer"));
     expect(controller().detailsOpen).toBe(true);
+    expect(controller().detailsView).toBe("computer");
     await interact(() => controller().setDetailsOpen(false));
     expect(controller().detailsOpen).toBe(false);
-    await interact(() => controller().setDetailsOpen(true));
+    await interact(() => controller().openDetails());
     expect(controller().detailsOpen).toBe(true);
+    expect(controller().detailsView).toBe("info");
     await view.unmount();
   });
 
@@ -88,6 +93,7 @@ describe("new teammate chat", () => {
     );
     const view = await renderComponent(createElement(WorkspaceHarness));
     const oldLoad = controller().load();
+    await interact(() => controller().openDetails("computer"));
     controller().selectBot(two as never);
     await interact();
     finishOld(jsonResponse(initial));
@@ -95,6 +101,9 @@ describe("new teammate chat", () => {
     await interact();
     expect(controller().selectedBot?.id).toBe("two");
     expect(controller().snapshot?.selectedBot?.id).toBe("two");
+    expect(controller().detailsOpen).toBe(false);
+    expect(controller().detailsView).toBe("info");
+    expect(new URL(window.location.href).searchParams.get("botId")).toBe("two");
     await view.unmount();
   });
 
@@ -145,7 +154,7 @@ describe("new teammate chat", () => {
     );
     expect(controller().selectedBot?.id).toBe("bot-new");
     expect(controller().newTeammate).toBe(false);
-    expect(controller().detailsOpen).toBe(true);
+    expect(controller().detailsOpen).toBe(false);
     await view.unmount();
   });
 

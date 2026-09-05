@@ -86,6 +86,8 @@ export function installWorkspaceFixtures() {
     if (path.endsWith("/knowledge")) body = { items };
     else if (path.endsWith("/demonstrations")) body = { demonstrations: [] };
     else if (path === "/api/projects") body = { projects };
+    else if (path.endsWith("/resources")) body = { files: [], skills: [] };
+    else if (path.endsWith("/messages")) body = { messages: [] };
     else if (path === "/api/automations") body = { routines };
     else if (path === "/api/push/devices") body = { devices: [] };
     else if (path === "/api/models") body = { models: HQBOT_MODELS };

@@ -67,6 +67,7 @@ export function LabConversation({
         working={mode === "reconnecting"}
         onBack={() => undefined}
         onDetails={() => undefined}
+        onComputer={() => undefined}
         onStop={() => undefined}
       />
       <div className="hqbot-conversation-surface min-h-0 flex-1 overflow-y-auto" aria-live="polite">
@@ -136,6 +137,7 @@ export function StreamingConversation({ bot }: { bot: BotTeammate }) {
         working={busy}
         onBack={() => undefined}
         onDetails={() => undefined}
+        onComputer={() => undefined}
         onStop={() => undefined}
       />
       <div className="hqbot-conversation-surface min-h-0 flex-1 overflow-y-auto">

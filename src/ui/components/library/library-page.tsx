@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { PiBrain, PiPlus, PiSparkle } from "react-icons/pi";
 import type { KnowledgeItem } from "../../../domain/knowledge";
+import type { BotSkill } from "../../../domain/types";
 import type { WorkspaceController } from "../../hooks/use-workspace";
 import { api, errorMessage } from "../../lib/api";
+import { cn } from "../../lib/cn";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -12,17 +14,21 @@ import { RecordDemonstration } from "./record-demonstration";
 
 export function LibraryPage({
   controller,
-  onTemplates
+  onTemplates,
+  scope,
+  onUseSkill
 }: {
   controller: WorkspaceController;
   onTemplates?: () => void;
+  scope?: { botId: string; kind: "memory" | "skill" };
+  onUseSkill?: (skill: BotSkill) => void;
 }) {
   const [botId, setBotId] = useState(
-    controller.selectedBot?.id ?? controller.snapshot?.bots[0]?.id ?? ""
+    scope?.botId ?? controller.selectedBot?.id ?? controller.snapshot?.bots[0]?.id ?? ""
   );
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(scope?.kind ?? "all");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [recording, setRecording] = useState(false);
@@ -70,78 +76,104 @@ export function LibraryPage({
         .includes(query.toLowerCase())
   );
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-5 py-8 sm:px-10">
+    <section
+      className={cn("flex w-full flex-col gap-5", !scope && "mx-auto max-w-5xl px-5 py-8 sm:px-10")}
+    >
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Useful memories. Methods that get better with practice.
-          </p>
-        </div>
+        {!scope && (
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Useful memories. Methods that get better with practice.
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           {onTemplates && (
             <Button variant="outline" onClick={onTemplates}>
               Templates
             </Button>
           )}
-          <Button disabled={!botId} variant="outline" onClick={() => setRecording(true)}>
-            Record a skill
-          </Button>
-          <Button disabled={!botId} variant="outline" onClick={() => setEditor({ kind: "memory" })}>
-            <PiPlus /> Memory
-          </Button>
-          <Button disabled={!botId} onClick={() => setEditor({ kind: "skill" })}>
-            <PiPlus /> Skill
-          </Button>
+          {scope?.kind !== "memory" && (
+            <Button disabled={!botId} variant="outline" onClick={() => setRecording(true)}>
+              Record a skill
+            </Button>
+          )}
+          {scope?.kind !== "skill" && (
+            <Button
+              disabled={!botId}
+              variant="outline"
+              onClick={() => setEditor({ kind: "memory" })}
+            >
+              <PiPlus /> Memory
+            </Button>
+          )}
+          {scope?.kind !== "memory" && (
+            <Button disabled={!botId} onClick={() => setEditor({ kind: "skill" })}>
+              <PiPlus /> Skill
+            </Button>
+          )}
         </div>
       </header>
       <div className="flex flex-wrap gap-3">
-        <select
-          aria-label="Library teammate"
-          className="h-10 max-w-full rounded-md border bg-background px-3 text-sm"
-          value={botId}
-          onChange={(event) => {
-            setBotId(event.target.value);
-            setItems([]);
-            setEditor(null);
-          }}
-        >
-          {!botId && <option value="">Choose a teammate</option>}
-          {controller.snapshot?.bots.map((bot) => (
-            <option key={bot.id} value={bot.id}>
-              {bot.name}
-            </option>
-          ))}
-        </select>
+        {!scope && (
+          <select
+            aria-label="Library teammate"
+            className="h-10 max-w-full rounded-md border bg-background px-3 text-sm"
+            value={botId}
+            onChange={(event) => {
+              setBotId(event.target.value);
+              setItems([]);
+              setEditor(null);
+            }}
+          >
+            {!botId && <option value="">Choose a teammate</option>}
+            {controller.snapshot?.bots.map((bot) => (
+              <option key={bot.id} value={bot.id}>
+                {bot.name}
+              </option>
+            ))}
+          </select>
+        )}
         <Input
           className="min-w-40 flex-1"
           aria-label="Search library"
-          placeholder="Search memories and skills…"
+          placeholder={
+            scope?.kind === "memory"
+              ? "Search memories…"
+              : scope
+                ? "Search skills…"
+                : "Search memories and skills…"
+          }
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <select
-          aria-label="Entry type"
-          className="h-10 rounded-md border bg-background px-3 text-sm"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        >
-          <option value="all">All entries</option>
-          <option value="memory">Memories</option>
-          <option value="skill">Skills</option>
-        </select>
+        {!scope && (
+          <select
+            aria-label="Entry type"
+            className="h-10 rounded-md border bg-background px-3 text-sm"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          >
+            <option value="all">All entries</option>
+            <option value="memory">Memories</option>
+            <option value="skill">Skills</option>
+          </select>
+        )}
       </div>
-      <DemonstrationList
-        key={`${botId}:${recordingRefresh}`}
-        botId={botId}
-        onReview={async (id) => {
-          const result = await api<{ items: KnowledgeItem[] }>(`/api/bots/${botId}/knowledge`);
-          const item = result.items.find((item) => item.id === id);
-          if (!item) throw new Error("This draft was removed from the library");
-          setItems(result.items);
-          setEditor({ kind: item.kind, item });
-        }}
-      />
+      {scope?.kind !== "memory" && (
+        <DemonstrationList
+          key={`${botId}:${recordingRefresh}`}
+          botId={botId}
+          onReview={async (id) => {
+            const result = await api<{ items: KnowledgeItem[] }>(`/api/bots/${botId}/knowledge`);
+            const item = result.items.find((item) => item.id === id);
+            if (!item) throw new Error("This draft was removed from the library");
+            setItems(result.items);
+            setEditor({ kind: item.kind, item });
+          }}
+        />
+      )}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}{" "}
@@ -167,30 +199,37 @@ export function LibraryPage({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={cn("grid gap-4", !scope && "md:grid-cols-2")}>
           {visible.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => setEditor({ kind: item.kind, item })}
-              className="flex flex-col gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <div className="flex w-full items-center gap-2 text-sm font-medium">
-                {item.kind === "memory" ? <PiBrain /> : <PiSparkle />}
-                <span>{item.kind === "memory" ? "Memory" : item.name}</span>
-                {item.kind === "skill" && (
-                  <Badge className="ml-auto" variant="secondary">
-                    {item.status === "draft" ? "Draft" : "Ready"}
-                  </Badge>
-                )}
-              </div>
-              <p className="line-clamp-4 text-sm leading-6">
-                {item.kind === "memory" ? item.content : item.description}
-              </p>
-              <p className="mt-auto text-xs text-muted-foreground">
-                Revision {item.revision} · {item.source}
-              </p>
-            </button>
+            <div key={item.id} className="flex min-w-0 flex-col gap-1">
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => setEditor({ kind: item.kind, item })}
+                className="flex w-full flex-col gap-4 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <div className="flex w-full items-center gap-2 text-sm font-medium">
+                  {item.kind === "memory" ? <PiBrain /> : <PiSparkle />}
+                  <span>{item.kind === "memory" ? "Memory" : item.name}</span>
+                  {item.kind === "skill" && (
+                    <Badge className="ml-auto" variant="secondary">
+                      {item.status === "draft" ? "Draft" : "Ready"}
+                    </Badge>
+                  )}
+                </div>
+                <p className="line-clamp-4 text-sm leading-6">
+                  {item.kind === "memory" ? item.content : item.description}
+                </p>
+                <p className="mt-auto text-xs text-muted-foreground">
+                  Revision {item.revision} · {item.source}
+                </p>
+              </button>
+              {item.kind === "skill" && item.status === "ready" && onUseSkill && (
+                <Button size="sm" variant="ghost" onClick={() => onUseSkill(item)}>
+                  Use {item.name}
+                </Button>
+              )}
+            </div>
           ))}
         </div>
       )}

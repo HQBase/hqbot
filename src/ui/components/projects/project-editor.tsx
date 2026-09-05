@@ -81,7 +81,7 @@ export function ProjectEditor({
       });
       onSaved(result.project);
     } catch (cause) {
-      setError(errorMessage(cause, "The project could not be saved"));
+      setError(errorMessage(cause, "The group could not be saved"));
     } finally {
       setPending(false);
     }
@@ -90,7 +90,7 @@ export function ProjectEditor({
     <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
       <DialogContent className="max-h-[90dvh] overflow-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{project ? "Edit project" : "New project"}</DialogTitle>
+          <DialogTitle>{project ? "Edit group" : "New group"}</DialogTitle>
           <DialogDescription>
             Give teammates a shared purpose and choose what they can share.
           </DialogDescription>
@@ -192,8 +192,7 @@ export function ProjectEditor({
           {remove && project && (
             <div className="flex flex-col gap-3 rounded-lg border border-destructive p-3 text-sm">
               <p>
-                Delete this project and its group messages? Teammates and their files stay
-                available.
+                Delete this group and its group messages? Teammates and their files stay available.
               </p>
               <Button
                 type="button"
@@ -205,13 +204,13 @@ export function ProjectEditor({
                     await api(`/api/projects/${project.id}`, { method: "DELETE" });
                     onDeleted();
                   } catch (cause) {
-                    setError(errorMessage(cause, "The project could not be deleted"));
+                    setError(errorMessage(cause, "The group could not be deleted"));
                   } finally {
                     setPending(false);
                   }
                 }}
               >
-                Delete project and messages
+                Delete group and messages
               </Button>
             </div>
           )}
@@ -231,7 +230,7 @@ export function ProjectEditor({
               Cancel
             </Button>
             <Button type="submit" disabled={pending || !botIds.length || botIds.length > 12}>
-              {pending ? "Saving…" : "Save project"}
+              {pending ? "Saving…" : "Save group"}
             </Button>
           </DialogFooter>
         </form>

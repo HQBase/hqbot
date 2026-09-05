@@ -45,7 +45,8 @@ export function ConversationPanel({
         status={controller.sending ? "Starting" : "Not created"}
         working={false}
         onBack={() => controller.setMobileChatOpen(false)}
-        onDetails={() => controller.setDetailsOpen(true)}
+        onDetails={() => controller.openDetails()}
+        onComputer={() => controller.openDetails("computer")}
         onStop={() => undefined}
       />
       <div className="min-h-0 flex-1 overflow-y-auto bg-card/30">
@@ -91,7 +92,8 @@ function ArchivedConversation({
         status="Archived"
         working={false}
         onBack={() => controller.setMobileChatOpen(false)}
-        onDetails={() => controller.setDetailsOpen(true)}
+        onDetails={() => controller.openDetails()}
+        onComputer={() => controller.openDetails("computer")}
         onStop={() => undefined}
       />
       <div className="flex min-h-0 flex-1 items-center justify-center bg-card/30 p-6">

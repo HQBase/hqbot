@@ -3,6 +3,7 @@ import { PiArrowLeft, PiCalendar, PiPlus, PiTrash } from "react-icons/pi";
 import { type Automation, routineScheduleLabel } from "../../../domain/automations";
 import type { WorkspaceController } from "../../hooks/use-workspace";
 import { api, errorMessage } from "../../lib/api";
+import { cn } from "../../lib/cn";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { AutomationEditor } from "./automation-editor";
@@ -11,10 +12,12 @@ import { RoutineRuns } from "./routine-runs";
 
 export function AutomationsPage({
   controller,
-  onConversation
+  onConversation,
+  scopeBotId
 }: {
   controller: WorkspaceController;
   onConversation: () => void;
+  scopeBotId?: string;
 }) {
   const [items, setItems] = useState<Automation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -22,20 +25,27 @@ export function AutomationsPage({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
-  const bots = controller.snapshot?.bots ?? [];
-  const load = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const result = await api<{ routines: Automation[] }>("/api/automations", { signal });
-      if (!signal?.aborted) {
-        setItems(result.routines);
-        setError("");
+  const bots = (controller.snapshot?.bots ?? []).filter(
+    (bot) => !scopeBotId || bot.id === scopeBotId
+  );
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const result = await api<{ routines: Automation[] }>("/api/automations", { signal });
+        if (!signal?.aborted) {
+          setItems(
+            result.routines.filter((routine) => !scopeBotId || routine.botId === scopeBotId)
+          );
+          setError("");
+        }
+      } catch (cause) {
+        if (!signal?.aborted) setError(errorMessage(cause, "Routines could not load"));
+      } finally {
+        if (!signal?.aborted) setLoading(false);
       }
-    } catch (cause) {
-      if (!signal?.aborted) setError(errorMessage(cause, "Routines could not load"));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, []);
+    },
+    [scopeBotId]
+  );
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
@@ -43,7 +53,12 @@ export function AutomationsPage({
   }, [load]);
   const routine = items.find((item) => item.id === selected);
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-5 py-8 sm:px-10">
+    <section
+      className={cn(
+        "flex w-full flex-col gap-5",
+        !scopeBotId && "mx-auto max-w-5xl px-5 py-8 sm:px-10"
+      )}
+    >
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           {routine && (
@@ -57,13 +72,15 @@ export function AutomationsPage({
             </Button>
           )}
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {routine?.name ?? "Automations"}
+            <h1 className={cn("font-semibold tracking-tight", !scopeBotId && "text-2xl")}>
+              {routine?.name ?? (scopeBotId ? "Routines" : "Automations")}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
               {routine
                 ? routineScheduleLabel(routine.schedule)
-                : "Useful work, on time and in one place."}
+                : scopeBotId
+                  ? `Scheduled work for ${controller.selectedBot?.name ?? "this teammate"}.`
+                  : "Useful work, on time and in one place."}
             </p>
           </div>
         </div>
@@ -165,7 +182,7 @@ export function AutomationsPage({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={cn("grid gap-4", !scopeBotId && "md:grid-cols-2")}>
           {items.map((item) => (
             <button
               key={item.id}
