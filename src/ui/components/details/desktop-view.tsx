@@ -68,8 +68,7 @@ export function DesktopView({ active = false, botId }: { active?: boolean; botId
       try {
         const status = await api<ComputerStatus>(endpoint);
         applyStatus(status);
-        if (status.checkpointError) setError(status.checkpointError);
-        else if (!quiet || !status.running) setError("");
+        if (!quiet || !status.running) setError("");
       } catch (cause) {
         if (!quiet) onError(errorMessage(cause, "The computer status could not load"));
       } finally {
@@ -130,7 +129,8 @@ export function DesktopView({ active = false, botId }: { active?: boolean; botId
     releaseOwnerControl
   ]);
 
-  const badge = error
+  const visibleError = computer.checkpointError || error;
+  const badge = visibleError
     ? "Issue"
     : computer.ownerControl
       ? "Owner control"
@@ -219,7 +219,7 @@ export function DesktopView({ active = false, botId }: { active?: boolean; botId
         }
       >
         <p aria-live="polite" className="min-w-40 flex-1 text-[11px] text-muted-foreground">
-          {error ||
+          {visibleError ||
             (computer.ownerControl
               ? "You have control. Tell the agent when you are done."
               : computer.running

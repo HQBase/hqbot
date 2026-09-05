@@ -83,6 +83,16 @@ afterEach(() => {
 });
 
 describe("DesktopView", () => {
+  it("keeps backup failures visible through screen connection and clears them after recovery", async () => {
+    const intervals = captureIntervals();
+    mocks.api.mockResolvedValueOnce(computer({ running: true, checkpointError: "Backup failed" }));
+    const view = await renderComponent(createElement(DesktopView, { botId: "bot-1" }));
+    expect(view.container.textContent).toContain("Backup failed");
+    mocks.api.mockResolvedValueOnce(computer({ running: true }));
+    await runTimer(intervalHandler(intervals, 15000));
+    expect(view.container.textContent).not.toContain("Backup failed");
+    view.unmount();
+  });
   it("is passive while the agent computer is off", async () => {
     mocks.api.mockResolvedValueOnce(computer());
     const view = await renderComponent(createElement(DesktopView, { botId: "bot-1" }));
