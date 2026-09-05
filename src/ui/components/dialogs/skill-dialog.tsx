@@ -39,9 +39,19 @@ export function SkillDialog({
     setPending(true);
     setError("");
     try {
-      await api(`/api/bots/${bot.id}/skills`, {
+      await api(`/api/bots/${bot.id}/knowledge`, {
         method: "POST",
-        body: JSON.stringify({ description, instructions, name })
+        body: JSON.stringify({
+          commandId: crypto.randomUUID(),
+          entry: {
+            kind: "skill",
+            description,
+            instructions,
+            name,
+            source: "Saved by owner",
+            status: "ready"
+          }
+        })
       });
       await onChanged();
       setDescription("");

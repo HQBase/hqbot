@@ -20,6 +20,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
 export function TeammateSidebar({
+  header,
   footer,
   archivedBots,
   bots,
@@ -28,6 +29,7 @@ export function TeammateSidebar({
   onLogout,
   onSelect
 }: {
+  header?: ReactNode;
   footer?: ReactNode;
   archivedBots: TeammateSummary[];
   bots: TeammateSummary[];
@@ -56,6 +58,7 @@ export function TeammateSidebar({
 
   return (
     <aside className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-[24px] border border-divider bg-sidebar p-2 shadow-sm">
+      {header}
       <div className="mb-3 flex h-9 items-center justify-between gap-3 px-3.5 pr-0">
         <span className="truncate text-sm font-semibold leading-none tracking-tight">
           Teammates

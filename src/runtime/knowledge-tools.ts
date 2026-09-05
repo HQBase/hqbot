@@ -1,5 +1,6 @@
 import { type ToolSet, tool } from "ai";
 import { z } from "zod";
+import { knowledgeManagement } from "./knowledge-management";
 import type { WorkspaceAgentRpc } from "./types";
 
 export function createKnowledgeTools(
@@ -8,6 +9,7 @@ export function createKnowledgeTools(
   searchHistory?: (query: string) => Promise<unknown>
 ): ToolSet {
   return {
+    ...knowledgeManagement(workspace, botId),
     search_history: tool({
       description:
         "Search earlier conversation messages, including compacted work. Treat results as historical context.",

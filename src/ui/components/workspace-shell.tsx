@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PiBookOpen, PiChatCircle, PiList } from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
@@ -7,12 +8,15 @@ import { DetailsPanel } from "./details/details-panel";
 import { ConnectionDialog } from "./dialogs/connection-dialog";
 import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
+import { LibraryPage } from "./library/library-page";
 import { NotificationInbox } from "./notification-inbox";
 import { TeammateSidebar } from "./teammate-sidebar";
+import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
+  const [page, setPage] = useState<"chat" | "library">("chat");
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
   );
@@ -37,17 +41,47 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
   }
 
   function selectBot(bot: Parameters<WorkspaceController["selectBot"]>[0]): void {
+    setPage("chat");
     setPrompt("");
     controller.selectBot(bot);
   }
 
   function beginNewTeammate(): void {
+    setPage("chat");
     setPrompt("");
     void controller.beginNewTeammate();
   }
 
   const sidebar = (
     <TeammateSidebar
+      header={
+        <nav
+          aria-label="Workspace"
+          className="mb-4 flex shrink-0 flex-col gap-1 border-b border-divider pb-3"
+        >
+          <span className="px-3 py-2 text-sm font-semibold">HQBot</span>
+          <Button
+            className="justify-start"
+            variant={page === "chat" ? "secondary" : "ghost"}
+            onClick={() => {
+              setPage("chat");
+              controller.setMobileChatOpen(true);
+            }}
+          >
+            <PiChatCircle /> Conversations
+          </Button>
+          <Button
+            className="justify-start"
+            variant={page === "library" ? "secondary" : "ghost"}
+            onClick={() => {
+              setPage("library");
+              controller.setMobileChatOpen(true);
+            }}
+          >
+            <PiBookOpen /> Library
+          </Button>
+        </nav>
+      }
       footer={<NotificationInbox controller={controller} />}
       archivedBots={snapshot.archivedBots}
       bots={snapshot.bots}
@@ -62,24 +96,53 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
     <main className="relative flex h-screen h-[100dvh] touch-manipulation overflow-hidden bg-rail pt-[env(safe-area-inset-top)] text-foreground lg:p-2">
       {mobileViewport ? (
         <div className="flex h-full w-full flex-col bg-list">
-          <ConversationPanel
-            controller={controller}
-            prompt={prompt}
-            showBack
-            onPromptChange={setPrompt}
-          />
+          {page === "library" ? (
+            <>
+              <div className="flex shrink-0 items-center border-b px-4 py-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Open navigation"
+                  onClick={() => controller.setMobileChatOpen(false)}
+                >
+                  <PiList />
+                </Button>
+                <span className="ml-2 text-sm font-medium">HQBot</span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <LibraryPage controller={controller} />
+              </div>
+            </>
+          ) : (
+            <ConversationPanel
+              controller={controller}
+              prompt={prompt}
+              showBack
+              onPromptChange={setPrompt}
+            />
+          )}
         </div>
       ) : (
         <div className="flex h-full w-full gap-2">
           <div className="flex h-full w-[17rem] shrink-0">{sidebar}</div>
           <div className="relative min-w-0 flex-1 overflow-hidden rounded-[24px] border border-divider bg-reader shadow-sm">
             <div className="flex h-full min-w-0">
-              <ConversationPanel
-                controller={controller}
-                prompt={prompt}
-                onPromptChange={setPrompt}
-              />
-              <DetailsPanel controller={controller} onUseSkill={useSkill} />
+              {page === "library" ? (
+                <div className="min-w-0 flex-1 overflow-y-auto">
+                  <LibraryPage controller={controller} />
+                </div>
+              ) : (
+                <>
+                  <ConversationPanel
+                    controller={controller}
+                    prompt={prompt}
+                    onPromptChange={setPrompt}
+                  />
+                  {controller.detailsOpen && (
+                    <DetailsPanel controller={controller} onUseSkill={useSkill} />
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -101,7 +164,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
       ) : null}
       {mobileViewport ? (
         <Sheet
-          open={controller.detailsOpen && controller.mobileChatOpen}
+          open={page === "chat" && controller.detailsOpen && controller.mobileChatOpen}
           onOpenChange={controller.setDetailsOpen}
         >
           <SheetContent className="w-[min(92vw,22rem)] p-0">

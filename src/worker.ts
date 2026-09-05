@@ -7,6 +7,7 @@ import { handleBackups } from "./http/backups";
 import { handleBots } from "./http/bots";
 import { json, requireOwner, requireSameOrigin, workspace } from "./http/common";
 import { handleDesktop } from "./http/desktop";
+import { handleKnowledge } from "./http/knowledge";
 import { handleResources } from "./http/resources";
 import { HQBotTeammate } from "./teammate";
 
@@ -74,6 +75,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   for (const handler of [
     handleBots,
     handleResources,
+    handleKnowledge,
     handleDesktop,
     handleBackups,
     handleArtifacts

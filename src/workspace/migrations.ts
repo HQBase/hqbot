@@ -1,3 +1,4 @@
+import { migrateProduct } from "./product-migrations";
 import { now, type Sql } from "./sql";
 
 function hasColumn(sql: Sql, table: string, column: string): boolean {
@@ -265,4 +266,5 @@ export function migrateWorkspace(sql: Sql): void {
     sql`CREATE INDEX notifications_unread ON notifications(read_at, created_at)`;
     finish(sql, 12);
   }
+  migrateProduct(sql);
 }

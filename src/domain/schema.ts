@@ -1,3 +1,5 @@
+import { productMigrations } from "./product-migrations";
+
 export interface SchemaMigration {
   version: number;
   statements: string[];
@@ -241,7 +243,8 @@ export const schemaMigrations: readonly SchemaMigration[] = [
       "CREATE TABLE notifications (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, task_id TEXT, kind TEXT NOT NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT, FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE)",
       "CREATE INDEX notifications_unread ON notifications(read_at, created_at)"
     ]
-  }
+  },
+  ...productMigrations
 ];
 
 export function pendingMigrations(appliedVersions: readonly number[]): readonly SchemaMigration[] {

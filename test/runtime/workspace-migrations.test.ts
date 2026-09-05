@@ -145,8 +145,30 @@ describe("workspace migrations", () => {
     ).toBeUndefined();
     expect(database.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual(
       {
-        version: 12
+        version: schemaMigrations.at(-1)?.version
       }
     );
+  });
+
+  it("updates version 12 without losing saved knowledge", () => {
+    database = new DatabaseSync(":memory:");
+    applyThrough(database, 12);
+    database.exec(`INSERT INTO bots (id, name, title, description, brief, created_at, updated_at)
+      VALUES ('saved', 'Saved', 'Saved', '', '', '2026-09-01', '2026-09-01');
+      INSERT INTO memories (id, bot_id, content, created_at)
+      VALUES ('memory', 'saved', 'Use short reports', '2026-09-01');
+      INSERT INTO skills (id, bot_id, name, description, instructions, created_at, updated_at)
+      VALUES ('skill', 'saved', 'Report', 'Write a report', 'Check sources', '2026-09-01', '2026-09-01');`);
+    migrateWorkspace(sqlFor(database));
+    migrateWorkspace(sqlFor(database));
+    expect(database.prepare("SELECT content FROM memories").get()).toEqual({
+      content: "Use short reports"
+    });
+    expect(database.prepare("SELECT instructions FROM skills").get()).toEqual({
+      instructions: "Check sources"
+    });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get()).toEqual({
+      count: 0
+    });
   });
 });
