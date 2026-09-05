@@ -10,7 +10,13 @@ import { DemonstrationList } from "./demonstration-list";
 import { KnowledgeEditor } from "./knowledge-editor";
 import { RecordDemonstration } from "./record-demonstration";
 
-export function LibraryPage({ controller }: { controller: WorkspaceController }) {
+export function LibraryPage({
+  controller,
+  onTemplates
+}: {
+  controller: WorkspaceController;
+  onTemplates?: () => void;
+}) {
   const [botId, setBotId] = useState(
     controller.selectedBot?.id ?? controller.snapshot?.bots[0]?.id ?? ""
   );
@@ -73,6 +79,11 @@ export function LibraryPage({ controller }: { controller: WorkspaceController })
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {onTemplates && (
+            <Button variant="outline" onClick={onTemplates}>
+              Templates
+            </Button>
+          )}
           <Button disabled={!botId} variant="outline" onClick={() => setRecording(true)}>
             Record a skill
           </Button>

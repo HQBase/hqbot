@@ -19,6 +19,7 @@ import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
 import { InboxPage } from "./inbox/inbox-page";
 import { LibraryPage } from "./library/library-page";
+import { TemplatesPage } from "./library/templates-page";
 import { ProjectsPage } from "./projects/projects-page";
 import { SearchPage } from "./search/search-page";
 import { TeammateSidebar } from "./teammate-sidebar";
@@ -28,7 +29,7 @@ import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
   const [page, setPage] = useState<
-    "chat" | "library" | "projects" | "automations" | "inbox" | "search"
+    "chat" | "library" | "projects" | "automations" | "inbox" | "search" | "templates"
   >(() => (new URL(location.href).searchParams.get("page") === "inbox" ? "inbox" : "chat"));
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
@@ -49,7 +50,13 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
   const snapshot = controller.snapshot;
   if (!snapshot) return null;
   const pageContent =
-    page === "search" ? (
+    page === "templates" ? (
+      <TemplatesPage
+        controller={controller}
+        onBack={() => setPage("library")}
+        onConversation={() => setPage("chat")}
+      />
+    ) : page === "search" ? (
       <SearchPage
         controller={controller}
         onAsk={(botId, text) => {
@@ -66,7 +73,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
     ) : page === "projects" ? (
       <ProjectsPage controller={controller} />
     ) : (
-      <LibraryPage controller={controller} />
+      <LibraryPage controller={controller} onTemplates={() => setPage("templates")} />
     );
 
   function useSkill(skill: BotSkill): void {

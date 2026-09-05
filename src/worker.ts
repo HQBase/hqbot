@@ -16,6 +16,7 @@ import { handlePermissions } from "./http/permissions";
 import { handleProjects } from "./http/projects";
 import { handlePush } from "./http/push";
 import { handleResources } from "./http/resources";
+import { handlePublicTemplate, handleTemplates } from "./http/templates";
 import { HQBotTeammate } from "./teammate";
 
 interface AgentRouteMatch {
@@ -88,6 +89,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     handleResources,
     handleKnowledge,
     handleMessages,
+    handleTemplates,
     handlePermissions,
     handleProjects,
     handleDesktop,
@@ -122,6 +124,9 @@ export default {
     const url = new URL(request.url);
     try {
       if (request.method === "GET" && url.pathname === "/health") return health(env);
+
+      const shared = await handlePublicTemplate(request, env);
+      if (shared) return shared;
 
       const event = await handleInboundEvent(request, env);
       if (event) return event;

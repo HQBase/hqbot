@@ -59,7 +59,7 @@ separate gate at the end of this list.
 - [x] Connector catalog and setup controls.
 - [x] Demonstration recording and draft skill generation.
 - [x] Threads, reactions, mentions, search, and safe artifact previews.
-- [ ] Bot duplication, template import/export, and revocable public sharing.
+- [x] Bot duplication, template import/export, and revocable public sharing.
 - [ ] Responsive workspace UI and installable web app.
 - [ ] Desktop client and opt-in local execution companion.
 - [ ] iOS and Android clients and build instructions.
@@ -83,6 +83,16 @@ the server. Deleting a teammate or project removes its discussions.
 File previews show raster images, video, and bounded plain text or Markdown. Show HTML and SVG as
 source text. Never run uploaded scripts or load remote resources from a preview. Other file types
 remain available as downloads.
+
+## Portable teammates
+
+A version 1 template contains a profile, budget, model choice, selected skills, and selected routine
+definitions. Build exports from an explicit field list. Exclude connections, secrets, permission
+rules, memory, files, histories, event triggers, and device pairing. Instructions can contain private
+text, so show the complete candidate before download or publication. Imports use a stable command
+ID and create a separate teammate. Imported skills start as drafts and all routines start paused.
+Public links contain a frozen template. Revoking the link removes public access; a downloaded copy
+cannot be recalled. Keep public template access separate from workspace authentication.
 
 ## Inbound events
 

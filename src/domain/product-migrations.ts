@@ -71,5 +71,13 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE TABLE IF NOT EXISTS discussion_notes (id TEXT PRIMARY KEY, discussion_id TEXT NOT NULL REFERENCES message_discussions(id) ON DELETE CASCADE, user_id TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL)`,
       `CREATE TABLE IF NOT EXISTS message_reactions (discussion_id TEXT NOT NULL REFERENCES message_discussions(id) ON DELETE CASCADE, user_id TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(discussion_id, user_id, emoji))`
     ]
+  },
+  {
+    version: 20,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS template_imports (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, template_json TEXT NOT NULL, created_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS template_shares (id TEXT PRIMARY KEY, name TEXT NOT NULL, template_json TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT)`,
+      `CREATE TRIGGER IF NOT EXISTS purge_imported_template BEFORE DELETE ON bots BEGIN UPDATE template_imports SET template_json = '{}' WHERE bot_id = OLD.id; END`
+    ]
   }
 ];

@@ -116,14 +116,18 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
   if (request.method === "POST" && duplicate?.[0]) {
     const source = await agent.getBot(duplicate[0]);
     if (!source) return json({ error: "Teammate not found" }, 404);
-    const copy = await agent.createBot(
-      crypto.randomUUID(),
-      {
-        name: `${source.name} copy`.slice(0, 80),
-        title: source.title,
-        description: source.description
-      },
-      source.brief
+    const body = await readJson(request, true);
+    const template = await agent.exportTemplate(
+      source.id,
+      (await agent.listSkills(source.id))
+        .filter((item) => item.botId === source.id)
+        .map((item) => item.id),
+      (await agent.listAutomations(source.id)).map((item) => item.id)
+    );
+    template.profile.name = `${source.name} copy`.slice(0, 80);
+    const copy = await agent.importTemplate(
+      typeof body.id === "string" ? body.id : crypto.randomUUID(),
+      template
     );
     return json({ teammate: copy }, 201);
   }

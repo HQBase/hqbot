@@ -54,6 +54,47 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("imports safe templates and revokes the public link without exposing private fields", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Research" }, session)
+    ).json()) as { teammate: { id: string } };
+    const { template } = (await (
+      await post(
+        "/api/templates/export",
+        { botId: teammate.id, skillIds: [], routineIds: [] },
+        session
+      )
+    ).json()) as { template: { profile: { name: string } } };
+    template.profile.name = "<script>private</script>";
+    const id = crypto.randomUUID();
+    expect((await post("/api/templates/publish", { id, template })).status).toBe(401);
+    expect((await post("/api/templates/publish", { id, template }, session)).status).toBe(201);
+    const page = await request(`/api/public/templates/${id}`);
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(page.headers.get("Content-Security-Policy")).toContain("default-src 'none'");
+    const download = await request(`/api/public/templates/${id}?download=1`);
+    expect(await download.json()).toEqual(template);
+    const importId = crypto.randomUUID();
+    const imported = await post("/api/templates/import", { id: importId, template }, session);
+    expect(imported.status).toBe(201);
+    expect(
+      await (await post("/api/templates/import", { id: importId, template }, session)).json()
+    ).toEqual(await imported.json());
+    expect(
+      (
+        await request(`/api/templates/shares/${id}`, {
+          method: "DELETE",
+          headers: { Cookie: session, Origin: origin }
+        })
+      ).status
+    ).toBe(200);
+    expect((await request(`/api/public/templates/${id}`)).status).toBe(404);
+  });
+
   it("searches saved work and validates discussion sources before accepting notes", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const { teammate } = (await (
