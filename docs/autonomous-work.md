@@ -13,6 +13,9 @@ checks its saved completion criteria. A text reply alone does not complete an ac
   request limits to models without prices. Bound each turn; save work before further turns.
 - Save completion criteria, evidence, and milestones. Stop repeated actions, unchanged progress,
   and repeated failures. Retry temporary failures with a bounded delay.
+- Give the model a valid completion input example when evidence is missing. Include confirmed
+  action IDs in connected-service results. Reject invalid input without changing it or repeating
+  a completed external action.
 - Compact context, keep searchable history, and recover from context overflow. Retrieve recent
   or relevant memories in pages. Discover all skills and load complete instructions on demand.
 - Require owner permission for computer actions that can change data or run arbitrary code.

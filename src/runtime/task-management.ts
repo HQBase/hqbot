@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const taskUsage =
-  'Valid examples: {"action":"needs_user","goal":"Finish setup","checkpoint":"Waiting for the owner"} or {"action":"continue","goal":"Finish report","checkpoint":"Research is complete"}';
+  'Valid examples: {"action":"continue","goal":"Finish report","checkpoint":"Research is complete"} or {"action":"done","result":"Report verified","evidence":[{"criterionId":"result","check":"Read the completed report"}]}';
 const taskText = z.string({ error: taskUsage }).trim().min(1).max(20_000);
 
 const criterion = z.object({

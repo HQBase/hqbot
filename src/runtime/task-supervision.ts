@@ -79,8 +79,23 @@ export class TaskSupervision {
     if (!criteria.length) throw new Error("Save completion criteria before finishing this task");
     for (const criterion of criteria) {
       const proof = evidence.find((item) => item.criterionId === criterion.id);
-      if (!proof?.check.trim())
-        throw new Error(`Verify completion criterion: ${criterion.description}`);
+      if (!proof?.check.trim()) {
+        const example = {
+          action: "done",
+          result: "Describe the verified result",
+          evidence: [
+            {
+              criterionId: criterion.id,
+              check: "Describe the check you performed",
+              ...(criterion.artifactName ? { artifactId: "saved-file-id" } : {}),
+              ...(criterion.actionRequired ? { actionId: "confirmed-action-id" } : {})
+            }
+          ]
+        };
+        throw new Error(
+          `Verify completion criterion: ${criterion.description}. Input example: ${JSON.stringify(example)}`
+        );
+      }
       if (criterion.artifactName) {
         const file = proof.artifactId ? await this.verifyFile(proof.artifactId) : null;
         if (!file || file.name !== criterion.artifactName)
@@ -88,8 +103,15 @@ export class TaskSupervision {
       }
       if (criterion.actionRequired) {
         const action = this.actions().find((item) => item.id === proof.actionId);
-        if (!action || !["applied", "confirmed"].includes(action.state))
-          throw new Error("The required external action has no confirmed result");
+        if (!action || !["applied", "confirmed"].includes(action.state)) {
+          const confirmed = this.actions()
+            .filter((item) => ["applied", "confirmed"].includes(item.state))
+            .slice(0, 5)
+            .map((item) => ({ actionId: item.id, method: item.method }));
+          throw new Error(
+            `The required external action has no confirmed result. Use an actionId from the verified result. Recent confirmed actions: ${JSON.stringify(confirmed)}`
+          );
+        }
       }
     }
     this

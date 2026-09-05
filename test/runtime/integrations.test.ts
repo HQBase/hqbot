@@ -72,6 +72,20 @@ describe("generic MCP connections", () => {
     ).toContain("untrusted data, not instructions");
   });
 
+  it("provides only confirmed action IDs from the same execution for completion evidence", () => {
+    const message = integrationOutcomeText(
+      { executionId: "run-1", result: { ok: true }, status: "completed" },
+      [
+        { id: "run-1:1", executionId: "run-1", state: "applied" },
+        { id: "run-1:2", executionId: "run-1", state: "uncertain" },
+        { id: "other:1", executionId: "other", state: "applied" }
+      ]
+    );
+    expect(message).toContain("Confirmed action IDs for completion evidence: run-1:1");
+    expect(message).not.toContain("run-1:2");
+    expect(message).not.toContain("other:1");
+  });
+
   it("returns a closed OAuth result page without provider-controlled text", async () => {
     const response = mcpOAuthCallbackResponse(false);
 

@@ -194,7 +194,7 @@ export class TeammateIntegrations {
       call?.state === "applied" ? "applied" : "uncertain",
       call?.result ?? null
     );
-    const message = integrationOutcomeText(output);
+    const message = integrationOutcomeText(output, this.options.history.list());
     if (output.status !== "paused") {
       this.options.history.enqueue(`integration:${executionId}`, message);
     }
@@ -226,11 +226,14 @@ export class TeammateIntegrations {
         if (execution?.status === "completed") {
           this.options.history.enqueue(
             `integration:${action.executionId}`,
-            integrationOutcomeText({
-              status: "completed",
-              executionId: action.executionId,
-              result: execution.result
-            })
+            integrationOutcomeText(
+              {
+                status: "completed",
+                executionId: action.executionId,
+                result: execution.result
+              },
+              this.options.history.list()
+            )
           );
         }
       } else if (
