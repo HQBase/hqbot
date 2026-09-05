@@ -1,0 +1,82 @@
+diff --git a/dist/base-DiFD41JY.d.ts b/dist/base-DiFD41JY.d.ts
+index 4a32be41081a4265e59f3a5bbb59c92e58c3ebbd..ad9482d0f43f69b8479e28f0531991e94249a5fa 100644
+--- a/dist/base-DiFD41JY.d.ts
++++ b/dist/base-DiFD41JY.d.ts
+@@ -21,6 +21,7 @@ type ToolAnnotations = {
+  * session) that must survive a pause.
+  */
+ type ToolExecuteContext = {
++  seq: number;
+   /** The codemode execution this call belongs to. Stable across pause/resume. */ executionId: string;
+ };
+ /**
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 80cf3150401a5fb739e08c1eecc9fcd54e4f04d1..cdfae3352a277fe7f649eb85ae780b987bb91097 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -241,7 +241,7 @@ declare class CodemodeRuntime extends DurableObject<unknown> {
+    * (no state change) when the run is missing or not paused — the caller turns
+    * that into a clear error.
+    */
+-  resume(id: string): Promise<ExecutionState | null>;
++  resume(id: string, expectedSeq: number): Promise<ExecutionState | null>;
+   /**
+    * Decide what to do with the next tool call or step. The host allocates and
+    * passes `seq` (not an in-memory cursor), so this is safe across hibernation
+@@ -600,6 +600,7 @@ type CodemodeRuntimeToolOptions = {
+   connectorHints?: Record<string, string>;
+ };
+ type CodemodeApproveOptions = {
++  seq: number;
+   /** Execution to approve and resume. Get it from `pending()` or the tool output. */ executionId: string;
+ };
+ type CodemodeRejectOptions = {
+diff --git a/dist/index.js b/dist/index.js
+index a6132ff0e7cc2802ef0d592d0275757ece2ea932..f5380432227e2d0e07a10742ad2ceb83142f9e37 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -620,9 +620,11 @@ var CodemodeRuntime = class extends DurableObject {
+ 	* (no state change) when the run is missing or not paused — the caller turns
+ 	* that into a clear error.
+ 	*/
+-	async resume(id) {
++	async resume(id, expectedSeq) {
+ 		const row = this.#executionRow(id);
+-		if (!row || row.status !== "paused") return null;
++		if (!row || row.status !== "paused" || !Number.isInteger(expectedSeq)) return null;
++		const pending = this.#logRow(id, expectedSeq);
++		if (!pending || pending.state !== "pending") return null;
+ 		this.ctx.storage.sql.exec(`UPDATE cm_executions SET status = 'running', updated_at = ? WHERE id = ?`, Date.now(), id);
+ 		return this.#get(id);
+ 	}
+@@ -1583,11 +1585,11 @@ function buildConnectorBindings(setup, runtime, executionId, cursor) {
+ 				if (decision.kind === "pause") return { [CONTROL_KEY]: "pause" };
+ 				const connector = setup.connectorsByName.get(desc.name);
+ 				if (!connector) throw new Error(`Unknown connector: ${desc.name}`);
+-				const result = await connector.executeTool(method, args, { executionId });
++				const result = await connector.executeTool(method, args, { executionId, seq: decision.seq });
+ 				await runtime.recordResult(executionId, decision.seq, result);
+ 				return result;
+ 			} catch (err) {
+-				console.error(`codemode: ${desc.name}.${method} failed (execution ${executionId})`, err);
++				// Connected-service error content must not enter Worker logs.
+ 				return {
+ 					[CONTROL_KEY]: "error",
+ 					message: err instanceof Error ? err.message : String(err)
+@@ -1824,7 +1826,7 @@ async function resumeCodemode(options) {
+ 			error: `Execution "${options.executionId}" requires connector(s) ${missing.map((m) => `"${m}"`).join(", ")} that are not configured on this runtime.`
+ 		};
+ 	}
+-	const execution = await runtime.resume(options.executionId);
++	const execution = await runtime.resume(options.executionId, options.seq);
+ 	if (!execution) {
+ 		const error = existing ? `Execution "${options.executionId}" is not paused (status: ${existing.status}); only a paused run can be approved.` : `No execution "${options.executionId}" to resume.`;
+ 		return {
+@@ -1931,6 +1933,7 @@ var DefaultCodemodeRuntimeHandle = class {
+ 			connectors: this.#options.connectors,
+ 			name: this.#options.name,
+ 			executionId: options.executionId,
++			seq: options.seq,
+ 			maxExecutions: this.#options.maxExecutions,
+ 			transformResult: this.#options.transformResult
+ 		});

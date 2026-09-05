@@ -6,6 +6,7 @@ export type ExternalEffectState = "prepared" | "uncertain" | "applied";
 
 export interface ExternalEffectIdentity {
   executionId: string;
+  seq: number;
   connector: string;
   method: string;
   args: unknown;
@@ -73,8 +74,11 @@ function requiredIdentityPart(name: string, value: string): string {
 }
 
 export async function externalEffectKey(identity: ExternalEffectIdentity): Promise<string> {
+  if (!Number.isInteger(identity.seq) || identity.seq < 0)
+    throw new Error("Invalid action sequence");
   return sha256Hex(
     canonicalizeJson({
+      seq: identity.seq,
       args: identity.args,
       connector: requiredIdentityPart("connector", identity.connector),
       executionId: requiredIdentityPart("executionId", identity.executionId),
@@ -123,6 +127,17 @@ export class TeammateExternalEffects {
 
   async run<T>(identity: ExternalEffectIdentity, action: () => Promise<T>): Promise<T> {
     const key = await externalEffectKey(identity);
+    // Old receipts have no sequence. Never turn an unresolved pre-update call into a new attempt.
+    const legacyKey = await sha256Hex(
+      canonicalizeJson({
+        args: identity.args,
+        connector: identity.connector,
+        executionId: identity.executionId,
+        method: identity.method
+      })
+    );
+    if (this.receipt(legacyKey)?.state === "uncertain")
+      throw new ExternalEffectUncertainError(legacyKey);
     const existing = this.sql<Row>`SELECT state, result_json
       FROM hqbot_external_effect_receipts WHERE effect_key = ${key}`[0];
     if (existing) {

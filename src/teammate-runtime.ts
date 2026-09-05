@@ -1,4 +1,5 @@
 import { Think } from "@cloudflare/think";
+import { ActionHistory } from "./runtime/action-history";
 import { TeammateComputer } from "./runtime/computer";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
 import { TeammateExternalEffects } from "./runtime/external-effects";
@@ -115,6 +116,37 @@ export abstract class TeammateRuntime extends Think<Env> {
 
   protected get integrationRuntime(): TeammateIntegrations {
     this.integrations ??= new TeammateIntegrations({
+      history: new ActionHistory(this.sql.bind(this) as Sql),
+      scheduleRecovery: async () => {
+        await this.schedule(
+          new Date(Date.now() + 60_000),
+          "recoverRuntime",
+          {},
+          { idempotent: true, retry: scheduleRetry }
+        );
+      },
+      continueTurn: async (id, text) => {
+        const work = this.tasks.active();
+        const metadata = {
+          source: "integration-result",
+          ...(work ? { taskId: work.taskId, generation: work.generation } : {})
+        };
+        await this.submitMessages(
+          [
+            {
+              id,
+              role: "user",
+              parts: [
+                {
+                  type: "text",
+                  text: `[hqbot:action-result]\n${text}\nContinue the owner's request. Verify the final result.`
+                }
+              ]
+            }
+          ],
+          { channel: "web", idempotencyKey: id, submissionId: id, metadata }
+        );
+      },
       addAssistantMessage: (id, text) => this.addAssistantMessage(id, text),
       addServer: (name, url, token) =>
         this.addMcpServer(name, url, {

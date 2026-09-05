@@ -11,7 +11,7 @@
     "dev:ui": "vite --open /__ui",
     "build": "tsc -b && vite build",
     "test": "pnpm test:unit && pnpm test:integration",
-    "test:unit": "vitest run --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts && vitest run --config vitest.approvals.config.ts",
     "test:integration": "vite build && vitest run --config vitest.worker.config.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:architecture": "node scripts/check-architecture.mjs",

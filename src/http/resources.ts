@@ -16,6 +16,24 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
   const url = new URL(request.url);
   const agent = await workspace(env);
 
+  const actions = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/actions$/u);
+  if (request.method === "GET" && actions?.[0])
+    return json({ actions: await (await teammate(env, actions[0])).listActionHistory() });
+  const resolveAction = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/actions\/resolve$/u);
+  if (request.method === "POST" && resolveAction?.[0]) {
+    const unavailable = await requireActiveTeammate(agent, resolveAction[0]);
+    if (unavailable) return unavailable;
+    const body = await readJson(request);
+    if (typeof body.happened !== "boolean")
+      return json({ error: "A checked outcome is required" }, 400);
+    await (await teammate(env, resolveAction[0])).resolveUnknownAction(
+      cleanString(body, "id", 300),
+      cleanString(body, "evidence", 20_000),
+      body.happened
+    );
+    return json({ saved: true });
+  }
+
   const memories = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/memories$/u);
   if (request.method === "GET" && memories?.[0]) {
     const items = await agent.listMemories(memories[0], {

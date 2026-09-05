@@ -1,10 +1,13 @@
 import type { PendingAction } from "@cloudflare/codemode";
 import type { MCPServersState } from "agents";
+import type { ActionRecord, IntegrationApproval } from "../../domain/actions";
 
 export interface TeammateIntegrationClient {
   readonly state: unknown;
-  approveIntegrationAction(executionId: string): Promise<unknown>;
-  listIntegrationApprovals(): Promise<PendingAction[]>;
+  listActionHistory(): Promise<ActionRecord[]>;
+  resolveUnknownAction(id: string, evidence: string, happened: boolean): Promise<void>;
+  approveIntegrationAction(executionId: string, seq: number, inputHash: string): Promise<unknown>;
+  listIntegrationApprovals(): Promise<IntegrationApproval[]>;
   rejectIntegrationAction(executionId: string, seq: number): Promise<boolean>;
   submitChat(input: { prompt: string; submissionId: string }): Promise<
     | { accepted: true; submissionId: string }
@@ -59,7 +62,7 @@ export function mcpStatusLabel(status: McpConnection["status"]): string {
 
 export function integrationActionDetails(action: PendingAction): string {
   try {
-    return JSON.stringify(action.args, null, 2).slice(0, 8_000);
+    return JSON.stringify(action.args, null, 2);
   } catch {
     return "Action details are not available.";
   }

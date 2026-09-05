@@ -46,13 +46,14 @@ export class TeammateMcpConnector extends McpConnector<Env> {
       ...connectorTool,
       requiresApproval: true,
       execute: async (args, context) => {
-        if (!context?.executionId) {
+        if (!context?.executionId || !Number.isInteger(context.seq)) {
           throw new Error("The connected-service execution ID is missing");
         }
         try {
           return await this.effects.run(
             {
               args,
+              seq: context.seq,
               connector: this.name(),
               executionId: context.executionId,
               method: name

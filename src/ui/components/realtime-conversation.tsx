@@ -1,4 +1,3 @@
-import type { PendingAction } from "@cloudflare/codemode";
 import { useAgentChat } from "@cloudflare/think/react";
 import { useAgent } from "agents/react";
 import type { UIMessage } from "ai";
@@ -12,11 +11,12 @@ import {
   useRef,
   useState
 } from "react";
-
+import type { IntegrationApproval } from "../../domain/actions";
 import type { BotTeammate } from "../../domain/types";
 import { useInitialMessageDelivery } from "../hooks/use-initial-message-delivery";
 import type { WorkspaceController } from "../hooks/use-workspace";
 import { artifactReferences, uploadArtifacts } from "../lib/artifact-upload";
+import { isInternalContinuation } from "../lib/internal-messages";
 import { integrationActionDetails, type TeammateIntegrationClient } from "../lib/mcp";
 import { AgentMessage, type AgentPart, ThinkingIndicator } from "./chat/agent-message";
 import { ApprovalCard } from "./chat/approval-card";
@@ -28,12 +28,6 @@ type LocalFile = ComposerFile & { file: File };
 const STREAM_PAUSE_MS = 700;
 
 const MemoizedAgentMessage = memo(AgentMessage);
-
-function isInternalContinuation(message: UIMessage): boolean {
-  if (message.role !== "user") return false;
-  const metadata = message.metadata as { turnMetadata?: { source?: unknown } } | null | undefined;
-  return metadata?.turnMetadata?.source === "active-task";
-}
 
 export function RealtimeConversation({
   bot,
@@ -57,7 +51,7 @@ export function RealtimeConversation({
     credentials: "include",
     throttle: 50
   });
-  const [approvals, setApprovals] = useState<PendingAction[]>([]);
+  const [approvals, setApprovals] = useState<IntegrationApproval[]>([]);
   const [resolving, setResolving] = useState<string | null>(null);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [admitting, setAdmitting] = useState(false);
@@ -256,11 +250,16 @@ export function RealtimeConversation({
       ].slice(0, 5)
     );
   }
-  async function resolveApproval(approval: PendingAction, approved: boolean): Promise<void> {
+  async function resolveApproval(approval: IntegrationApproval, approved: boolean): Promise<void> {
     setResolving(approval.executionId);
     setLocalError("");
     try {
-      if (approved) await agent.stub.approveIntegrationAction(approval.executionId);
+      if (approved)
+        await agent.stub.approveIntegrationAction(
+          approval.executionId,
+          approval.seq,
+          approval.inputHash
+        );
       else await agent.stub.rejectIntegrationAction(approval.executionId, approval.seq);
       await refreshApprovals();
       await controller.load(bot.id);

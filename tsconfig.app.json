@@ -16,6 +16,7 @@
     "src/ui/**/*.ts",
     "src/ui/**/*.tsx",
     "src/domain/models.ts",
+    "src/domain/actions.ts",
     "src/domain/skills.ts",
     "src/domain/types.ts"
   ]

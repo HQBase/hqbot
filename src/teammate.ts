@@ -1,4 +1,4 @@
-import type { PendingAction, ProxyToolOutput } from "@cloudflare/codemode";
+import type { ProxyToolOutput } from "@cloudflare/codemode";
 import type {
   ChatResponseResult,
   PrepareStepContext,
@@ -10,6 +10,7 @@ import type {
 } from "@cloudflare/think";
 import { callable } from "agents";
 import { type LanguageModel, type ToolSet, tool } from "ai";
+import type { IntegrationApproval } from "./domain/actions";
 import { createComputerBrowserTools } from "./runtime/computer-browser";
 import { createComputerDesktopTools } from "./runtime/computer-desktop";
 import { createComputerFileTools } from "./runtime/computer-files";
@@ -234,6 +235,7 @@ export class HQBotTeammate extends TeammateRuntime {
     await this.computerRuntime.reconcileOwnerControl();
     await this.processes.reconcile();
     await this.tasks.reconcile();
+    await this.integrationRuntime.recover();
   }
 
   @callable()
@@ -264,18 +266,32 @@ export class HQBotTeammate extends TeammateRuntime {
   }
 
   @callable()
-  listIntegrationApprovals(): Promise<PendingAction[]> {
+  listIntegrationApprovals(): Promise<IntegrationApproval[]> {
     return this.integrationRuntime.pending();
   }
 
   @callable()
-  approveIntegrationAction(executionId: string): Promise<ProxyToolOutput> {
-    return this.integrationRuntime.approve(executionId);
+  approveIntegrationAction(
+    executionId: string,
+    seq: number,
+    inputHash: string
+  ): Promise<ProxyToolOutput> {
+    return this.integrationRuntime.approve(executionId, seq, inputHash);
   }
 
   @callable()
   rejectIntegrationAction(executionId: string, seq: number): Promise<boolean> {
     return this.integrationRuntime.reject(executionId, seq);
+  }
+
+  @callable()
+  listActionHistory() {
+    return this.integrationRuntime.history();
+  }
+
+  @callable()
+  resolveUnknownAction(id: string, evidence: string, happened: boolean) {
+    return this.integrationRuntime.resolveUnknown(id, evidence, happened);
   }
 
   getComputerStatus() {

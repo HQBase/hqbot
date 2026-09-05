@@ -1,5 +1,6 @@
 import type { BotSkill } from "../../../domain/types";
 import type { WorkspaceController } from "../../hooks/use-workspace";
+import { ActionHistoryPanel } from "./action-history-panel";
 import { AgentSettingsPanel } from "./agent-settings-panel";
 import { CostPanel } from "./cost-panel";
 import { DesktopView } from "./desktop-view";
@@ -47,6 +48,7 @@ export function DetailsPanel({
           onStopTask={() => void controller.stopSelectedTask()}
           onUseSkill={onUseSkill}
         />
+        <ActionHistoryPanel botId={selectedBot.id} />
         <CostPanel budgetUsd={selectedBot.dailyBudgetUsd} costs={snapshot.costs} />
       </div>
     </aside>

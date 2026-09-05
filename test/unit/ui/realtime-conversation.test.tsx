@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
-import type { PendingAction } from "@cloudflare/codemode";
 import { StrictMode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IntegrationApproval as PendingAction } from "../../../src/domain/actions";
 
 import type { BotFile, BotTeammate } from "../../../src/domain/types";
 import { RealtimeConversation } from "../../../src/ui/components/realtime-conversation";
@@ -800,6 +800,7 @@ describe("RealtimeConversation", () => {
         args: { title: "Open an issue" },
         connector: "mcp_github",
         executionId: "execution-1",
+        inputHash: "reviewed-input",
         method: "create_issue",
         seq: 1
       }
@@ -830,7 +831,7 @@ describe("RealtimeConversation", () => {
         .find((button) => button.textContent?.includes("Approve"))
         ?.click()
     );
-    expect(agent.approveIntegrationAction).toHaveBeenCalledWith("execution-1");
+    expect(agent.approveIntegrationAction).toHaveBeenCalledWith("execution-1", 1, "reviewed-input");
     await view.unmount();
   });
 

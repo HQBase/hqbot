@@ -1,4 +1,5 @@
 import type { Sql } from "../workspace/sql";
+import { migrateActionHistory } from "./action-history";
 import { migrateExternalEffects } from "./external-effects";
 
 function isApplied(sql: Sql, version: number): boolean {
@@ -126,4 +127,8 @@ export function migrateTeammateWork(sql: Sql): void {
   migrateTwo(sql);
   migrateThree(sql);
   migrateFour(sql);
+  if (!isApplied(sql, 5)) {
+    migrateActionHistory(sql);
+    record(sql, 5);
+  }
 }

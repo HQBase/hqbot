@@ -27,6 +27,7 @@ function sqlFor(database: DatabaseSync): Sql {
 }
 
 const identity = {
+  seq: 0,
   executionId: "execution-1",
   connector: "mail",
   method: "send",
@@ -90,6 +91,20 @@ describe("external-effect receipts", () => {
     });
     expect(action).toHaveBeenCalledTimes(1);
     expect(effects.receipt(key)?.state).toBe("applied");
+  });
+
+  it("runs intentional identical calls at distinct sequences while replaying each once", async () => {
+    database = new DatabaseSync(":memory:");
+    const sql = sqlFor(database);
+    migrateExternalEffects(sql);
+    const effects = new TeammateExternalEffects(sql);
+    let value = "before";
+    const action = vi.fn(async () => ({ value }));
+    expect(await effects.run(identity, action)).toEqual({ value: "before" });
+    value = "after";
+    expect(await effects.run({ ...identity, seq: 1 }, action)).toEqual({ value: "after" });
+    expect(await effects.run(identity, action)).toEqual({ value: "before" });
+    expect(action).toHaveBeenCalledTimes(2);
   });
 
   it("keeps a failed attempt uncertain and never invokes it again", async () => {
