@@ -13,8 +13,10 @@ Always write in Simplified Technical English (ASD-STE100). Use simple, brief, cl
 - Keep future inbound triggers separate from MCP tools. Use signed webhook or channel adapters with
   replay protection.
 - Never log credentials, prompts, tool results, or connected service content.
-- Require owner approval for every generic remote MCP tool. Do not trust a server's read-only label.
-  Use idempotency keys or duplicate checks when the connected service supports them.
+- Require owner approval for generic remote MCP tools by default. Only an explicit owner-created,
+  matching permission rule may allow a scoped action without another prompt. Do not trust a
+  server's read-only label. Agents cannot change these rules. Use idempotency keys or duplicate
+  checks when the connected service supports them.
 - Use Cloudflare services for compute, state, AI, browser work, queues, schedules, and object storage.
 - Record storage changes as ordered schema migrations and test fresh and update paths.
 - Run the complete local gate and one deployed real-world connected-tool flow before completion.
