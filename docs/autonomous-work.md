@@ -60,8 +60,10 @@ not establish continuous high-load performance or reliability for every connecte
 
 ## Owner notifications
 
-The notification inbox keeps completion, failure, and input requests in workspace storage. Browser
-alerts are optional and work while HQBot is open. They do not contain task prompts or results.
+The Inbox keeps completion, failure, and input requests in workspace storage. Device push is opt-in
+and can work while HQBot is closed. It uses the installation's own signing key and encrypted Web
+Push. Alerts contain only a generic status and local navigation IDs. Failed delivery does not
+remove the saved inbox update or repeat the agent task. See [device notifications](notifications.md).
 Task progress shows saved criteria, milestones, and completion evidence in teammate details.
 
 Each turn supplies the current UTC time for scheduling. The agent calls a required computer tool

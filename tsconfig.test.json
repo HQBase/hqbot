@@ -33,6 +33,7 @@
     "src/workspace/collaboration.ts",
     "src/workspace/routines.ts",
     "src/workspace/events.ts",
+    "src/workspace/push.ts",
     "src/workspace/model-budget.ts",
     "src/workspace/notifications.ts",
     "src/workspace/platform-footprint.ts",

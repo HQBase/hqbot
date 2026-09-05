@@ -14,6 +14,9 @@ importers:
       '@ai-sdk/react':
         specifier: 4.0.88
         version: 4.0.88(react@19.2.8)(zod@4.5.4)
+      '@block65/webcrypto-web-push':
+        specifier: 2.0.0
+        version: 2.0.0
       '@cloudflare/codemode':
         specifier: 0.5.1
         version: 0.5.1(patch_hash=9f7025d74dd98a6c80a3679f49ce304880e030fbee44c608ad518a6e0ebf42c7)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.5.4))(ai@7.0.85(zod@4.5.4))(zod@4.5.4)
@@ -386,6 +389,10 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@block65/webcrypto-web-push@2.0.0':
+    resolution: {integrity: sha512-BMrw8hABq5krABWPy3zFJvBC73HeRkyT/GTZ2AD7wqzo9hd9vO56MstBqjGMIxIw3e4lbRUbYxgihCcfhoTI2g==}
+    engines: {node: '>=22.0.0'}
 
   '@borewit/text-codec@0.2.2':
     resolution: {integrity: sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ==}
@@ -3918,6 +3925,10 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.5.3':
     optional: true
+
+  '@block65/webcrypto-web-push@2.0.0':
+    dependencies:
+      uint8array-extras: 1.5.0
 
   '@borewit/text-codec@0.2.2': {}
 

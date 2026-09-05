@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { Toaster } from "./components/ui/sonner";
 import { initializeTheme } from "./features/theme/theme";
 import { ThemeProvider } from "./features/theme/theme-provider";
+import { registerAppWorker } from "./lib/device-push";
 import "./styles.css";
 
 async function loadRootComponent(): Promise<ComponentType> {
@@ -17,6 +18,8 @@ async function loadRootComponent(): Promise<ComponentType> {
 }
 
 async function render(): Promise<void> {
+  if (import.meta.env.PROD && "serviceWorker" in navigator)
+    void registerAppWorker().catch(() => undefined);
   const root = document.getElementById("root");
   if (!root) throw new Error("HQBot root element is missing");
   const theme = initializeTheme();

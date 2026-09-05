@@ -12,6 +12,7 @@ import { handleEventSettings, handleInboundEvent } from "./http/events";
 import { handleKnowledge } from "./http/knowledge";
 import { handlePermissions } from "./http/permissions";
 import { handleProjects } from "./http/projects";
+import { handlePush } from "./http/push";
 import { handleResources } from "./http/resources";
 import { HQBotTeammate } from "./teammate";
 
@@ -80,6 +81,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     handleBots,
     handleAutomations,
     handleEventSettings,
+    handlePush,
     handleResources,
     handleKnowledge,
     handlePermissions,

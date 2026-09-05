@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PiBookOpen, PiCalendar, PiChatCircle, PiFolder, PiList } from "react-icons/pi";
+import { PiBell, PiBookOpen, PiCalendar, PiChatCircle, PiFolder, PiList } from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
@@ -9,8 +9,8 @@ import { DetailsPanel } from "./details/details-panel";
 import { ConnectionDialog } from "./dialogs/connection-dialog";
 import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
+import { InboxPage } from "./inbox/inbox-page";
 import { LibraryPage } from "./library/library-page";
-import { NotificationInbox } from "./notification-inbox";
 import { ProjectsPage } from "./projects/projects-page";
 import { TeammateSidebar } from "./teammate-sidebar";
 import { Button } from "./ui/button";
@@ -18,7 +18,9 @@ import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
-  const [page, setPage] = useState<"chat" | "library" | "projects" | "automations">("chat");
+  const [page, setPage] = useState<"chat" | "library" | "projects" | "automations" | "inbox">(() =>
+    new URL(location.href).searchParams.get("page") === "inbox" ? "inbox" : "chat"
+  );
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
   );
@@ -38,7 +40,9 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
   const snapshot = controller.snapshot;
   if (!snapshot) return null;
   const pageContent =
-    page === "automations" ? (
+    page === "inbox" ? (
+      <InboxPage controller={controller} onConversation={() => setPage("chat")} />
+    ) : page === "automations" ? (
       <AutomationsPage controller={controller} onConversation={() => setPage("chat")} />
     ) : page === "projects" ? (
       <ProjectsPage controller={controller} />
@@ -70,6 +74,21 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
           className="mb-4 flex shrink-0 flex-col gap-1 border-b border-divider pb-3"
         >
           <span className="px-3 py-2 text-sm font-semibold">HQBot</span>
+          <Button
+            className="justify-start"
+            variant={page === "inbox" ? "secondary" : "ghost"}
+            onClick={() => {
+              setPage("inbox");
+              controller.setMobileChatOpen(true);
+            }}
+          >
+            <PiBell /> Inbox{" "}
+            {snapshot.notifications?.some((item) => !item.readAt) && (
+              <span className="ml-auto rounded-md bg-primary/10 px-2 text-xs">
+                {snapshot.notifications.filter((item) => !item.readAt).length}
+              </span>
+            )}
+          </Button>
           <Button
             className="justify-start"
             variant={page === "chat" ? "secondary" : "ghost"}
@@ -112,7 +131,6 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
           </Button>
         </nav>
       }
-      footer={<NotificationInbox controller={controller} />}
       archivedBots={snapshot.archivedBots}
       bots={snapshot.bots}
       selectedId={controller.selectedBot?.id ?? null}

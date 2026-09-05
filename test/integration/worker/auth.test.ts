@@ -54,6 +54,70 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("keeps the installation push key private and manages named devices through owner routes", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    expect((await post("/api/push/configure")).status).toBe(401);
+    const configured = await post("/api/push/configure", undefined, session);
+    expect(configured.status).toBe(200);
+    const config = (await configured.json()) as { publicKey: string };
+    expect(Object.keys(config)).toEqual(["publicKey"]);
+    expect(config.publicKey).toHaveLength(87);
+    expect(await (await post("/api/push/configure", undefined, session)).json()).toEqual(config);
+    const pair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
+      "deriveBits"
+    ]);
+    const subscription = {
+      endpoint: "https://fcm.googleapis.com/fcm/send/worker-test",
+      expirationTime: null,
+      keys: {
+        p256dh: Buffer.from(await crypto.subtle.exportKey("raw", pair.publicKey)).toString(
+          "base64url"
+        ),
+        auth: Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url")
+      }
+    };
+    const created = await post(
+      "/api/push/devices",
+      {
+        name: "Test browser",
+        preferences: { replies: true, failures: true, input: true },
+        subscription
+      },
+      session
+    );
+    expect(created.status).toBe(200);
+    const { device } = (await created.json()) as { device: { id: string } };
+    const list = await (
+      await request("/api/push/devices", { headers: { Cookie: session } })
+    ).text();
+    expect(list).toContain("Test browser");
+    expect(list).not.toContain(subscription.endpoint);
+    expect(list).not.toContain(subscription.keys.auth);
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    expect(
+      await storage.exec(
+        "SELECT COUNT(*) AS count FROM cf_agents_schedules WHERE callback = 'deliverDevicePush' AND type = 'interval'"
+      )
+    ).toEqual([{ count: 1 }]);
+    expect(
+      (
+        await request(`/api/push/devices/${device.id}`, {
+          method: "DELETE",
+          headers: { Cookie: session, Origin: origin }
+        })
+      ).status
+    ).toBe(200);
+    expect(await storage.exec("SELECT COUNT(*) AS count FROM push_devices")).toEqual([
+      { count: 0 }
+    ]);
+    expect(
+      await storage.exec(
+        "SELECT COUNT(*) AS count FROM cf_agents_schedules WHERE callback = 'deliverDevicePush'"
+      )
+    ).toEqual([{ count: 0 }]);
+  });
   it("accepts signed public event deliveries once and keeps trigger secrets private", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const { teammate } = (await (

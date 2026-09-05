@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "4.0.88",
+    "@block65/webcrypto-web-push": "2.0.0",
     "@cloudflare/codemode": "0.5.1",
     "@cloudflare/sandbox": "0.12.9",
     "@cloudflare/think": "0.17.0",

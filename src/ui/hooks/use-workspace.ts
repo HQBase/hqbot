@@ -16,7 +16,10 @@ export async function createTeammate(message: string): Promise<BotTeammate> {
 
 export function useWorkspace(onSignedOut: () => void) {
   const [snapshot, setSnapshot] = useState<WorkspaceView | null>(null);
-  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(() => {
+    const id = new URL(window.location.href).searchParams.get("botId");
+    return id && /^[0-9a-f-]{36}$/u.test(id) ? id : null;
+  });
   const [pendingInitialMessage, setPendingInitialMessage] = useState<{
     botId: string | null;
     text: string;
@@ -28,7 +31,7 @@ export function useWorkspace(onSignedOut: () => void) {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [sending, setSending] = useState(false);
-  const selectedBotRef = useRef<string | null>(null);
+  const selectedBotRef = useRef<string | null>(selectedBotId);
   const newTeammateRef = useRef(false);
   const pendingInitialMessageRef = useRef<typeof pendingInitialMessage>(null);
   const creatingTeammateRef = useRef(false);
@@ -69,7 +72,7 @@ export function useWorkspace(onSignedOut: () => void) {
   }, []);
 
   useEffect(() => {
-    void load(null);
+    void load();
     return () => loadRequest.current.controller?.abort();
   }, [load]);
 

@@ -46,5 +46,15 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE TABLE IF NOT EXISTS event_triggers (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, routine_id TEXT NOT NULL REFERENCES routines(id) ON DELETE CASCADE, name TEXT NOT NULL, revision INTEGER NOT NULL, enabled INTEGER NOT NULL, filter_json TEXT NOT NULL, secret TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
       `CREATE TABLE IF NOT EXISTS event_receipts (trigger_id TEXT NOT NULL REFERENCES event_triggers(id) ON DELETE CASCADE, event_id TEXT NOT NULL, digest TEXT NOT NULL, state TEXT NOT NULL, run_id TEXT, created_at TEXT NOT NULL, PRIMARY KEY(trigger_id, event_id))`
     ]
+  },
+  {
+    version: 17,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS push_settings (id INTEGER PRIMARY KEY CHECK(id = 1), public_key TEXT NOT NULL, private_key TEXT NOT NULL, subject TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS push_devices (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, endpoint TEXT NOT NULL UNIQUE, subscription_json TEXT NOT NULL, name TEXT NOT NULL, preferences_json TEXT NOT NULL, created_at TEXT NOT NULL, last_status TEXT)`,
+      `CREATE TABLE IF NOT EXISTS push_deliveries (id TEXT PRIMARY KEY, notification_id TEXT REFERENCES notifications(id) ON DELETE CASCADE, device_id TEXT NOT NULL REFERENCES push_devices(id) ON DELETE CASCADE, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS push_delivery_queue ON push_deliveries(state, next_at)`,
+      `CREATE TRIGGER IF NOT EXISTS queue_notification_push AFTER INSERT ON notifications BEGIN INSERT OR IGNORE INTO push_deliveries (id, notification_id, device_id, state, next_at, created_at, updated_at) SELECT NEW.id || ':' || id, NEW.id, id, 'queued', NEW.created_at, NEW.created_at, NEW.created_at FROM push_devices; END`
+    ]
   }
 ];

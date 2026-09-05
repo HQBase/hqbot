@@ -55,7 +55,7 @@ separate gate at the end of this list.
 - [x] Projects, shared resources, direct handoffs, and group work.
 - [x] Calendar routines, test runs, editing, and run history.
 - [x] Signed generic, GitHub, and Slack event adapters with replay protection.
-- [ ] Device push, durable delivery, and notification preferences.
+- [x] Device push, durable delivery, and notification preferences.
 - [ ] Connector catalog and setup controls.
 - [ ] Demonstration recording and draft skill generation.
 - [ ] Threads, reactions, mentions, search, and safe artifact previews.
@@ -89,3 +89,20 @@ Accept at most 64 KiB per request and 20 pending runs per teammate. A full queue
 response before recording acceptance. Signed Slack URL verification returns the challenge without
 starting a run. Ignore Slack bot messages and events outside the selected workspace and channel.
 Persist acceptance and queued work together. The routine history shows accepted event runs.
+
+## Device notifications
+
+The owner enables notifications separately on each device. The browser asks for permission after
+that action. The workspace creates and keeps its own VAPID key. Push uses standard encrypted Web
+Push, with no shared HQBot push relay. Support the browser's Apple, Google, Mozilla, and Microsoft
+push endpoints. Do not allow arbitrary callback URLs.
+
+Insert a delivery record with each notification. A durable minute schedule recovers missed sends;
+ordinary changes also request an earlier send. Retry temporary failures at most six times within
+one day. Remove expired subscriptions. Reuse a notification tag on retry. A result is an accepted
+push-provider delivery, not proof that a person saw it. Keep status in the inbox even if push fails.
+Device controls can select replies/completions, failures, and requests for input.
+
+The service worker never caches conversations, credentials, API responses, or artifacts. A push
+contains only a generic status and local IDs. A click opens the same HQBot deployment. An installed
+web app shows an offline page while disconnected; autonomous work continues in Cloudflare.

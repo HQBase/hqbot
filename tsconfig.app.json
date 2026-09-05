@@ -22,6 +22,7 @@
     "src/domain/projects.ts",
     "src/domain/automations.ts",
     "src/domain/events.ts",
+    "src/domain/push.ts",
     "src/domain/skills.ts",
     "src/domain/types.ts"
   ]
