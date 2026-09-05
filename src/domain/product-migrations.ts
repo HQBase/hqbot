@@ -39,5 +39,12 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE INDEX IF NOT EXISTS routine_run_queue ON routine_runs(state, updated_at)`,
       `CREATE INDEX IF NOT EXISTS routine_run_history ON routine_runs(routine_id, created_at)`
     ]
+  },
+  {
+    version: 16,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS event_triggers (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, routine_id TEXT NOT NULL REFERENCES routines(id) ON DELETE CASCADE, name TEXT NOT NULL, revision INTEGER NOT NULL, enabled INTEGER NOT NULL, filter_json TEXT NOT NULL, secret TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS event_receipts (trigger_id TEXT NOT NULL REFERENCES event_triggers(id) ON DELETE CASCADE, event_id TEXT NOT NULL, digest TEXT NOT NULL, state TEXT NOT NULL, run_id TEXT, created_at TEXT NOT NULL, PRIMARY KEY(trigger_id, event_id))`
+    ]
   }
 ];

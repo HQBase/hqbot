@@ -10,7 +10,7 @@ Always write in Simplified Technical English (ASD-STE100). Use simple, brief, cl
 - Keep user data, connection credentials, AI state, browser artifacts, and logs in the user's
   Cloudflare account.
 - Use compatible remote MCP servers for agent tools. Discover their tools at run time.
-- Keep future inbound triggers separate from MCP tools. Use signed webhook or channel adapters with
+- Keep inbound triggers separate from MCP tools. Use signed webhook or channel adapters with
   replay protection.
 - Never log credentials, prompts, tool results, or connected service content.
 - Require owner approval for generic remote MCP tools by default. Only an explicit owner-created,

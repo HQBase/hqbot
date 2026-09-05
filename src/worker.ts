@@ -8,6 +8,7 @@ import { handleBackups } from "./http/backups";
 import { handleBots } from "./http/bots";
 import { json, requireOwner, requireSameOrigin, workspace } from "./http/common";
 import { handleDesktop } from "./http/desktop";
+import { handleEventSettings, handleInboundEvent } from "./http/events";
 import { handleKnowledge } from "./http/knowledge";
 import { handlePermissions } from "./http/permissions";
 import { handleProjects } from "./http/projects";
@@ -78,6 +79,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   for (const handler of [
     handleBots,
     handleAutomations,
+    handleEventSettings,
     handleResources,
     handleKnowledge,
     handlePermissions,
@@ -114,6 +116,9 @@ export default {
     const url = new URL(request.url);
     try {
       if (request.method === "GET" && url.pathname === "/health") return health(env);
+
+      const event = await handleInboundEvent(request, env);
+      if (event) return event;
 
       const auth = await handleAuth(request, env);
       if (auth) return auth;

@@ -54,7 +54,7 @@ separate gate at the end of this list.
 - [x] Scoped permissions for computer actions and MCP calls.
 - [x] Projects, shared resources, direct handoffs, and group work.
 - [x] Calendar routines, test runs, editing, and run history.
-- [ ] Signed generic, GitHub, and Slack event adapters with replay protection.
+- [x] Signed generic, GitHub, and Slack event adapters with replay protection.
 - [ ] Device push, durable delivery, and notification preferences.
 - [ ] Connector catalog and setup controls.
 - [ ] Demonstration recording and draft skill generation.
@@ -69,3 +69,23 @@ separate gate at the end of this list.
 Native store publication needs the maintainer's signing accounts. Source/build validation and store
 publication are separate release states. Long-duration reliability remains subject to the existing
 endurance test; do not wait 24 hours to finish immediate validation.
+
+## Inbound events
+
+An event trigger belongs to one event routine. GitHub triggers select a repository. Slack triggers
+select a workspace and channel. Generic triggers can select an event type. Each trigger has its own
+signing secret. List responses never contain that secret. The owner can replace it or delete the
+trigger. Signed payloads are data, not permission to change instructions or access rules.
+
+Verify HMAC SHA-256 over the original bytes before JSON parsing. Slack uses its v0 timestamp
+scheme. Generic senders sign `v1:<unix-seconds>:<delivery-id>:<raw-body>` and send the timestamp,
+delivery ID, and `sha256=<hex>` in `X-HQBot-Timestamp`, `X-HQBot-Delivery`, and `X-HQBot-Signature`.
+Both reject timestamps more than five minutes old or in the future. GitHub uses its standard
+`X-Hub-Signature-256` scheme. Its delivery header is not signed, so deduplicate signed body hashes
+as well as delivery IDs for other providers. Keep compact receipts for the life of the trigger;
+do not expire a GitHub receipt and make an old signature usable again.
+
+Accept at most 64 KiB per request and 20 pending runs per teammate. A full queue returns a retryable
+response before recording acceptance. Signed Slack URL verification returns the challenge without
+starting a run. Ignore Slack bot messages and events outside the selected workspace and channel.
+Persist acceptance and queued work together. The routine history shows accepted event runs.

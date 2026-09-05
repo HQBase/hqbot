@@ -12,7 +12,7 @@ flowchart LR
   Teammate --> Catalog[Bot-scoped file catalog]
   Catalog --> R2[R2 durable files]
   Teammate <-->|MCP| Tools[Connected tools]
-  Trigger[Future signed inbound adapter] -.-> Workspace
+  Trigger[Signed inbound event] --> Workspace
 ```
 
 HQBot is a separate AGPL repository. It runs in the owner's Cloudflare account.
@@ -90,12 +90,13 @@ The owner asks the teammate for control when a private step needs the keyboard o
 teammate grants control and later takes it back. HQBot pauses model browser, desktop, and Bash
 actions while the owner has control or until the control lease expires.
 
-HQBot does not use Cloudflare Workflows, Agent queues, or cron triggers.
+HQBot uses durable workspace queues and Think submissions. SDK schedules wake delivery and
+continuation work. It does not need a separate Cloudflare Workflow or cron trigger.
 
-MCP is the flexible tool boundary. A compatible server describes its own tools, so HQBot discovers
-them without a built-in integration list. Inbound triggers are different and are not included
-today. A future signed webhook or channel adapter must validate the sender, stop replays, and map
-the event to a teammate task.
+MCP is the flexible tool boundary. A compatible server describes its own tools. Signed generic,
+GitHub, and Slack events use separate inbound adapters. They validate the original request, reject
+replays, and atomically record accepted work in the routine queue. Connecting an MCP service does
+not enable events. See [event setup](events.md).
 
 An external write changes a connected service. Examples include sending mail, creating an issue,
 or changing a calendar event. Before each connected-service call, HQBot saves a receipt with a

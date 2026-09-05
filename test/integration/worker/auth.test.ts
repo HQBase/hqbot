@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestHarness } from "wrangler";
 
@@ -53,6 +54,155 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("accepts signed public event deliveries once and keeps trigger secrets private", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Events test", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    const { routine } = (await (
+      await post(
+        "/api/automations",
+        {
+          botId: teammate.id,
+          name: "Tickets",
+          prompt: "Read this event",
+          schedule: { kind: "event" }
+        },
+        session
+      )
+    ).json()) as { routine: { id: string } };
+    const id = crypto.randomUUID();
+    const settings = {
+      id,
+      routineId: routine.id,
+      botId: teammate.id,
+      name: "Tickets",
+      filter: { provider: "generic", eventType: "ticket.created" }
+    };
+    expect((await post("/api/event-triggers", settings)).status).toBe(401);
+    const created = await post("/api/event-triggers", settings, session);
+    expect(created.status).toBe(200);
+    const { secret, trigger } = (await created.json()) as {
+      secret: string;
+      trigger: { revision: number };
+    };
+    const listing = await request(`/api/event-triggers?routineId=${routine.id}`, {
+      headers: { Cookie: session }
+    });
+    expect(await listing.text()).not.toContain(secret);
+    const body = JSON.stringify({ type: "ticket.created", ticket: { id: "ticket-1" } });
+    const stamp = String(Math.floor(Date.now() / 1000));
+    const signature = createHmac("sha256", secret)
+      .update(`v1:${stamp}:delivery-1:${body}`)
+      .digest("hex");
+    const headers = {
+      "Content-Type": "application/json",
+      "X-HQBot-Timestamp": stamp,
+      "X-HQBot-Delivery": "delivery-1",
+      "X-HQBot-Signature": `sha256=${signature}`
+    };
+    expect((await request(`/events/${id}`, { method: "POST", body })).status).toBe(401);
+    expect(
+      await (await request(`/events/${id}`, { method: "POST", headers, body })).json()
+    ).toMatchObject({ state: "accepted" });
+    expect(
+      await (await request(`/events/${id}`, { method: "POST", headers, body })).json()
+    ).toEqual({ state: "duplicate" });
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    expect(
+      await storage.exec("SELECT COUNT(*) AS count FROM routine_runs WHERE source = 'event'")
+    ).toEqual([{ count: 1 }]);
+    expect(await storage.exec("SELECT COUNT(*) AS count FROM event_receipts")).toEqual([
+      { count: 1 }
+    ]);
+    expect(
+      (
+        await post(
+          "/api/event-triggers",
+          { ...settings, revision: trigger.revision, enabled: false },
+          session
+        )
+      ).status
+    ).toBe(200);
+    expect((await request(`/events/${id}`, { method: "POST", headers, body })).status).toBe(404);
+  });
+  it("verifies Slack endpoint challenges and deduplicates GitHub bytes with changed delivery headers", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Provider test", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    const { routine } = (await (
+      await post(
+        "/api/automations",
+        {
+          botId: teammate.id,
+          name: "Events",
+          prompt: "Read this event",
+          schedule: { kind: "event" }
+        },
+        session
+      )
+    ).json()) as { routine: { id: string } };
+    const secret = "public-integration-test-secret-32";
+    const slackId = crypto.randomUUID();
+    expect(
+      (
+        await post(
+          "/api/event-triggers",
+          {
+            id: slackId,
+            botId: teammate.id,
+            routineId: routine.id,
+            name: "Slack",
+            secret,
+            filter: { provider: "slack", teamId: "T123", channelId: "C123" }
+          },
+          session
+        )
+      ).status
+    ).toBe(200);
+    const body = JSON.stringify({ type: "url_verification", challenge: "signed-challenge" });
+    const stamp = String(Math.floor(Date.now() / 1000));
+    const signature = createHmac("sha256", secret).update(`v0:${stamp}:${body}`).digest("hex");
+    expect(
+      await (
+        await request(`/events/${slackId}`, {
+          method: "POST",
+          body,
+          headers: { "X-Slack-Request-Timestamp": stamp, "X-Slack-Signature": `v0=${signature}` }
+        })
+      ).json()
+    ).toEqual({ challenge: "signed-challenge" });
+    const githubId = crypto.randomUUID();
+    expect(
+      (
+        await post(
+          "/api/event-triggers",
+          {
+            id: githubId,
+            botId: teammate.id,
+            routineId: routine.id,
+            name: "GitHub",
+            secret,
+            filter: { provider: "github", repository: "test/repo", action: "opened" }
+          },
+          session
+        )
+      ).status
+    ).toBe(200);
+    const githubBody = JSON.stringify({ repository: { full_name: "test/repo" }, action: "opened" });
+    const githubSignature = createHmac("sha256", secret).update(githubBody).digest("hex");
+    const send = (id: string) =>
+      request(`/events/${githubId}`, {
+        method: "POST",
+        body: githubBody,
+        headers: { "X-Hub-Signature-256": `sha256=${githubSignature}`, "X-GitHub-Delivery": id }
+      });
+    expect(await (await send("original")).json()).toMatchObject({ state: "accepted" });
+    expect(await (await send("forged-replay")).json()).toMatchObject({ state: "duplicate" });
+  });
   it("schedules local calendar times and updates the native schedule after editing", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const { teammate } = (await (

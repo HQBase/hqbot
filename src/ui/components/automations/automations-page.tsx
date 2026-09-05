@@ -6,6 +6,7 @@ import { api, errorMessage } from "../../lib/api";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { AutomationEditor } from "./automation-editor";
+import { EventTriggers } from "./event-triggers";
 import { RoutineRuns } from "./routine-runs";
 
 export function AutomationsPage({
@@ -136,6 +137,9 @@ export function AutomationsPage({
             </Button>
           </div>
           <p className="whitespace-pre-wrap text-sm leading-6">{routine.prompt}</p>
+          {routine.schedule.kind === "event" && (
+            <EventTriggers key={routine.id} routine={routine} />
+          )}
           <RoutineRuns
             key={routine.id}
             routine={routine}

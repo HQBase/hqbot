@@ -12,7 +12,7 @@ export class WorkspaceAutomationsAgent extends WorkspaceProjectsAgent {
     await super.onStart();
     if (this.routines.pending().length) await this.wakeRoutines();
   }
-  private wakeRoutines() {
+  protected wakeRoutines() {
     return this.schedule(
       1,
       "deliverRoutineRuns",
