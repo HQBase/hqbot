@@ -1,18 +1,24 @@
 import { Think } from "@cloudflare/think";
 import type { LanguageModel } from "ai";
+import type { PermissionRuleInput } from "./domain/permissions";
 import { ActionHistory } from "./runtime/action-history";
 import { TeammateComputer } from "./runtime/computer";
-import { ComputerPermissions, type ComputerPolicy } from "./runtime/computer-permissions";
+import {
+  COMPUTER_ACTIONS,
+  ComputerPermissions,
+  type ComputerPolicy
+} from "./runtime/computer-permissions";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
 import { TeammateExternalEffects } from "./runtime/external-effects";
 import {
   type LinuxProcessPollPayload,
   ManagedLinuxProcessSupervisor
 } from "./runtime/managed-linux-process";
-import { connectionList } from "./runtime/mcp";
+import { connectionList, mcpConnectorName } from "./runtime/mcp";
 import { budgetedModel } from "./runtime/model-budget";
 import { listHQBotModels, modelTokenRates } from "./runtime/model-catalog";
 import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
+import { PermissionRules } from "./runtime/permission-rules";
 import { TaskCoordinator } from "./runtime/task-coordinator";
 import { TaskSupervision } from "./runtime/task-supervision";
 import { TeammateIntegrations } from "./runtime/teammate-integrations";
@@ -140,6 +146,8 @@ export abstract class TeammateRuntime extends Think<Env> {
   protected get computerPermissions(): ComputerPermissions {
     this.permissions ??= new ComputerPermissions(this.sql.bind(this) as Sql, {
       pending: () => this.pendingApprovals(),
+      permission: (action, input, fallback) =>
+        this.permissionRules.decide("computer", action, input, fallback),
       beforeDecision: async (id, approved) => {
         const messageId = `computer-decision:${id}`;
         if (this.messages.some((message) => message.id === messageId)) return;
@@ -196,6 +204,29 @@ export abstract class TeammateRuntime extends Think<Env> {
   getComputerPolicy() {
     return this.computerPermissions.get();
   }
+  private get permissionRules() {
+    return new PermissionRules(this.sql.bind(this) as Sql, () => this.currentTaskId());
+  }
+  listPermissionRules() {
+    return this.permissionRules.list();
+  }
+  listPermissionActions() {
+    const state = this.getMcpServers();
+    return [
+      { connector: "computer", label: "Computer", actions: [...COMPUTER_ACTIONS] },
+      ...Object.entries(state.servers).map(([id, server]) => ({
+        connector: mcpConnectorName(id),
+        label: server.name,
+        actions: state.tools.filter((tool) => tool.serverId === id).map((tool) => tool.name)
+      }))
+    ];
+  }
+  savePermissionRule(input: PermissionRuleInput) {
+    return this.permissionRules.save(input);
+  }
+  deletePermissionRule(id: string) {
+    return this.permissionRules.remove(id);
+  }
   setComputerPolicy(mode: ComputerPolicy) {
     this.computerPermissions.set(mode);
   }
@@ -227,6 +258,8 @@ export abstract class TeammateRuntime extends Think<Env> {
 
   protected get integrationRuntime(): TeammateIntegrations {
     this.integrations ??= new TeammateIntegrations({
+      permission: (connector, action, input) =>
+        this.permissionRules.decide(connector, action, input),
       history: new ActionHistory(this.sql.bind(this) as Sql),
       scheduleRecovery: async () => {
         await this.schedule(

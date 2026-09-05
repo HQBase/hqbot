@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "../../lib/api";
+import { PermissionRulesPanel } from "./permission-rules-panel";
 
 interface PermissionView {
   policy: "review" | "allow";
@@ -57,7 +58,7 @@ export function ComputerPermissionsPanel({
   return (
     <section className="border-t border-divider py-4 text-xs">
       <button type="button" className="font-medium" onClick={() => setOpen(!open)}>
-        Computer permissions{view?.approvals.length ? ` · ${view.approvals.length} waiting` : ""}
+        Permissions{view?.approvals.length ? ` · ${view.approvals.length} waiting` : ""}
       </button>
       {(open || needsApproval) && (
         <div className="mt-3 space-y-3">
@@ -79,7 +80,8 @@ export function ComputerPermissionsPanel({
               <p>
                 Review asks before code runs, browser or desktop input changes, and file deletion.
                 Allow grants these actions to this teammate, including use of signed-in sites.
-                Connected service tools still need approval.
+                Scoped rules can require review, allow an action, or block it. Connected tools
+                require review by default.
               </p>
               {view.approvals.map((item) => (
                 <div key={item.executionId} className="space-y-2 rounded border p-2">
@@ -117,6 +119,7 @@ export function ComputerPermissionsPanel({
                   </div>
                 </div>
               ))}
+              <PermissionRulesPanel botId={botId} />
             </>
           )}
         </div>

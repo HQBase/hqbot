@@ -18,6 +18,7 @@
     "src/domain/models.ts",
     "src/domain/actions.ts",
     "src/domain/knowledge.ts",
+    "src/domain/permissions.ts",
     "src/domain/skills.ts",
     "src/domain/types.ts"
   ]

@@ -17,5 +17,7 @@ it("keeps SDK discovery instructions and connector names in the model tool", () 
   expect(description).toContain("mcp_docs");
   expect(description).toContain("Do not use `fetch`");
   expect(description).toContain("resumes automatically");
-  expect(description).toContain("Every connected-service tool call pauses for owner approval");
+  expect(description).toContain(
+    "Connected-service tool calls need owner approval unless an explicit owner rule"
+  );
 });

@@ -5,6 +5,7 @@ import {
   type McpConnectionLike,
   McpConnector
 } from "@cloudflare/codemode";
+import type { PermissionDecision } from "../domain/permissions";
 import { ExternalEffectUncertainError, type TeammateExternalEffects } from "./external-effects";
 import { mcpConnectorName } from "./mcp";
 
@@ -18,7 +19,12 @@ export class TeammateMcpConnector extends McpConnector<Env> {
     private readonly label: string,
     connection: McpConnectionLike,
     private readonly effects: TeammateExternalEffects,
-    private readonly onUncertain: () => Promise<void>
+    private readonly onUncertain: () => Promise<void>,
+    private readonly permission?: (
+      connector: string,
+      action: string,
+      input: unknown
+    ) => PermissionDecision
   ) {
     super(ctx, env);
     this.connection = {
@@ -46,6 +52,8 @@ export class TeammateMcpConnector extends McpConnector<Env> {
       ...connectorTool,
       requiresApproval: true,
       execute: async (args, context) => {
+        if (this.permission?.(this.name(), name, args) === "deny")
+          throw new Error("An owner permission rule blocks this action");
         if (!context?.executionId || !Number.isInteger(context.seq)) {
           throw new Error("The connected-service execution ID is missing");
         }

@@ -47,6 +47,25 @@ it("requires review by default and uses the explicit owner policy for computer c
   await action.execute({ script: "echo test" }, ctx);
   expect(execute).toHaveBeenCalledOnce();
 });
+it("rechecks a denial before executing an earlier approved computer action", async () => {
+  const { permissions, host } = fixture();
+  const permission = vi.fn<() => "allow" | "deny">(() => "allow");
+  Object.assign(host, { permission });
+  const execute = vi.fn(async () => ({ ok: true }));
+  const action = permissions.actions({
+    bash: tool({ inputSchema: z.object({ script: z.string() }), execute })
+  }).bash?.config;
+  if (!action || typeof action.approval !== "function") throw new Error("Approval policy missing");
+  const ctx = {
+    toolCallId: "revoked",
+    messages: [],
+    signal: new AbortController().signal
+  } as never;
+  expect(await action.approval({ input: { script: "echo test" }, ctx })).toBe(false);
+  permission.mockReturnValue("deny");
+  await expect(action.execute({ script: "echo test" }, ctx)).rejects.toThrow("blocks");
+  expect(execute).not.toHaveBeenCalled();
+});
 it("rejects an old approval or changed input before dispatch", async () => {
   const { permissions, host } = fixture();
   host.pending.mockResolvedValue([

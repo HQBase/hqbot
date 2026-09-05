@@ -6,6 +6,7 @@ import {
 } from "@cloudflare/codemode";
 import type { Tool } from "ai";
 import type { IntegrationApproval } from "../domain/actions";
+import type { PermissionDecision } from "../domain/permissions";
 import type { ActionHistory } from "./action-history";
 
 import type { TeammateExternalEffects } from "./external-effects";
@@ -52,9 +53,11 @@ interface TeammateIntegrationsOptions {
   readyServers: () => ReadyServer[];
   removeServer: (id: string) => Promise<void>;
   serverExists: (id: string) => boolean;
+  permission?: (connector: string, action: string, input: unknown) => PermissionDecision;
 }
 
 export class TeammateIntegrations {
+  private reviewingRules = false;
   constructor(private readonly options: TeammateIntegrationsOptions) {}
 
   list(): TeammateConnection[] {
@@ -69,7 +72,7 @@ export class TeammateIntegrations {
     const tool = this.runtime().tool();
     return {
       ...tool,
-      description: `${tool.description}\n\nReturn the result explicitly from every script so you can read it. Start with: return await codemode.search("short intent phrase"); Then return await codemode.describe(matches.results[0].path) using the actual path from the previous result. A variable assignment alone returns no value; it does not mean the search found no tools. Every connected-service tool call pauses for owner approval. Local discovery with codemode.search and codemode.describe does not need approval.`
+      description: `${tool.description}\n\nReturn the result explicitly from every script so you can read it. Start with: return await codemode.search("short intent phrase"); Then return await codemode.describe(matches.results[0].path) using the actual path from the previous result. A variable assignment alone returns no value; it does not mean the search found no tools. Connected-service tool calls need owner approval unless an explicit owner rule permits that action and input. Local discovery with codemode.search and codemode.describe does not need approval.`
     };
   }
 
@@ -103,6 +106,42 @@ export class TeammateIntegrations {
   }
 
   async pending(): Promise<IntegrationApproval[]> {
+    if (!this.reviewingRules && this.options.permission && (await this.options.isActive())) {
+      this.reviewingRules = true;
+      try {
+        for (let count = 0; count < 16; count++) {
+          const action = (await this.runtime().pending()).find(
+            (item) => this.options.permission?.(item.connector, item.method, item.args) !== "review"
+          );
+          if (!action) break;
+          const decision = this.options.permission(action.connector, action.method, action.args);
+          const saved = await this.options.history.pending(action);
+          await this.options.scheduleRecovery();
+          if (decision === "allow") {
+            if (
+              !this.options.history.decide(
+                action.executionId,
+                action.seq,
+                saved.inputHash,
+                "approved"
+              )
+            )
+              break;
+            await this.applyApproval(action.executionId, action.seq, false);
+          } else if (decision === "deny") {
+            await this.runtime().reject({ executionId: action.executionId, seq: action.seq });
+            this.options.history.decide(action.executionId, action.seq, saved.inputHash, "denied");
+            this.options.history.enqueue(
+              `rule-denied:${action.executionId}:${action.seq}`,
+              `An owner rule blocked ${action.connector}.${action.method}. Continue only with permitted actions. Do not try to bypass the rule.`
+            );
+            await this.options.history.flush(this.options.continueTurn);
+          }
+        }
+      } finally {
+        this.reviewingRules = false;
+      }
+    }
     return Promise.all(
       (await this.runtime().pending()).map((action) => this.options.history.pending(action))
     );
@@ -119,6 +158,11 @@ export class TeammateIntegrations {
       (item) => item.executionId === safeTaskId(executionId) && item.seq === seq
     );
     if (
+      action &&
+      this.options.permission?.(action.connector, action.method, action.args) === "deny"
+    )
+      throw new Error("An owner permission rule blocks this action");
+    if (
       !action ||
       action.inputHash !== inputHash ||
       !this.options.history.decide(executionId, seq, inputHash, "approved")
@@ -129,7 +173,11 @@ export class TeammateIntegrations {
     return this.applyApproval(executionId, seq);
   }
 
-  private async applyApproval(executionId: string, seq: number): Promise<ProxyToolOutput> {
+  private async applyApproval(
+    executionId: string,
+    seq: number,
+    refresh = true
+  ): Promise<ProxyToolOutput> {
     const runtime = this.runtime();
     const output = await runtime.approve({ executionId, seq });
     const call = output.calls?.find((item) => item.seq === seq);
@@ -143,7 +191,7 @@ export class TeammateIntegrations {
     if (output.status !== "paused") {
       this.options.history.enqueue(`integration:${executionId}`, message);
     }
-    await this.pending();
+    if (refresh) await this.pending();
     await this.options.markInteraction(message, await integrationApprovalStatus(runtime));
     await this.options.history.flush(this.options.continueTurn);
     return output;
@@ -151,6 +199,7 @@ export class TeammateIntegrations {
 
   async recover(): Promise<void> {
     if (!(await this.options.isActive())) return;
+    await this.pending();
     const runtime = this.runtime();
     const executions = await runtime.executions(100);
     for (const action of this.options.history
@@ -240,7 +289,8 @@ export class TeammateIntegrations {
             name,
             connection,
             this.options.effects,
-            this.options.markEffectUncertain
+            this.options.markEffectUncertain,
+            this.options.permission
           )
       );
     return createCodemodeRuntime({

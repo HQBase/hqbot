@@ -197,8 +197,8 @@ export function ConnectionDialog({
           </FieldGroup>
           {error ? <FieldError>{error}</FieldError> : null}
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <PiShieldCheck /> Saved credentials are never shown. Every tool call needs your
-            approval.
+            <PiShieldCheck /> Saved credentials are never shown. Calls need approval unless a
+            matching permission rule allows them.
           </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

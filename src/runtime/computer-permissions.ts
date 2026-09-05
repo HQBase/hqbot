@@ -1,5 +1,6 @@
 import { type Action, action, type PendingApproval } from "@cloudflare/think";
 import type { ModelMessage, ToolSet } from "ai";
+import type { PermissionDecision } from "../domain/permissions";
 import type { Sql } from "../workspace/sql";
 import { ActionHistory } from "./action-history";
 import { canonicalizeJson, sha256Hex, TeammateExternalEffects } from "./external-effects";
@@ -29,6 +30,7 @@ export class ComputerPermissions {
       isActive: () => Promise<boolean>;
       beforeDecision?: (id: string, approved: boolean) => Promise<void>;
       uncertain: () => Promise<void>;
+      permission?: (action: string, input: unknown, fallback: ComputerPolicy) => PermissionDecision;
     }
   ) {}
   get(): ComputerPolicy {
@@ -75,13 +77,15 @@ export class ComputerPermissions {
             kind: "durable-pause",
             approval: ({ input }) => {
               const value = input as Record<string, unknown>;
-              if (
-                name === "computer_session" &&
-                (value.action === "start" || value.action === "give_to_owner")
-              )
-                return false;
-              if (name === "browser_tabs" && value.operation === "list") return false;
-              return this.get() === "review";
+              const observeOnly =
+                (name === "computer_session" &&
+                  (value.action === "start" || value.action === "give_to_owner")) ||
+                (name === "browser_tabs" && value.operation === "list");
+              const fallback = observeOnly ? "allow" : this.get();
+              const decision = this.host.permission?.(name, input, fallback) ?? fallback;
+              if (decision === "deny")
+                throw new Error("An owner permission rule blocks this action");
+              return decision === "review";
             },
             approvalSummary: `Allow this computer action: ${name}`,
             approvalRisk: "high",
@@ -89,6 +93,8 @@ export class ComputerPermissions {
             idempotencyKey: ({ ctx }) => `computer:${ctx.toolCallId}`,
             execute: async (input, ctx) => {
               if (!(await this.host.isActive())) throw new Error("The teammate is not active");
+              if (this.host.permission?.(name, input, this.get()) === "deny")
+                throw new Error("An owner permission rule blocks this action");
               const executionId = `computer:${ctx.toolCallId}`;
               const identity = {
                 executionId,
