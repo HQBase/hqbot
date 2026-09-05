@@ -52,7 +52,7 @@ describe("AgentUiLab", () => {
     await click("Mobile");
     expect(view.container.querySelector('[aria-label="Mobile frame"]')).not.toBeNull();
     expect(view.container.querySelector('[aria-label="Open teammates sidebar"]')).not.toBeNull();
-    expect(view.container.querySelector('[aria-label="Open details sidebar"]')).not.toBeNull();
+    expect(view.container.querySelector('[aria-label="Open computer and details"]')).not.toBeNull();
     await view.unmount();
   });
 });

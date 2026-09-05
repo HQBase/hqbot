@@ -45,6 +45,25 @@ afterEach(() => {
 });
 
 describe("new teammate chat", () => {
+  it("shows computer details by default on desktop", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ archivedBots: [], bots: [], tasks: [], realtime: { url: null } })
+        )
+    );
+    const view = await renderComponent(createElement(WorkspaceHarness));
+    expect(controller().detailsOpen).toBe(true);
+    await interact(() => controller().setDetailsOpen(false));
+    expect(controller().detailsOpen).toBe(false);
+    await interact(() => controller().setDetailsOpen(true));
+    expect(controller().detailsOpen).toBe(true);
+    await view.unmount();
+  });
+
   it("ignores an old snapshot even if fetch ignores cancellation", async () => {
     const one = { id: "one", name: "One" };
     const two = { id: "two", name: "Two" };
@@ -80,6 +99,7 @@ describe("new teammate chat", () => {
   });
 
   it("starts with both mobile sidebars collapsed", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
     vi.stubGlobal(
       "fetch",
       vi

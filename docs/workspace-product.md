@@ -9,6 +9,9 @@ Conversations are the main work surface. The left navigation contains Inbox, Tea
 Library, and Automations. Search finds messages and saved work. A conversation opens its computer
 or task details only when needed. Settings holds access, usage, connections, devices, and recovery.
 The same layout must work on a phone. Each action shows progress, an outcome, or a useful error.
+The conversation shows the computer and details panel by default on desktop. A labeled Computer
+button remains available at every screen size. Phones start with the panel closed. The owner can
+close the desktop panel and open it again without creating a new teammate.
 
 ## Product rules
 

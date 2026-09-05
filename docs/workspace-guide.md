@@ -1,7 +1,8 @@
 # Work with HQBot
 
 Start with **Conversations**. Choose a teammate, describe the result you need, and let it work.
-Open its computer or task details when you need to inspect progress. Stop remains available during
+The computer panel is visible beside the conversation on desktop. Use **Computer** in the
+conversation header to open it again, or to show it on a phone. Stop remains available during
 work. Teammates run in Cloudflare when you close the page.
 
 - **Inbox** holds replies, completed work, failures, and requests for a decision. Enable notifications

@@ -26,7 +26,9 @@ export function useWorkspace(onSignedOut: () => void) {
   } | null>(null);
   const [newTeammate, setNewTeammate] = useState(false);
   const [mobileChatOpen, setMobileChatOpen] = useState(true);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(
+    () => !window.matchMedia("(max-width: 1023px)").matches
+  );
   const [dialog, setDialog] = useState<DialogName>(null);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");

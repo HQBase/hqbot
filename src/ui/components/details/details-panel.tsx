@@ -1,5 +1,7 @@
+import { PiX } from "react-icons/pi";
 import type { BotSkill } from "../../../domain/types";
 import type { WorkspaceController } from "../../hooks/use-workspace";
+import { Button } from "../ui/button";
 import { ActionHistoryPanel } from "./action-history-panel";
 import { AgentSettingsPanel } from "./agent-settings-panel";
 import { BackupsPanel } from "./backups-panel";
@@ -27,6 +29,18 @@ export function DetailsPanel({
   return (
     <aside className="h-full w-full shrink-0 overflow-y-auto border-l border-divider bg-list px-4 pt-14 lg:w-[22rem] lg:pt-2">
       <div className="flex flex-col" key={selectedBot.id}>
+        <div className="hidden items-center justify-between py-2 lg:flex">
+          <span className="text-sm font-medium">Computer and details</span>
+          <Button
+            aria-label="Close computer and details"
+            size="icon"
+            variant="ghost"
+            onClick={() => controller.setDetailsOpen(false)}
+          >
+            <PiX />
+          </Button>
+        </div>
+        <DesktopView active={selectedBot.status === "working"} botId={selectedBot.id} />
         <AgentSettingsPanel
           bot={selectedBot}
           onDeleted={() => controller.deleteSelectedBot()}
@@ -34,7 +48,6 @@ export function DetailsPanel({
           onModelChange={(modelId) => controller.setModel(modelId)}
           onSaved={(botId) => controller.load(botId)}
         />
-        <DesktopView active={selectedBot.status === "working"} botId={selectedBot.id} />
         <ResourcesPanel
           bot={selectedBot}
           task={snapshot.activeTask}

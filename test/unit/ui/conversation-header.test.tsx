@@ -4,11 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { BotTeammate } from "../../../src/domain/types";
 import { ConversationHeader } from "../../../src/ui/components/conversation-header";
-import { renderComponent } from "./render";
+import { interact, renderComponent } from "./render";
 
 describe("ConversationHeader", () => {
   it("leaves teammate editing in the details sidebar", async () => {
     const bot = { id: "bot-1", name: "Milo" } as BotTeammate;
+    const onDetails = vi.fn();
     const view = await renderComponent(
       <ConversationHeader
         bot={bot}
@@ -16,13 +17,20 @@ describe("ConversationHeader", () => {
         status="Live"
         working={false}
         onBack={vi.fn()}
-        onDetails={vi.fn()}
+        onDetails={onDetails}
         onStop={vi.fn()}
       />
     );
 
     expect(view.container.textContent).toContain("Milo");
     expect(view.container.querySelector('[aria-label="Edit teammate"]')).toBeNull();
+    const computer = view.container.querySelector<HTMLButtonElement>(
+      '[aria-label="Open computer and details"]'
+    );
+    expect(computer?.textContent).toContain("Computer");
+    expect(computer?.className).not.toContain("hidden");
+    await interact(() => computer?.click());
+    expect(onDetails).toHaveBeenCalledOnce();
     await view.unmount();
   });
 });

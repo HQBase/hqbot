@@ -1,4 +1,4 @@
-import { PiSidebarSimple, PiStop } from "react-icons/pi";
+import { PiDesktopTower, PiSidebarSimple, PiStop } from "react-icons/pi";
 
 import type { BotTeammate } from "../../domain/types";
 import { Badge } from "./ui/badge";
@@ -53,14 +53,15 @@ export function ConversationHeader({
         </Button>
       ) : null}
       <Button
-        aria-label="Open details sidebar"
-        className="lg:hidden"
-        size="icon"
+        aria-label="Open computer and details"
+        disabled={!bot}
+        size="sm"
         type="button"
         variant="ghost"
         onClick={onDetails}
       >
-        <PiSidebarSimple className="rotate-180" />
+        <PiDesktopTower data-icon="inline-start" />
+        Computer
       </Button>
     </header>
   );
