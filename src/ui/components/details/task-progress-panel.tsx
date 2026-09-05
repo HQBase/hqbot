@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, errorMessage } from "../../lib/api";
 
 interface ProgressView {
-  work: { goal: string; state: string; lastError: string | null };
+  work: { goal: string; state: string; lastError: string | null; wakeAt?: string | null };
   criteria: { id: string; description: string; artifactName?: string }[];
   milestones: {
     id: string;
@@ -16,18 +16,28 @@ export function TaskProgressPanel({ botId, revision }: { botId: string; revision
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<ProgressView | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!open) return;
+    setLoading(true);
+    setView(null);
+    setError("");
     const controller = new AbortController();
     void api<ProgressView | null>(
       `/api/bots/${botId}/task-progress?revision=${encodeURIComponent(revision ?? "")}`,
       { signal: controller.signal }
     ).then(
       (result) => {
-        if (!controller.signal.aborted) setView(result);
+        if (!controller.signal.aborted) {
+          setView(result);
+          setLoading(false);
+        }
       },
       (cause) => {
-        if (!controller.signal.aborted) setError(errorMessage(cause, "Progress could not load"));
+        if (!controller.signal.aborted) {
+          setError(errorMessage(cause, "Progress could not load"));
+          setLoading(false);
+        }
       }
     );
     return () => controller.abort();
@@ -46,6 +56,10 @@ export function TaskProgressPanel({ botId, revision }: { botId: string; revision
                 {view.work.goal} · {view.work.state}
               </p>
               {view.work.lastError && <p role="status">{view.work.lastError}</p>}
+              {view.work.state === "cancelled" && !view.work.lastError && (
+                <p>Cancellation reason was not recorded.</p>
+              )}
+              {view.work.wakeAt && <p>Next wake: {new Date(view.work.wakeAt).toLocaleString()}</p>}
               <p className="font-medium">Completion criteria</p>
               <ul className="list-disc pl-4">
                 {view.criteria.map((item) => (
@@ -71,7 +85,13 @@ export function TaskProgressPanel({ botId, revision }: { botId: string; revision
               ))}
             </>
           ) : (
-            <p>No saved task yet.</p>
+            <p>
+              {loading
+                ? "Loading task progress…"
+                : error
+                  ? "Task progress is unavailable."
+                  : "No saved task yet."}
+            </p>
           )}
         </div>
       )}

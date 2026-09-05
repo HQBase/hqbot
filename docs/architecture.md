@@ -78,7 +78,11 @@ retried computer cleanup.
 Agent schedules wake later turns, run routines, and manage computer idle deadlines. Each scheduled
 continuation uses one stable task ID and generation. A stale delivery does no work. The full
 conversation stays in Think. The task checkpoint stores only the small state that the next turn
-needs. The right sidebar shows the active one-time task, its wake time, and a cancel action.
+needs. Task progress in the right sidebar shows the saved task and its next wake time. The chat
+Stop action cancels the work. Runtime projections update task state, activity, and teammate status
+in one workspace transaction. Saved generation and update time reject old or repeated projections;
+recovery does not move old messages to the top or set final work back to Working. A cancellation
+keeps its reason in the saved task and milestone history.
 
 Each teammate has one Linux computer. Bash commands, Chrome, and other Linux GUI applications run
 in that computer and use the same workspace. Structured browser tools control the Chrome window

@@ -54,8 +54,8 @@ export class TaskSupervision {
     this
       .sql`UPDATE hqbot_task_plans SET checkpoint = ${work.checkpoint}, generation = ${work.generation}, stalled = ${stalled} WHERE task_id = ${work.taskId}`;
     this
-      .sql`INSERT OR IGNORE INTO hqbot_task_milestones (id, task_id, state, checkpoint, created_at)
-      VALUES (${`${work.taskId}:${work.generation}`}, ${work.taskId}, ${work.state}, ${work.checkpoint}, ${work.updatedAt})`;
+      .sql`INSERT OR IGNORE INTO hqbot_task_milestones (id, task_id, state, checkpoint, evidence, created_at)
+      VALUES (${`${work.taskId}:${work.generation}`}, ${work.taskId}, ${work.state}, ${work.checkpoint}, ${work.lastError ? JSON.stringify({ reason: work.lastError }) : null}, ${work.updatedAt})`;
     return stalled >= 3 && ["scheduled", "running"].includes(work.state)
       ? "The task made no new progress in three continuations. Review the checkpoint before continuing."
       : null;

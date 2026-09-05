@@ -171,4 +171,19 @@ describe("workspace migrations", () => {
       count: 0
     });
   });
+
+  it("adds projection versions to version 22 without cancelling waiting work", () => {
+    database = new DatabaseSync(":memory:");
+    applyThrough(database, 22);
+    database.exec(`INSERT INTO bots (id,name,title,description,brief,created_at,updated_at)
+      VALUES ('orion','Orion','Test','','','2026-09-05','2026-09-05');
+      INSERT INTO tasks (id,bot_id,source,status,prompt,work_state,wake_at,created_at,updated_at)
+      VALUES ('soak','orion','chat','working','Milestone 7','waiting',
+        '2026-09-05T08:17:00Z','2026-09-05T02:16:17Z','2026-09-05T07:17:00Z');`);
+    const before = database.prepare("SELECT * FROM tasks").all();
+    migrateWorkspace(sqlFor(database));
+    migrateWorkspace(sqlFor(database));
+    expect(database.prepare("SELECT * FROM tasks").all()).toEqual(before);
+    expect(database.prepare("SELECT * FROM task_projections").all()).toEqual([]);
+  });
 });

@@ -36,11 +36,11 @@ export class HQBotAgent extends WorkspaceLocalAgent {
     return this.catalog.getBot(id);
   }
 
-  async stopBot(id: string): Promise<boolean> {
+  async stopBot(id: string, reason = "The owner stopped this teammate"): Promise<boolean> {
     if (!this.catalog.hasBot(id)) return false;
     this.cancelBotDeliveries(id);
     const peer = await getAgentByName<Env, HQBotTeammate>(this.env.HQBOT_TEAMMATE, id);
-    await peer.stopActivity();
+    await peer.stopActivity(reason);
     this.tasks.cancelBotTasks(id);
     this.catalog.markInteraction(id, "Activity stopped", "idle");
     this.changed();

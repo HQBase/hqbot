@@ -22,6 +22,9 @@ Conversation info keeps these controls with the selected teammate:
 The **Computer** button opens the live computer in the same right-side area. Use its back button
 to return to conversation info. The live screen appears when the teammate uses its computer.
 Opening or closing the sidebar does not start or stop work. Stop remains available in the chat.
+Task progress shows the saved state and next wake time. A waiting task uses its saved wake-up;
+it does not need an active model turn. A cancelled task stays stopped after a restart. New
+cancellations show their reason. Older tasks can say that the reason was not recorded.
 
 Each teammate keeps its own files, memory, integrations, credentials, routines, computer, and browser
 logins. A group is a project conversation with selected teammates. Its info sidebar shows members

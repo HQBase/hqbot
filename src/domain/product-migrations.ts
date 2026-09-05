@@ -101,5 +101,11 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE TABLE IF NOT EXISTS local_jobs (id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES local_devices(id) ON DELETE CASCADE, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, task_id TEXT, command TEXT NOT NULL, directory TEXT NOT NULL, state TEXT NOT NULL, claim_id TEXT, result TEXT, delivery_state TEXT NOT NULL DEFAULT 'none', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
       `CREATE INDEX IF NOT EXISTS local_job_queue ON local_jobs(device_id,state,created_at)`
     ]
+  },
+  {
+    version: 23,
+    statements: [
+      `CREATE TABLE task_projections (task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE, generation INTEGER NOT NULL, updated_at TEXT NOT NULL, state TEXT NOT NULL)`
+    ]
   }
 ];

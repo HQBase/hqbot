@@ -66,6 +66,7 @@ function continuationHarness(submitError?: Error, configure = vi.fn()) {
     markInteraction: vi.fn(),
     setTaskSubmission: vi.fn(),
     startTask: vi.fn(),
+    projectTask: vi.fn(),
     syncTaskState: vi.fn()
   };
   const tasks = new TaskCoordinator({

@@ -100,16 +100,16 @@ export async function handleBots(request: Request, env: Env): Promise<Response |
 
   const stopBot = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/stop$/u);
   if (request.method === "POST" && stopBot?.[0]) {
-    return (await agent.stopBot(stopBot[0]))
-      ? json({ stopped: true })
-      : json({ error: "Teammate not found" }, 404);
+    if (!(await agent.stopBot(stopBot[0]))) return json({ error: "Teammate not found" }, 404);
+    await agent.recordAccessAudit("owner", "work.stop", stopBot[0]);
+    return json({ stopped: true });
   }
 
   const stopTask = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/task\/stop$/u);
   if (request.method === "POST" && stopTask?.[0]) {
-    return (await agent.stopBotTask(stopTask[0]))
-      ? json({ stopped: true })
-      : json({ error: "Teammate not found" }, 404);
+    if (!(await agent.stopBotTask(stopTask[0]))) return json({ error: "Teammate not found" }, 404);
+    await agent.recordAccessAudit("owner", "task.stop", stopTask[0]);
+    return json({ stopped: true });
   }
 
   const duplicate = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/duplicate$/u);

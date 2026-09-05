@@ -46,6 +46,7 @@
     "src/workspace/sql.ts",
     "src/workspace/snapshot.ts",
     "src/workspace/tasks.ts",
+    "src/workspace/task-projection.ts",
     "test/env.d.ts"
   ]
 }

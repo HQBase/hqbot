@@ -20,7 +20,8 @@ export async function handleTeam(
       if (request.method === "POST") {
         const policy = await agent.saveAdminPolicy(user.id, await readJson(request));
         if (policy.mode === "connectors-only")
-          for (const bot of await agent.listBots()) await agent.stopBot(bot.id);
+          for (const bot of await agent.listBots())
+            await agent.stopBot(bot.id, "The owner changed the network policy to connectors only");
         return json({ policy });
       }
     }
@@ -62,7 +63,7 @@ export async function handleTeam(
         return json(result, 202);
       }
       if (request.method === "POST" && bot[1] === "stop") {
-        await agent.stopBot(bot[0]);
+        await agent.stopBot(bot[0], `Workspace member ${user.id} stopped this teammate`);
         await agent.recordAccessAudit(user.id, "work.stop", bot[0]);
         return json({ stopped: true });
       }

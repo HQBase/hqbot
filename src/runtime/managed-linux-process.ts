@@ -32,7 +32,7 @@ export class ManagedLinuxProcessSupervisor extends ManagedLinuxProcessStart {
       ? {
           ...current,
           generation: current.generation + 1,
-          lastError: null,
+          lastError: "The Bash process was stopped",
           scheduleId: null,
           state: "cancelled" as const,
           updatedAt: new Date().toISOString(),

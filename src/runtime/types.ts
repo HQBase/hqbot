@@ -5,6 +5,12 @@ import type { LocalDevice, LocalJob } from "../domain/local-devices";
 import type { HQBotModelId } from "../domain/models";
 import type { ProjectsRpc } from "../domain/projects";
 import type { BotFile } from "../domain/types";
+import type { ActiveWork } from "./work";
+
+export interface TaskProjectionDto {
+  botId: string;
+  work: Omit<ActiveWork, "scheduleId">;
+}
 
 export {
   DEEPSEEK_FALLBACK_MODEL_ID,
@@ -127,6 +133,7 @@ export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc, Automation
   listFiles(botId: string): Promise<BotFile[]>;
   checkSpendPolicy(botId: string, taskId: string | null): Promise<SpendPolicyDto>;
   startTask(id: string, botId: string, prompt: string): Promise<void>;
+  projectTask(input: TaskProjectionDto): Promise<void>;
   setTaskSubmission(taskId: string, submissionId: string): Promise<void>;
   syncTaskState(taskId: string, workState: string, wakeAt: string | null): Promise<void>;
   cancelTask(taskId: string): Promise<boolean>;

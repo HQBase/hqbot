@@ -54,6 +54,64 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("keeps cancelled task state and activity times through a Worker restart", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Endurance recovery", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    await request(`/api/bots/${teammate.id}/task-progress`, { headers: { Cookie: session } });
+    const worker = server.getWorker();
+    const peerStorage = await worker.getDurableObjectStorage("HQBOT_TEAMMATE", {
+      name: teammate.id
+    });
+    const stamp = new Date().toISOString();
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    await peerStorage.exec(
+      `INSERT INTO hqbot_active_work (slot,task_id,goal,checkpoint,state,generation,wake_at,schedule_id,submission_id,last_error,created_at,updated_at)
+       VALUES (1,'endurance','Endurance test','Milestone 6','waiting',12,?,NULL,NULL,NULL,?,?)`,
+      future,
+      stamp,
+      stamp
+    );
+    const bindings = async () =>
+      (await worker.getEnv()) as {
+        HQBOT_TEAMMATE: { getByName(name: string): { recoverRuntime(): Promise<void> } };
+      };
+    await (await bindings()).HQBOT_TEAMMATE.getByName(teammate.id).recoverRuntime();
+    expect((await post(`/api/bots/${teammate.id}/stop`, {}, session)).status).toBe(200);
+    const snapshot = async () =>
+      (await (
+        await request(`/api/snapshot?botId=${teammate.id}`, { headers: { Cookie: session } })
+      ).json()) as {
+        selectedBot: { status: string; lastInteractedAt: string };
+        activeTask: { status: string; error: string };
+      };
+    const stopped = await snapshot();
+    expect(stopped.selectedBot.status).toBe("idle");
+    expect(stopped.activeTask).toMatchObject({
+      status: "cancelled",
+      error: "The owner stopped this teammate"
+    });
+    await server.update((options) => ({
+      ...options,
+      workers: options.workers.map((worker) => ({
+        ...worker,
+        vars: { HQBOT_TEST_RESTART: "after-stop" }
+      }))
+    }));
+    await (await bindings()).HQBOT_TEAMMATE.getByName(teammate.id).recoverRuntime();
+    await (await bindings()).HQBOT_TEAMMATE.getByName(teammate.id).recoverRuntime();
+    const after = await snapshot();
+    expect(after.selectedBot).toEqual(stopped.selectedBot);
+    expect(after.activeTask).toEqual(stopped.activeTask);
+    const workspaceStorage = await worker.getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    expect(
+      await workspaceStorage.exec(
+        "SELECT actor_id, action, target_id FROM access_audit WHERE action='work.stop'"
+      )
+    ).toEqual([{ actor_id: "owner", action: "work.stop", target_id: teammate.id }]);
+  });
+
   it("pairs a scoped local client, starts once, and rejects revoked device tokens", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const { teammate } = (await (

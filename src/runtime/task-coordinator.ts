@@ -287,7 +287,7 @@ export class TaskCoordinator {
       generation: current.generation + 1,
       wakeAt: null,
       scheduleId: null,
-      lastError: state === "failed" ? message.slice(0, 500) : null,
+      lastError: state === "done" ? null : message.slice(0, 500),
       updatedAt: new Date().toISOString()
     });
     if (!work) return this.current() ?? current;
@@ -352,7 +352,7 @@ export class TaskCoordinator {
       generation: current.generation + 1,
       wakeAt: null,
       scheduleId: null,
-      lastError: null,
+      lastError: reason.slice(0, 500),
       updatedAt: new Date().toISOString()
     };
     let processError: unknown;

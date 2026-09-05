@@ -22,6 +22,12 @@ checks its saved completion criteria. A text reply alone does not complete an ac
   files. Show checkpoint failures and provide owner export and restore controls.
 - Show durable notifications when work completes, fails, or needs owner input.
 - Ignore stale page requests after the owner selects another teammate.
+- Project saved task state to the workspace in one transaction. Ignore older or repeated
+  projections. Recovery must preserve final task states, real activity times, and newer chat
+  activity. A future wake-up is waiting work, not an active model turn.
+- Keep the cancellation reason in the task and its history. Distinguish an owner stop, a policy
+  change, and a stopped runtime turn. An old cancellation with no reason must remain unknown.
+  Never restart a cancelled task as part of recovery.
 
 ## Validation
 

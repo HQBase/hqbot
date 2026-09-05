@@ -11,7 +11,12 @@ import type {
   UsageInput,
   WorkspaceSnapshot
 } from "../domain/types";
-import type { ModelReservationDto, ModelUsageDto, ResourceUsageDto } from "../runtime/types";
+import type {
+  ModelReservationDto,
+  ModelUsageDto,
+  ResourceUsageDto,
+  TaskProjectionDto
+} from "../runtime/types";
 import { WorkspaceAuth } from "./auth";
 import type { WorkspaceAutomations } from "./automations";
 import { checkSpendPolicy, positiveNumber } from "./budgets";
@@ -21,6 +26,7 @@ import { reserveModelRequest } from "./model-budget";
 import { WorkspaceNotifications } from "./notifications";
 import { readWorkspaceSnapshot } from "./snapshot";
 import type { Sql } from "./sql";
+import { projectTask } from "./task-projection";
 import { WorkspaceTasks } from "./tasks";
 
 export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
@@ -215,6 +221,10 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     this.tasks.startTask(id, botId, prompt);
     this.catalog.markInteraction(botId, prompt, "working");
     this.changed();
+  }
+
+  projectTask(input: TaskProjectionDto): void {
+    if (this.ctx.storage.transactionSync(() => projectTask(this.db, input))) this.changed();
   }
 
   setTaskSubmission(taskId: string, submissionId: string): void {
