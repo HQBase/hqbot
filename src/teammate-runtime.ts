@@ -2,6 +2,7 @@ import { Think } from "@cloudflare/think";
 import type { LanguageModel } from "ai";
 import { ActionHistory } from "./runtime/action-history";
 import { TeammateComputer } from "./runtime/computer";
+import { ComputerPermissions, type ComputerPolicy } from "./runtime/computer-permissions";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
 import { TeammateExternalEffects } from "./runtime/external-effects";
 import {
@@ -24,6 +25,7 @@ export const FIRST_MESSAGE_STOPPED_KEY = "hqbot:first-message-stopped";
 const scheduleRetry = { maxAttempts: 5, baseDelayMs: 1_000, maxDelayMs: 10_000 };
 
 export abstract class TeammateRuntime extends Think<Env> {
+  private permissions: ComputerPermissions | null = null;
   private computer: TeammateComputer | null = null;
   private integrations: TeammateIntegrations | null = null;
   private linux: ManagedLinuxProcessSupervisor | null = null;
@@ -133,6 +135,32 @@ export abstract class TeammateRuntime extends Think<Env> {
       workspaceAgent: this.workspaceAgent
     });
     return this.linux;
+  }
+
+  protected get computerPermissions(): ComputerPermissions {
+    this.permissions ??= new ComputerPermissions(this.sql.bind(this) as Sql, {
+      pending: () => this.pendingApprovals(),
+      approve: (id) => this.approveExecution(id),
+      reject: (id) => this.rejectExecution(id),
+      isActive: async () => {
+        const bot = await this.workspaceAgent.getBot(this.name);
+        return Boolean(bot && !bot.hidden);
+      },
+      uncertain: () => this.tasks.markExternalEffectUncertain()
+    });
+    return this.permissions;
+  }
+  getComputerPolicy() {
+    return this.computerPermissions.get();
+  }
+  setComputerPolicy(mode: ComputerPolicy) {
+    this.computerPermissions.set(mode);
+  }
+  listComputerApprovals() {
+    return this.computerPermissions.pending();
+  }
+  resolveComputerApproval(id: string, hash: string, approved: boolean) {
+    return this.computerPermissions.decide(id, hash, approved);
   }
 
   protected get computerRuntime(): TeammateComputer {

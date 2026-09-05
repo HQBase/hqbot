@@ -16,6 +16,31 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
   const url = new URL(request.url);
   const agent = await workspace(env);
 
+  const permissions = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/computer-permissions$/u);
+  if (permissions?.[0]) {
+    const unavailable = await requireActiveTeammate(agent, permissions[0]);
+    if (unavailable) return unavailable;
+    const peer = await teammate(env, permissions[0]);
+    if (request.method === "GET")
+      return json({
+        policy: await peer.getComputerPolicy(),
+        approvals: await peer.listComputerApprovals()
+      });
+    if (request.method === "POST") {
+      const body = await readJson(request);
+      if (body.policy === "review" || body.policy === "allow")
+        await peer.setComputerPolicy(body.policy);
+      else if (typeof body.approved === "boolean")
+        await peer.resolveComputerApproval(
+          cleanString(body, "executionId", 300),
+          cleanString(body, "inputHash", 100),
+          body.approved
+        );
+      else return json({ error: "A permission or decision is required" }, 400);
+      return json({ saved: true });
+    }
+  }
+
   const actions = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/actions$/u);
   if (request.method === "GET" && actions?.[0])
     return json({ actions: await (await teammate(env, actions[0])).listActionHistory() });

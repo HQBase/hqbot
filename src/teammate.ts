@@ -15,6 +15,7 @@ import type { IntegrationApproval } from "./domain/actions";
 import { createComputerBrowserTools } from "./runtime/computer-browser";
 import { createComputerDesktopTools } from "./runtime/computer-desktop";
 import { createComputerFileTools } from "./runtime/computer-files";
+import { COMPUTER_ACTIONS } from "./runtime/computer-permissions";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
 import { createKnowledgeTools } from "./runtime/knowledge-tools";
 import type { LinuxProcessPollPayload } from "./runtime/managed-linux-process";
@@ -73,6 +74,15 @@ export class HQBotTeammate extends TeammateRuntime {
   getModel = () => this.modelFor(GLM_PRIMARY_MODEL_ID);
 
   getTools(): ToolSet {
+    return Object.fromEntries(
+      Object.entries(this.runtimeTools()).filter(([name]) => !COMPUTER_ACTIONS.has(name))
+    );
+  }
+  getActions() {
+    return this.computerPermissions.actions(this.runtimeTools());
+  }
+
+  private runtimeTools(): ToolSet {
     const tools: ToolSet = {
       ...createKnowledgeTools(this.workspaceAgent, this.name, (query) =>
         this.session.search(query, { limit: 15 })
@@ -187,6 +197,7 @@ export class HQBotTeammate extends TeammateRuntime {
     }
     if (
       (await this.integrationRuntime.pending()).length ||
+      (await this.listComputerApprovals()).length ||
       this.tasks.active()?.state === "uncertain"
     )
       return { toolChoice: "none" } as unknown as StepConfig;
@@ -205,7 +216,10 @@ export class HQBotTeammate extends TeammateRuntime {
   }
 
   async onChatResponse(result: ChatResponseResult): Promise<void> {
-    const pending = await this.integrationRuntime.pending();
+    const pending = [
+      ...(await this.integrationRuntime.pending()),
+      ...(await this.listComputerApprovals())
+    ];
     const work = this.tasks.active();
     if (pending.length && work?.state === "running" && !this.processes.active())
       await this.tasks.manage({
@@ -230,7 +244,7 @@ export class HQBotTeammate extends TeammateRuntime {
       result,
       workspaceAgent: this.workspaceAgent
     });
-    if ((await this.integrationRuntime.pending()).length > 0) {
+    if (pending.length > 0) {
       await this.workspaceAgent.markInteraction(
         this.name,
         "Action needs approval",

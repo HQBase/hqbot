@@ -2,6 +2,7 @@ import type { BotSkill } from "../../../domain/types";
 import type { WorkspaceController } from "../../hooks/use-workspace";
 import { ActionHistoryPanel } from "./action-history-panel";
 import { AgentSettingsPanel } from "./agent-settings-panel";
+import { ComputerPermissionsPanel } from "./computer-permissions-panel";
 import { CostPanel } from "./cost-panel";
 import { DesktopView } from "./desktop-view";
 import { ResourcesPanel } from "./resources-panel";
@@ -47,6 +48,10 @@ export function DetailsPanel({
           }
           onStopTask={() => void controller.stopSelectedTask()}
           onUseSkill={onUseSkill}
+        />
+        <ComputerPermissionsPanel
+          botId={selectedBot.id}
+          needsApproval={selectedBot.status === "needs_approval"}
         />
         <ActionHistoryPanel botId={selectedBot.id} />
         <CostPanel budgetUsd={selectedBot.dailyBudgetUsd} costs={snapshot.costs} />

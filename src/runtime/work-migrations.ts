@@ -3,6 +3,11 @@ import { migrateActionHistory } from "./action-history";
 import { migrateExternalEffects } from "./external-effects";
 import { migrateTaskSupervision } from "./task-supervision";
 
+function migrateComputerPermissions(sql: Sql): void {
+  sql`CREATE TABLE IF NOT EXISTS hqbot_computer_permissions (slot INTEGER PRIMARY KEY CHECK(slot = 1), mode TEXT NOT NULL CHECK(mode IN ('review', 'allow')))`;
+  sql`INSERT OR IGNORE INTO hqbot_computer_permissions (slot, mode) VALUES (1, 'review')`;
+}
+
 function isApplied(sql: Sql, version: number): boolean {
   return (
     sql<{ version: number }>`SELECT version FROM hqbot_work_migrations
@@ -135,5 +140,9 @@ export function migrateTeammateWork(sql: Sql): void {
   if (!isApplied(sql, 6)) {
     migrateTaskSupervision(sql);
     record(sql, 6);
+  }
+  if (!isApplied(sql, 7)) {
+    migrateComputerPermissions(sql);
+    record(sql, 7);
   }
 }
