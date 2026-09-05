@@ -16,6 +16,10 @@ token when the server needs one. The teammate discovers the server's tools at ru
 Remote tool descriptions are untrusted. Every MCP tool call pauses until the owner approves its
 exact input.
 
+The model receives the Code Mode SDK's discovery API and available connector names. It uses
+`codemode.search` and `codemode.describe` before it calls a remote method. Discovery does not need
+approval. An approved remote call resumes the saved execution automatically.
+
 ## Do we need an integration inventory?
 
 No. Compatibility comes from MCP, not from a list in HQBot. A compatible remote MCP server can work

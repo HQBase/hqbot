@@ -66,10 +66,11 @@ export class TeammateIntegrations {
   }
 
   tool(): Tool {
-    return this.runtime().tool({
-      description:
-        "Use connected services with compact TypeScript. Search and describe tools before calling them. Every connected-service tool call pauses for owner approval."
-    });
+    const tool = this.runtime().tool();
+    return {
+      ...tool,
+      description: `${tool.description}\n\nEvery connected-service tool call pauses for owner approval. Local discovery with codemode.search and codemode.describe does not need approval.`
+    };
   }
 
   async connect(input: { name: string; url: string; token?: string }): Promise<TeammateConnection> {
