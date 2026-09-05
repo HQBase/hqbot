@@ -69,7 +69,7 @@ export class TeammateIntegrations {
     const tool = this.runtime().tool();
     return {
       ...tool,
-      description: `${tool.description}\n\nEvery connected-service tool call pauses for owner approval. Local discovery with codemode.search and codemode.describe does not need approval.`
+      description: `${tool.description}\n\nReturn the result explicitly from every script so you can read it. Start with: return await codemode.search("short intent phrase"); Then return await codemode.describe(matches.results[0].path) using the actual path from the previous result. A variable assignment alone returns no value; it does not mean the search found no tools. Every connected-service tool call pauses for owner approval. Local discovery with codemode.search and codemode.describe does not need approval.`
     };
   }
 

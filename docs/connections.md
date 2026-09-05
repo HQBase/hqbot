@@ -18,7 +18,8 @@ exact input.
 
 The model receives the Code Mode SDK's discovery API and available connector names. It uses
 `codemode.search` and `codemode.describe` before it calls a remote method. Discovery does not need
-approval. An approved remote call resumes the saved execution automatically.
+approval. Each script must return its result explicitly so the model can read it. An approved remote
+call resumes the saved execution automatically.
 
 ## Do we need an integration inventory?
 
