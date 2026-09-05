@@ -73,6 +73,36 @@ afterEach(() => {
 });
 
 describe("ConnectionDialog", () => {
+  it("prepares a catalog connection without connecting until the owner submits", async () => {
+    agent.connectMcp.mockResolvedValue(
+      connection({
+        id: "docs",
+        name: "Cloudflare Docs",
+        url: "https://docs.mcp.cloudflare.com/mcp"
+      })
+    );
+    const view = await renderComponent(<ConnectionDialog bot={bot} open onOpenChange={vi.fn()} />);
+    await setInputValue(input("#mcp-token"), "previous-service-token");
+    await interact(() =>
+      Array.from(document.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Cloudflare Docs"))
+        ?.click()
+    );
+    expect(input("#mcp-name").value).toBe("Cloudflare Docs");
+    expect(input("#mcp-url").value).toBe("https://docs.mcp.cloudflare.com/mcp");
+    expect(input("#mcp-token").value).toBe("");
+    expect(agent.connectMcp).not.toHaveBeenCalled();
+    await interact(() =>
+      document
+        .querySelector("form")
+        ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    );
+    expect(agent.connectMcp).toHaveBeenCalledWith({
+      name: "Cloudflare Docs",
+      url: "https://docs.mcp.cloudflare.com/mcp"
+    });
+    await view.unmount();
+  });
   it("shows live status, tool counts, authorization, and removal", async () => {
     agent.listConnections.mockResolvedValue([connection()]);
     const view = await renderComponent(<ConnectionDialog bot={bot} open onOpenChange={vi.fn()} />);

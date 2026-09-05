@@ -56,7 +56,7 @@ separate gate at the end of this list.
 - [x] Calendar routines, test runs, editing, and run history.
 - [x] Signed generic, GitHub, and Slack event adapters with replay protection.
 - [x] Device push, durable delivery, and notification preferences.
-- [ ] Connector catalog and setup controls.
+- [x] Connector catalog and setup controls.
 - [ ] Demonstration recording and draft skill generation.
 - [ ] Threads, reactions, mentions, search, and safe artifact previews.
 - [ ] Bot duplication, template import/export, and revocable public sharing.

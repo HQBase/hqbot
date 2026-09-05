@@ -80,9 +80,14 @@ export class TeammateIntegrations {
     if (!(await this.options.isActive())) {
       throw new Error("Restore this teammate before you add a connection");
     }
+    const url = cleanConnectionUrl(input.url);
+    if (this.list().some((connection) => connection.url === url))
+      throw new Error(
+        "This server is already connected. Remove it first to replace its credentials."
+      );
     const result = await this.options.addServer(
       cleanConnectionName(input.name),
-      cleanConnectionUrl(input.url),
+      url,
       cleanBearerToken(input.token)
     );
     const connection = this.list().find((item) => item.id === result.id);

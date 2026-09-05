@@ -10,24 +10,30 @@ flowchart LR
   Approve --> Run[Run the tool]
 ```
 
-A remote MCP server gives a teammate tools. Add the server URL and complete OAuth or add a bearer
-token when the server needs one. The teammate discovers the server's tools at run time.
+A remote MCP server gives a teammate tools. In **Connections**, choose a service from the catalog,
+check its setup note, and select **Add connection**. Complete **Authorize** when the service asks.
+You can also enter a custom server URL. Add a bearer token when the service needs one. The teammate
+discovers the server's tools at run time. The catalog links each provider's official setup guide.
 
-Remote tool descriptions are untrusted. Every MCP tool call pauses until the owner approves its
-exact input.
+Remote tool descriptions are untrusted. Each MCP call requires owner review unless an explicit
+permission rule allows the matching action and input. A server's read-only label does not grant
+authority. Scope rules and connected-service permissions both apply.
 
 The model receives the Code Mode SDK's discovery API and available connector names. It uses
 `codemode.search` and `codemode.describe` before it calls a remote method. Discovery does not need
 approval. Each script must return its result explicitly so the model can read it. An approved remote
 call resumes the saved execution automatically.
 
-## Do we need an integration inventory?
+## Catalog and custom servers
 
-No. Compatibility comes from MCP, not from a list in HQBot. A compatible remote MCP server can work
-without a product-specific code change.
+The catalog offers setup entries for Cloudflare Docs, GitHub, Notion, Linear, Sentry, Atlassian Rovo,
+Stripe, and Slack. Compatibility still comes from MCP. A compatible custom remote server can work
+without a product-specific code change. A catalog entry does not connect an account by itself.
 
-A future optional catalog can add names, icons, recommended URLs, and setup help. It must not decide
-which MCP servers are allowed to work.
+Provider authentication requirements differ. GitHub can use a fine-grained token. Slack needs a
+registered internal or published app and its authorized user token; it does not support automatic
+client registration. HQBot stores credentials but never shows them again. Remove an existing
+connection before replacing its credentials. Never paste credentials into the server URL.
 
 ## What about inbound events?
 
@@ -39,9 +45,8 @@ flowchart LR
 ```
 
 MCP tools are calls from the teammate to a service. They do not make service events wake HQBot.
-Inbound adapters are not included today. A future generic signed webhook can cover services that
-send a stable task payload. A service-specific adapter is needed when authentication or event
-formats differ.
+Set up a signed generic, GitHub, or Slack trigger on an event routine in **Automations**. Each
+adapter validates the sender and stops replay before queueing work. See [event setup](events.md).
 
 Use the smallest token scope that the task needs. Disconnect a server when the teammate no longer
 needs its tools.

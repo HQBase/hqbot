@@ -5,7 +5,9 @@ import { PiArrowSquareOut, PiLink, PiPlugsConnected, PiShieldCheck, PiTrash } fr
 
 import type { BotTeammate } from "../../../domain/types";
 import { errorMessage } from "../../lib/api";
+import type { ConnectorPreset } from "../../lib/connector-catalog";
 import { connectionsFromUpdate, httpsUrl, type McpConnection, mcpStatusLabel } from "../../lib/mcp";
+import { ConnectorPicker } from "../connections/connector-picker";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
@@ -37,6 +39,7 @@ export function ConnectionDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [connections, setConnections] = useState<McpConnection[]>([]);
+  const [preset, setPreset] = useState<ConnectorPreset>();
   const [displayName, setDisplayName] = useState("");
   const [url, setUrl] = useState("https://");
   const [token, setToken] = useState("");
@@ -89,6 +92,7 @@ export function ConnectionDialog({
         connection
       ]);
       setDisplayName("");
+      setPreset(undefined);
       setToken("");
       setUrl("https://");
     } catch (cause) {
@@ -114,11 +118,11 @@ export function ConnectionDialog({
   const archived = bot.hidden;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(92vw,560px)]">
+      <DialogContent className="max-h-[90dvh] w-[min(92vw,640px)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Connections</DialogTitle>
           <DialogDescription>
-            Give {bot.name} tools from remote MCP servers. Status updates appear in real time.
+            Choose a service for {bot.name}, then connect and sign in.
           </DialogDescription>
         </DialogHeader>
 
@@ -151,11 +155,24 @@ export function ConnectionDialog({
           </div>
         </section>
 
+        <ConnectorPicker
+          selected={preset}
+          onSelect={(item) => {
+            setPreset(item);
+            setDisplayName(item?.name ?? "");
+            setUrl(item?.url ?? "https://");
+            setToken("");
+            setError("");
+          }}
+        />
+
         <form
           className="flex flex-col gap-4 border-t pt-4"
           onSubmit={(event) => void submit(event)}
         >
-          <h3 className="text-xs font-medium">Add an MCP server</h3>
+          <h3 className="text-xs font-medium">
+            {preset ? `Connect ${preset.name}` : "Add a custom MCP server"}
+          </h3>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="mcp-name">Display name</FieldLabel>
