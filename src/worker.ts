@@ -11,6 +11,7 @@ import { handleDemonstrations } from "./http/demonstrations";
 import { handleDesktop } from "./http/desktop";
 import { handleEventSettings, handleInboundEvent } from "./http/events";
 import { handleKnowledge } from "./http/knowledge";
+import { handleLocalClient, handleLocalDevices } from "./http/local-devices";
 import { handleMessages } from "./http/messages";
 import { handlePermissions } from "./http/permissions";
 import { handleProjects } from "./http/projects";
@@ -95,6 +96,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     handleResources,
     handleKnowledge,
     handleMessages,
+    handleLocalDevices,
     handleTemplates,
     handlePermissions,
     handleProjects,
@@ -131,6 +133,8 @@ export default {
     try {
       if (request.method === "GET" && url.pathname === "/health") return health(env);
 
+      const local = await handleLocalClient(request, env);
+      if (local) return local;
       const shared = await handlePublicTemplate(request, env);
       if (shared) return shared;
 

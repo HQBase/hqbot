@@ -91,5 +91,15 @@ export const productMigrations: readonly SchemaMigration[] = [
       `ALTER TABLE project_messages ADD COLUMN requester_id TEXT`,
       `CREATE TABLE IF NOT EXISTS admin_policy (id INTEGER PRIMARY KEY CHECK(id=1), policy_json TEXT NOT NULL)`
     ]
+  },
+  {
+    version: 22,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS local_pairings (token_hash TEXT PRIMARY KEY, bots_json TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT)`,
+      `CREATE TABLE IF NOT EXISTS local_devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, last_seen_at TEXT, revoked_at TEXT)`,
+      `CREATE TABLE IF NOT EXISTS local_device_bots (device_id TEXT NOT NULL REFERENCES local_devices(id) ON DELETE CASCADE, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, PRIMARY KEY(device_id,bot_id))`,
+      `CREATE TABLE IF NOT EXISTS local_jobs (id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES local_devices(id) ON DELETE CASCADE, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, task_id TEXT, command TEXT NOT NULL, directory TEXT NOT NULL, state TEXT NOT NULL, claim_id TEXT, result TEXT, delivery_state TEXT NOT NULL DEFAULT 'none', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS local_job_queue ON local_jobs(device_id,state,created_at)`
+    ]
   }
 ];

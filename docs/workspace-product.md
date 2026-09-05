@@ -115,6 +115,21 @@ service can have its own capabilities; the origin list does not filter that serv
 network. Existing scoped action approvals still apply. Members cannot create recurring routines or
 new schedules; those persistent changes remain with the owner.
 
+## Paired local commands
+
+The macOS client uses a native web view without a JavaScript-to-native bridge. The iOS and Android
+clients use the same boundary. A separate macOS companion polls the selected deployment over HTTPS.
+The owner creates a ten-minute, single-use pairing code for selected teammates. The device receives
+its own revocable token and stores it in Keychain. Pairing alone does not approve any command.
+
+Each command has a durable ID, device, teammate, input, and state. Claim it once before showing the
+local approval dialog. Persist a local receipt before starting a process. Never rerun a claimed
+command after a client restart. An explicit start check must precede execution. Bound a process to
+60 seconds and 32 KB of output. The owner selects its working folder locally. Reject absolute paths
+and traversal outside that folder. A lost outcome becomes uncertain and requires review, not retry.
+Persist completion before requesting an agent continuation. Stop, archive, deletion, device removal,
+and network policy must prevent queued local work from starting.
+
 ## Inbound events
 
 An event trigger belongs to one event routine. GitHub triggers select a repository. Slack triggers

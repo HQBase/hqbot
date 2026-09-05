@@ -1,6 +1,7 @@
 import type { AdminPolicy } from "../domain/admin-policy";
 import type { AutomationsRpc, RoutineSchedule } from "../domain/automations";
 import type { KnowledgeRpc } from "../domain/knowledge";
+import type { LocalDevice, LocalJob } from "../domain/local-devices";
 import type { HQBotModelId } from "../domain/models";
 import type { ProjectsRpc } from "../domain/projects";
 import type { BotFile } from "../domain/types";
@@ -86,6 +87,15 @@ export interface SpendPolicyDto {
 
 export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc, AutomationsRpc {
   getAdminPolicy(): Promise<AdminPolicy>;
+  listLocalDevices(botId?: string): Promise<LocalDevice[]>;
+  readLocalJob(botId: string, id: string): Promise<LocalJob | null>;
+  localResultAllowed(botId: string, id: string): Promise<boolean>;
+  queueLocalCommand(
+    botId: string,
+    taskId: string | null,
+    id: string,
+    input: unknown
+  ): Promise<LocalJob | null>;
   canAccessBot(userId: string, botId: string, write?: boolean): Promise<boolean>;
   getBot(botId: string): Promise<WorkspaceBotDto | null>;
   listMemories(

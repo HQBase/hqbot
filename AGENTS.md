@@ -18,6 +18,8 @@ Always write in Simplified Technical English (ASD-STE100). Use simple, brief, cl
   server's read-only label. Agents cannot change these rules. Use idempotency keys or duplicate
   checks when the connected service supports them.
 - Use Cloudflare services for compute, state, AI, browser work, queues, schedules, and object storage.
+- The optional paired desktop companion can run owner-approved commands on the owner's device.
+  Keep it separate from remote web content. Native app shells must not expose a command bridge.
 - Record storage changes as ordered schema migrations and test fresh and update paths.
 - Run the complete local gate and one deployed real-world connected-tool flow before completion.
 

@@ -7,6 +7,7 @@ import { CostPanel } from "../details/cost-panel";
 import { DeviceNotifications } from "../inbox/device-notifications";
 import { TeamAdministration } from "../team/team-administration";
 import { Button } from "../ui/button";
+import { LocalDevices } from "./local-devices";
 import { NetworkPolicy } from "./network-policy";
 
 export function SettingsPage({ controller }: { controller: WorkspaceController }) {
@@ -45,6 +46,7 @@ export function SettingsPage({ controller }: { controller: WorkspaceController }
       ) : tab === "devices" ? (
         <div className="space-y-5">
           <DeviceNotifications />
+          <LocalDevices bots={snapshot?.bots ?? []} />
           <section className="space-y-2 rounded-xl border p-4">
             <h2 className="font-semibold">Install HQBot</h2>
             <p className="text-sm text-muted-foreground">
