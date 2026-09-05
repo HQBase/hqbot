@@ -6,7 +6,9 @@ import { api, errorMessage } from "../../lib/api";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { DemonstrationList } from "./demonstration-list";
 import { KnowledgeEditor } from "./knowledge-editor";
+import { RecordDemonstration } from "./record-demonstration";
 
 export function LibraryPage({ controller }: { controller: WorkspaceController }) {
   const [botId, setBotId] = useState(
@@ -17,6 +19,8 @@ export function LibraryPage({ controller }: { controller: WorkspaceController })
   const [filter, setFilter] = useState("all");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [recording, setRecording] = useState(false);
+  const [recordingRefresh, setRecordingRefresh] = useState(0);
   const [editor, setEditor] = useState<{ kind: "memory" | "skill"; item?: KnowledgeItem } | null>(
     null
   );
@@ -68,7 +72,10 @@ export function LibraryPage({ controller }: { controller: WorkspaceController })
             Useful memories. Methods that get better with practice.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={!botId} variant="outline" onClick={() => setRecording(true)}>
+            Record a skill
+          </Button>
           <Button disabled={!botId} variant="outline" onClick={() => setEditor({ kind: "memory" })}>
             <PiPlus /> Memory
           </Button>
@@ -113,6 +120,17 @@ export function LibraryPage({ controller }: { controller: WorkspaceController })
           <option value="skill">Skills</option>
         </select>
       </div>
+      <DemonstrationList
+        key={`${botId}:${recordingRefresh}`}
+        botId={botId}
+        onReview={async (id) => {
+          const result = await api<{ items: KnowledgeItem[] }>(`/api/bots/${botId}/knowledge`);
+          const item = result.items.find((item) => item.id === id);
+          if (!item) throw new Error("This draft was removed from the library");
+          setItems(result.items);
+          setEditor({ kind: item.kind, item });
+        }}
+      />
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}{" "}
@@ -173,6 +191,17 @@ export function LibraryPage({ controller }: { controller: WorkspaceController })
           onClose={() => setEditor(null)}
           onSaved={async () => {
             await load();
+            await controller.load();
+          }}
+        />
+      )}
+      {recording && (
+        <RecordDemonstration
+          key={botId}
+          botId={botId}
+          onClose={() => setRecording(false)}
+          onSaved={async () => {
+            setRecordingRefresh((value) => value + 1);
             await controller.load();
           }}
         />

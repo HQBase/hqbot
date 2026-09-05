@@ -54,6 +54,46 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("queues an uploaded demonstration once and cancels it through Stop", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Recorded method", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    const upload = async (name: string, type: string) => {
+      const boundary = "hqbot-demo-boundary";
+      const body = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: ${type}\r\n\r\nrecorded-test-bytes\r\n--${boundary}--\r\n`;
+      const response = await request(`/api/bots/${teammate.id}/files`, {
+        method: "POST",
+        headers: {
+          Cookie: session,
+          Origin: origin,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`
+        },
+        body
+      });
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { file: { id: string } }).file.id;
+    };
+    const videoId = await upload("demo.webm", "video/webm");
+    const frameId = await upload("step.jpg", "image/jpeg");
+    const input = {
+      id: crypto.randomUUID(),
+      name: "Method",
+      notes: "Read the visible total",
+      videoId,
+      frames: [{ fileId: frameId, seconds: 1 }]
+    };
+    const path = `/api/bots/${teammate.id}/demonstrations`;
+    expect((await post(path, input)).status).toBe(401);
+    expect((await post(path, input, session)).status).toBe(202);
+    expect((await post(path, input, session)).status).toBe(202);
+    expect((await post(`/api/bots/${teammate.id}/stop`, undefined, session)).status).toBe(200);
+    const result = (await (await request(path, { headers: { Cookie: session } })).json()) as {
+      demonstrations: { state: string; skillId: string | null }[];
+    };
+    expect(result.demonstrations).toHaveLength(1);
+    expect(result.demonstrations[0]).toMatchObject({ state: "cancelled", skillId: null });
+  });
   it("keeps the installation push key private and manages named devices through owner routes", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     expect((await post("/api/push/configure")).status).toBe(401);

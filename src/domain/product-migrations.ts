@@ -56,5 +56,12 @@ export const productMigrations: readonly SchemaMigration[] = [
       `CREATE INDEX IF NOT EXISTS push_delivery_queue ON push_deliveries(state, next_at)`,
       `CREATE TRIGGER IF NOT EXISTS queue_notification_push AFTER INSERT ON notifications BEGIN INSERT OR IGNORE INTO push_deliveries (id, notification_id, device_id, state, next_at, created_at, updated_at) SELECT NEW.id || ':' || id, NEW.id, id, 'queued', NEW.created_at, NEW.created_at, NEW.created_at FROM push_devices; END`
     ]
+  },
+  {
+    version: 18,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS demonstrations (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, name TEXT NOT NULL, notes TEXT NOT NULL, video_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE, frames_json TEXT NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, skill_id TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS demonstration_queue ON demonstrations(state, updated_at)`
+    ]
   }
 ];

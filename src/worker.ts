@@ -7,6 +7,7 @@ import { handleAutomations } from "./http/automations";
 import { handleBackups } from "./http/backups";
 import { handleBots } from "./http/bots";
 import { json, requireOwner, requireSameOrigin, workspace } from "./http/common";
+import { handleDemonstrations } from "./http/demonstrations";
 import { handleDesktop } from "./http/desktop";
 import { handleEventSettings, handleInboundEvent } from "./http/events";
 import { handleKnowledge } from "./http/knowledge";
@@ -82,6 +83,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     handleAutomations,
     handleEventSettings,
     handlePush,
+    handleDemonstrations,
     handleResources,
     handleKnowledge,
     handlePermissions,

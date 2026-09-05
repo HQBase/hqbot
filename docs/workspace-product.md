@@ -57,7 +57,7 @@ separate gate at the end of this list.
 - [x] Signed generic, GitHub, and Slack event adapters with replay protection.
 - [x] Device push, durable delivery, and notification preferences.
 - [x] Connector catalog and setup controls.
-- [ ] Demonstration recording and draft skill generation.
+- [x] Demonstration recording and draft skill generation.
 - [ ] Threads, reactions, mentions, search, and safe artifact previews.
 - [ ] Bot duplication, template import/export, and revocable public sharing.
 - [ ] Responsive workspace UI and installable web app.
@@ -106,3 +106,16 @@ Device controls can select replies/completions, failures, and requests for input
 The service worker never caches conversations, credentials, API responses, or artifacts. A push
 contains only a generic status and local IDs. A click opens the same HQBot deployment. An installed
 web app shows an offline page while disconnected; autonomous work continues in Cloudflare.
+
+## Demonstration skills
+
+The owner starts screen capture with the browser's screen picker. Record video without audio,
+for at most ten minutes or 9 MB. Collect key frames and let the owner select at most twelve before
+upload. Explain that the draft uses those selected frames and notes, not every moment of the video.
+The owner can remove sensitive frames or discard the recording. No upload occurs before saving.
+
+Store the recording and selected frames as private teammate files. Queue draft generation with a
+stable ID. Use a vision model with the teammate's budget and no tools. It must not perform the
+demonstrated actions. Save uncertain steps as questions and mark the skill as draft. Only the
+owner's later review or a successful test can make it ready. Keep source recording IDs, generation
+status, and errors. Stop, archive, or delete must prevent an unfinished draft from being published.

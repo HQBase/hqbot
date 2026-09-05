@@ -34,11 +34,11 @@ import {
 import { checkpointStep, DEFAULT_TURN_STEPS, repeatedStepResult } from "./runtime/turn-supervision";
 import { GLM_PRIMARY_MODEL_ID, type TeammateChatSubmission } from "./runtime/types";
 import { migrateTeammateWork, type WorkResumePayload } from "./runtime/work";
-import { TeammateAutomationsRuntime } from "./teammate-automations";
+import { TeammateDemonstrationsRuntime } from "./teammate-demonstrations";
 import { FIRST_MESSAGE_STOPPED_KEY } from "./teammate-runtime";
 import type { Sql } from "./workspace/sql";
 
-export class HQBotTeammate extends TeammateAutomationsRuntime {
+export class HQBotTeammate extends TeammateDemonstrationsRuntime {
   maxSteps = DEFAULT_TURN_STEPS;
   contextOverflow = {
     reactive: true,

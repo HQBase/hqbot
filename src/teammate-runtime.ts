@@ -43,19 +43,24 @@ export abstract class TeammateRuntime extends Think<Env> {
   protected modelFor(modelId: HQBotModelId): LanguageModel {
     return createHQBotModel({
       primaryModelId: modelId,
-      resolve: (id) =>
-        budgetedModel({
-          model: concreteLanguageModel(this.resolveModel(id)),
-          modelId: id,
-          botId: this.name,
-          taskId: () => this.currentTaskId(),
-          workspace: this.workspaceAgent,
-          rates: async () => {
-            this.modelCatalog ??= listHQBotModels(this.env.AI);
-            return modelTokenRates(await this.modelCatalog, id);
-          }
-        }),
+      resolve: (id) => this.budgetedModelFor(id, () => this.currentTaskId()),
       onAttempt: () => undefined
+    });
+  }
+  protected budgetedModelFor(
+    id: HQBotModelId,
+    taskId: () => string | null
+  ): Exclude<LanguageModel, string> {
+    return budgetedModel({
+      model: concreteLanguageModel(this.resolveModel(id)),
+      modelId: id,
+      botId: this.name,
+      taskId,
+      workspace: this.workspaceAgent,
+      rates: async () => {
+        this.modelCatalog ??= listHQBotModels(this.env.AI);
+        return modelTokenRates(await this.modelCatalog, id);
+      }
     });
   }
 
