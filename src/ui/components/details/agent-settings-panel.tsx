@@ -13,6 +13,7 @@ import { ModelPanel } from "./model-panel";
 
 export function AgentSettingsPanel({
   bot,
+  embedded = false,
   loadCatalog = true,
   onDeleted,
   onMaxStepsChange,
@@ -20,6 +21,7 @@ export function AgentSettingsPanel({
   onSaved
 }: {
   bot: BotTeammate;
+  embedded?: boolean;
   loadCatalog?: boolean;
   onDeleted: () => Promise<void>;
   onMaxStepsChange: (maxSteps: number | null) => Promise<void>;
@@ -71,7 +73,12 @@ export function AgentSettingsPanel({
   }
 
   return (
-    <DetailsSection badge={pending ? "Saving" : "Config"} icon={PiCpu} title="Agent settings">
+    <DetailsSection
+      embedded={embedded}
+      badge={pending ? "Saving" : "Config"}
+      icon={PiCpu}
+      title="Agent settings"
+    >
       <form className="flex flex-col gap-4" onSubmit={(event) => void save(event)}>
         <div>
           <label className="mb-2 block text-xs font-medium" htmlFor="teammate-name">

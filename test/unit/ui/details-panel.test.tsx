@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DetailsPanel } from "../../../src/ui/components/details/details-panel";
 import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
-import { renderComponent } from "./render";
+import { interact, renderComponent } from "./render";
 
 vi.mock("../../../src/ui/components/details/agent-settings-panel", () => ({
   AgentSettingsPanel: ({ bot }: { bot: { id: string } }) => (
@@ -23,7 +23,7 @@ vi.mock("../../../src/ui/components/details/cost-panel", () => ({
 }));
 
 describe("DetailsPanel", () => {
-  it("puts cost after every other teammate detail", () => {
+  it("uses consistent navigation and opens details only when selected", () => {
     const controller = {
       selectedBot: { dailyBudgetUsd: 1, id: "bot-1", name: "Milo", modelId: null },
       selectedTask: null,
@@ -41,9 +41,10 @@ describe("DetailsPanel", () => {
       <DetailsPanel controller={controller} onUseSkill={vi.fn()} />
     );
 
-    for (const marker of ["settings-marker"]) {
-      expect(html.indexOf("cost-marker")).toBeGreaterThan(html.indexOf(marker));
-    }
+    expect(html).not.toContain("cost-marker");
+    expect(html).not.toContain("settings-marker");
+    for (const label of ["Permissions", "Activity", "Cost", "Agent settings"])
+      expect(html).toContain(label);
     expect(html).not.toContain("computer-marker");
     expect(html).toContain("Conversation info");
     expect(html).toContain("Integrations");
@@ -63,6 +64,11 @@ describe("DetailsPanel", () => {
     const view = await renderComponent(
       <DetailsPanel controller={controller} onUseSkill={vi.fn()} />
     );
+
+    const settingsButton = Array.from(view.container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Agent settings"
+    );
+    await interact(() => settingsButton?.click());
 
     const next = {
       ...controller,

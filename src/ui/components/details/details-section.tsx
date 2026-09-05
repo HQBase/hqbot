@@ -7,6 +7,7 @@ export function DetailsSection({
   badge,
   children,
   defaultOpen = false,
+  embedded = false,
   icon: Icon,
   id,
   title
@@ -14,6 +15,7 @@ export function DetailsSection({
   badge?: number | string;
   children: ReactNode;
   defaultOpen?: boolean;
+  embedded?: boolean;
   icon: ComponentType<{ className?: string }>;
   id?: string;
   title: string;
@@ -21,6 +23,13 @@ export function DetailsSection({
   const [open, setOpen] = useState(defaultOpen);
   const generatedId = useId();
   const contentId = `${id ?? "details"}-${generatedId}`;
+
+  if (embedded)
+    return (
+      <section className="py-4" aria-label={title}>
+        {children}
+      </section>
+    );
 
   return (
     <section className="border-b border-divider last:border-b-0" id={id}>

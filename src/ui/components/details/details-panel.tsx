@@ -4,9 +4,13 @@ import {
   PiBrain,
   PiCalendar,
   PiCaretRight,
+  PiCoin,
   PiDesktopTower,
   PiFile,
+  PiGear,
   PiPlugsConnected,
+  PiPulse,
+  PiShieldCheck,
   PiSparkle,
   PiX
 } from "react-icons/pi";
@@ -16,13 +20,12 @@ import { initials } from "../../lib/format";
 import { FilePreview } from "../chat/file-preview";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
-import { ActionHistoryPanel } from "./action-history-panel";
+import { ActivityPanel } from "./activity-panel";
 import { AgentSettingsPanel } from "./agent-settings-panel";
 import { BackupsPanel } from "./backups-panel";
 import { ComputerPermissionsPanel } from "./computer-permissions-panel";
 import { CostPanel } from "./cost-panel";
 import { DesktopView } from "./desktop-view";
-import { TaskProgressPanel } from "./task-progress-panel";
 
 const LibraryPage = lazy(() =>
   import("../library/library-page").then((m) => ({ default: m.LibraryPage }))
@@ -38,7 +41,11 @@ const sections = [
   { id: "connections", label: "Integrations", icon: PiPlugsConnected },
   { id: "memory", label: "Memory", icon: PiBrain },
   { id: "skill", label: "Skills", icon: PiSparkle },
-  { id: "routines", label: "Routines", icon: PiCalendar }
+  { id: "routines", label: "Routines", icon: PiCalendar },
+  { id: "permissions", label: "Permissions", icon: PiShieldCheck },
+  { id: "activity", label: "Activity", icon: PiPulse },
+  { id: "cost", label: "Cost", icon: PiCoin },
+  { id: "settings", label: "Agent settings", icon: PiGear }
 ] as const;
 type InfoSection = "info" | (typeof sections)[number]["id"];
 
@@ -95,6 +102,27 @@ export function DetailsPanel({
               <DesktopView key={bot.id} active={bot.status === "working"} botId={bot.id} />
               <BackupsPanel botId={bot.id} />
             </>
+          ) : section === "permissions" ? (
+            <ComputerPermissionsPanel
+              key={bot.id}
+              embedded
+              botId={bot.id}
+              needsApproval={bot.status === "needs_approval"}
+            />
+          ) : section === "activity" ? (
+            <ActivityPanel key={bot.id} botId={bot.id} revision={snapshot.activeTask?.updatedAt} />
+          ) : section === "cost" ? (
+            <CostPanel embedded budgetUsd={bot.dailyBudgetUsd} costs={snapshot.costs} />
+          ) : section === "settings" ? (
+            <AgentSettingsPanel
+              key={bot.id}
+              embedded
+              bot={bot}
+              onDeleted={controller.deleteSelectedBot}
+              onMaxStepsChange={controller.setMaxSteps}
+              onModelChange={controller.setModel}
+              onSaved={controller.load}
+            />
           ) : section === "connections" ? (
             <div className="py-4">
               <ConnectionDialog
@@ -172,20 +200,6 @@ export function DetailsPanel({
                   </Button>
                 ))}
               </nav>
-              <ComputerPermissionsPanel
-                botId={bot.id}
-                needsApproval={bot.status === "needs_approval"}
-              />
-              <AgentSettingsPanel
-                bot={bot}
-                onDeleted={controller.deleteSelectedBot}
-                onMaxStepsChange={controller.setMaxSteps}
-                onModelChange={controller.setModel}
-                onSaved={controller.load}
-              />
-              <TaskProgressPanel botId={bot.id} revision={snapshot.activeTask?.updatedAt} />
-              <ActionHistoryPanel botId={bot.id} />
-              <CostPanel budgetUsd={bot.dailyBudgetUsd} costs={snapshot.costs} />
             </>
           )}
         </Suspense>

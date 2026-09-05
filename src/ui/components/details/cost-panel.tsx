@@ -5,12 +5,21 @@ import { currency } from "../../lib/format";
 import { Progress } from "../ui/progress";
 import { DetailsSection } from "./details-section";
 
-export function CostPanel({ budgetUsd, costs }: { budgetUsd: number; costs: CostSnapshot }) {
+export function CostPanel({
+  budgetUsd,
+  costs,
+  embedded = false
+}: {
+  budgetUsd: number;
+  costs: CostSnapshot;
+  embedded?: boolean;
+}) {
   const usage = budgetUsd > 0 ? (costs.selectedBot.estimatedUsd / budgetUsd) * 100 : 0;
   const services = costs.services.selectedBot;
   const resources = costs.platform.resources;
   return (
     <DetailsSection
+      embedded={embedded}
       badge={`Overall ${currency(costs.overall.estimatedUsd)}`}
       icon={PiCoin}
       id="costs"

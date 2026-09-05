@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "../../lib/api";
+import { Button } from "../ui/button";
+import { Field, FieldDescription, FieldLabel } from "../ui/field";
 import { PermissionRulesPanel } from "./permission-rules-panel";
 
 interface PermissionView {
@@ -8,12 +10,14 @@ interface PermissionView {
 }
 export function ComputerPermissionsPanel({
   botId,
-  needsApproval
+  needsApproval,
+  embedded = false
 }: {
   botId: string;
   needsApproval: boolean;
+  embedded?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [view, setView] = useState<PermissionView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,19 +60,23 @@ export function ComputerPermissionsPanel({
     }
   }
   return (
-    <section className="border-t border-divider py-4 text-xs">
-      <button type="button" className="font-medium" onClick={() => setOpen(!open)}>
-        Permissions{view?.approvals.length ? ` · ${view.approvals.length} waiting` : ""}
-      </button>
+    <section className="py-4 text-sm">
+      {!embedded && (
+        <Button variant="ghost" onClick={() => setOpen(!open)}>
+          Permissions{view?.approvals.length ? ` · ${view.approvals.length} waiting` : ""}
+        </Button>
+      )}
       {(open || needsApproval) && (
-        <div className="mt-3 space-y-3">
+        <div className="flex flex-col gap-5">
           {error && <p role="alert">{error}</p>}
+          {!view && !error && <p role="status">Loading permissions…</p>}
           {view && (
             <>
-              <label className="block">
-                Permission for this teammate
+              <Field>
+                <FieldLabel htmlFor="computer-policy">Computer access</FieldLabel>
                 <select
-                  className="mt-2 w-full rounded border bg-transparent p-2"
+                  id="computer-policy"
+                  className="h-10 w-full rounded-md border bg-background px-3"
                   value={view.policy}
                   disabled={busy}
                   onChange={(event) => void save({ policy: event.target.value })}
@@ -76,21 +84,24 @@ export function ComputerPermissionsPanel({
                   <option value="review">Review computer actions</option>
                   <option value="allow">Allow computer actions</option>
                 </select>
-              </label>
-              <p>
-                Review asks before code runs, browser or desktop input changes, and file deletion.
-                Allow grants these actions to this teammate, including use of signed-in sites.
-                Scoped rules can require review, allow an action, or block it. Connected tools
-                require review by default.
-              </p>
+                <FieldDescription>
+                  Review asks before code runs, browser or desktop input changes, and file deletion.
+                  Allow grants these actions to this teammate, including use of signed-in sites.
+                  Scoped rules can require review, allow an action, or block it. Connected tools
+                  require review by default.
+                </FieldDescription>
+              </Field>
               {view.approvals.map((item) => (
-                <div key={item.executionId} className="space-y-2 rounded border p-2">
+                <div
+                  key={item.executionId}
+                  className="flex flex-col gap-3 rounded-xl border bg-card p-4"
+                >
                   <strong>{item.action}</strong>
                   <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all">
                     {JSON.stringify(item.input, null, 2)}
                   </pre>
                   <div className="flex gap-4">
-                    <button
+                    <Button
                       disabled={busy}
                       type="button"
                       onClick={() =>
@@ -102,8 +113,8 @@ export function ComputerPermissionsPanel({
                       }
                     >
                       Deny
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       disabled={busy}
                       type="button"
                       onClick={() =>
@@ -115,7 +126,7 @@ export function ComputerPermissionsPanel({
                       }
                     >
                       Approve exact action
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
