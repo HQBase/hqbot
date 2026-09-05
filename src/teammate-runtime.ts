@@ -68,6 +68,10 @@ export abstract class TeammateRuntime extends Think<Env> {
   protected get workspaceAgent(): WorkspaceAgentRpc {
     return this.env.HQBOT_AGENT.getByName(this.env.HQBOT_ID) as unknown as WorkspaceAgentRpc;
   }
+  protected async canAct(): Promise<boolean> {
+    const bot = await this.workspaceAgent.getBot(this.name);
+    return Boolean(bot && !bot.hidden);
+  }
 
   protected get taskSupervision(): TaskSupervision {
     this.supervisor ??= new TaskSupervision(
@@ -174,10 +178,7 @@ export abstract class TeammateRuntime extends Think<Env> {
       },
       approve: (id) => this.approveExecution(id),
       reject: (id) => this.rejectExecution(id),
-      isActive: async () => {
-        const bot = await this.workspaceAgent.getBot(this.name);
-        return Boolean(bot && !bot.hidden);
-      },
+      isActive: () => this.canAct(),
       uncertain: () => this.tasks.markExternalEffectUncertain()
     });
     return this.permissions;
@@ -303,10 +304,7 @@ export abstract class TeammateRuntime extends Think<Env> {
       ctx: this.ctx,
       effects: new TeammateExternalEffects(this.sql.bind(this) as Sql),
       env: this.env,
-      isActive: async () => {
-        const bot = await this.workspaceAgent.getBot(this.name);
-        return Boolean(bot && !bot.hidden);
-      },
+      isActive: () => this.canAct(),
       list: () => connectionList(this.getMcpServers()),
       loader: this.env.LOADER,
       markEffectUncertain: () => this.tasks.run(() => this.tasks.markExternalEffectUncertain()),

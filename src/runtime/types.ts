@@ -1,5 +1,6 @@
 import type { KnowledgeRpc } from "../domain/knowledge";
 import type { HQBotModelId } from "../domain/models";
+import type { ProjectsRpc } from "../domain/projects";
 import type { BotFile } from "../domain/types";
 
 export {
@@ -80,7 +81,7 @@ export interface SpendPolicyDto {
   reason: string | null;
 }
 
-export interface WorkspaceAgentRpc extends KnowledgeRpc {
+export interface WorkspaceAgentRpc extends KnowledgeRpc, ProjectsRpc {
   getBot(botId: string): Promise<WorkspaceBotDto | null>;
   listMemories(
     botId: string,

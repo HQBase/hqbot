@@ -2,7 +2,6 @@ import type { ProxyToolOutput } from "@cloudflare/codemode";
 import type {
   ChatResponseResult,
   PrepareStepContext,
-  Session,
   StepConfig,
   ThinkSubmissionInspection,
   TurnConfig,
@@ -10,7 +9,7 @@ import type {
 } from "@cloudflare/think";
 import { defaultContextOverflowClassifier } from "@cloudflare/think";
 import { callable } from "agents";
-import { generateText, type ToolSet, tool } from "ai";
+import { type ToolSet, tool } from "ai";
 import type { IntegrationApproval } from "./domain/actions";
 import { createComputerBrowserTools } from "./runtime/computer-browser";
 import { createComputerDesktopTools } from "./runtime/computer-desktop";
@@ -24,7 +23,6 @@ import { createStopProcessTool } from "./runtime/process-tools";
 import { createScheduleTool } from "./runtime/schedule-tool";
 import { teammateScheduledTasks } from "./runtime/schedules";
 import { clearLegacyScreenshotReplayError } from "./runtime/screenshot-replay-recovery";
-import { configureWorkSession } from "./runtime/session-context";
 import { suspendTeammateWork } from "./runtime/suspension";
 import { taskManagementInput } from "./runtime/task-management";
 import { createTeammateLinuxTool } from "./runtime/teammate-linux";
@@ -37,10 +35,11 @@ import {
 import { checkpointStep, DEFAULT_TURN_STEPS, repeatedStepResult } from "./runtime/turn-supervision";
 import { GLM_PRIMARY_MODEL_ID, type TeammateChatSubmission } from "./runtime/types";
 import { migrateTeammateWork, type WorkResumePayload } from "./runtime/work";
-import { FIRST_MESSAGE_STOPPED_KEY, TeammateRuntime } from "./teammate-runtime";
+import { TeammateProductRuntime } from "./teammate-product";
+import { FIRST_MESSAGE_STOPPED_KEY } from "./teammate-runtime";
 import type { Sql } from "./workspace/sql";
 
-export class HQBotTeammate extends TeammateRuntime {
+export class HQBotTeammate extends TeammateProductRuntime {
   maxSteps = DEFAULT_TURN_STEPS;
   contextOverflow = {
     reactive: true,
@@ -50,20 +49,6 @@ export class HQBotTeammate extends TeammateRuntime {
   classifyChatError = defaultContextOverflowClassifier;
   private turnStepLimit = DEFAULT_TURN_STEPS;
 
-  configureSession(session: Session): Session {
-    return configureWorkSession(
-      session,
-      async (prompt) =>
-        (
-          await generateText({
-            model: this.getModel(),
-            prompt,
-            maxOutputTokens: 1_500,
-            maxRetries: 0
-          })
-        ).text
-    );
-  }
   chatStreamStallTimeoutMs = 120_000;
   workspaceBash = false;
   includeMcpTools = false;
@@ -84,6 +69,7 @@ export class HQBotTeammate extends TeammateRuntime {
 
   private runtimeTools(): ToolSet {
     const tools: ToolSet = {
+      ...this.productTools(),
       ...createKnowledgeTools(this.workspaceAgent, this.name, (query) =>
         this.session.search(query, { limit: 15 })
       ),
@@ -154,6 +140,7 @@ export class HQBotTeammate extends TeammateRuntime {
   }
 
   async beforeTurn(ctx: TurnContext): Promise<TurnConfig> {
+    await this.assertProductTurnAllowed();
     const activeWork = this.tasks.active();
     if (
       this.activeTurnMetadata?.source === "active-task" &&
@@ -183,6 +170,7 @@ export class HQBotTeammate extends TeammateRuntime {
   }
 
   async beforeStep(ctx: PrepareStepContext): Promise<StepConfig | undefined> {
+    await this.assertProductTurnAllowed();
     if (repeatedStepResult(ctx)) {
       const work = this.tasks.active();
       if (work && !this.processes.active())
@@ -251,6 +239,7 @@ export class HQBotTeammate extends TeammateRuntime {
         "needs_approval"
       );
     }
+    await this.productResponse(result);
     await this.computerRuntime.recoveryCheckpoint().catch(() => undefined);
   }
 

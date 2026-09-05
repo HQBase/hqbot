@@ -3,7 +3,7 @@ import { getAgentByName } from "agents";
 import type { BotTeammate } from "./domain/types";
 import { teammateSandbox } from "./runtime/desktop";
 import type { HQBotTeammate } from "./teammate";
-import { WorkspaceProductAgent } from "./workspace/product-agent";
+import { WorkspaceProjectsAgent } from "./workspace/projects-agent";
 
 interface BotDeletionPayload {
   artifactKeys: string[];
@@ -16,7 +16,7 @@ function durableObjectIsInactive(cause: unknown): boolean {
   return cause instanceof Error && cause.message.includes("no longer active");
 }
 
-export class HQBotAgent extends WorkspaceProductAgent {
+export class HQBotAgent extends WorkspaceProjectsAgent {
   async setBotHidden(id: string, hidden: boolean): Promise<BotTeammate | null> {
     const current = this.catalog.getBot(id);
     if (!current || current.hidden === hidden) return current;
@@ -29,6 +29,7 @@ export class HQBotAgent extends WorkspaceProductAgent {
     }
 
     const peer = await getAgentByName<Env, HQBotTeammate>(this.env.HQBOT_TEAMMATE, id);
+    this.cancelBotDeliveries(id);
     await peer.suspend();
     this.tasks.cancelBotTasks(id);
     this.changed();
@@ -37,6 +38,7 @@ export class HQBotAgent extends WorkspaceProductAgent {
 
   async stopBot(id: string): Promise<boolean> {
     if (!this.catalog.hasBot(id)) return false;
+    this.cancelBotDeliveries(id);
     const peer = await getAgentByName<Env, HQBotTeammate>(this.env.HQBOT_TEAMMATE, id);
     await peer.stopActivity();
     this.tasks.cancelBotTasks(id);
@@ -47,6 +49,7 @@ export class HQBotAgent extends WorkspaceProductAgent {
 
   async stopBotTask(id: string): Promise<boolean> {
     if (!this.catalog.hasBot(id)) return false;
+    this.cancelBotDeliveries(id);
     const peer = await getAgentByName<Env, HQBotTeammate>(this.env.HQBOT_TEAMMATE, id);
     await peer.cancelActiveTask();
     this.tasks.cancelBotTasks(id);
@@ -57,6 +60,7 @@ export class HQBotAgent extends WorkspaceProductAgent {
 
   async deleteBot(id: string): Promise<boolean> {
     if (!this.catalog.hasBot(id)) return false;
+    this.cancelBotDeliveries(id);
     const payload = { artifactKeys: this.catalog.listBotArtifactKeys(id), id };
     this.tasks.cancelBotTasks(id);
     await this.schedule(new Date(Date.now() + 1_000), "finishBotDeletion", payload, {

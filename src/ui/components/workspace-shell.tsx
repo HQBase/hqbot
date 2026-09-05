@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PiBookOpen, PiChatCircle, PiList } from "react-icons/pi";
+import { PiBookOpen, PiChatCircle, PiFolder, PiList } from "react-icons/pi";
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
@@ -10,13 +10,14 @@ import { RoutineDialog } from "./dialogs/routine-dialog";
 import { SkillDialog } from "./dialogs/skill-dialog";
 import { LibraryPage } from "./library/library-page";
 import { NotificationInbox } from "./notification-inbox";
+import { ProjectsPage } from "./projects/projects-page";
 import { TeammateSidebar } from "./teammate-sidebar";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
-  const [page, setPage] = useState<"chat" | "library">("chat");
+  const [page, setPage] = useState<"chat" | "library" | "projects">("chat");
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
   );
@@ -35,6 +36,12 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
 
   const snapshot = controller.snapshot;
   if (!snapshot) return null;
+  const pageContent =
+    page === "projects" ? (
+      <ProjectsPage controller={controller} />
+    ) : (
+      <LibraryPage controller={controller} />
+    );
 
   function useSkill(skill: BotSkill): void {
     setPrompt(`/${skill.name.toLowerCase().replaceAll(" ", "-")} `);
@@ -80,6 +87,16 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
           >
             <PiBookOpen /> Library
           </Button>
+          <Button
+            className="justify-start"
+            variant={page === "projects" ? "secondary" : "ghost"}
+            onClick={() => {
+              setPage("projects");
+              controller.setMobileChatOpen(true);
+            }}
+          >
+            <PiFolder /> Projects
+          </Button>
         </nav>
       }
       footer={<NotificationInbox controller={controller} />}
@@ -96,7 +113,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
     <main className="relative flex h-screen h-[100dvh] touch-manipulation overflow-hidden bg-rail pt-[env(safe-area-inset-top)] text-foreground lg:p-2">
       {mobileViewport ? (
         <div className="flex h-full w-full flex-col bg-list">
-          {page === "library" ? (
+          {page !== "chat" ? (
             <>
               <div className="flex shrink-0 items-center border-b px-4 py-2">
                 <Button
@@ -109,9 +126,7 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
                 </Button>
                 <span className="ml-2 text-sm font-medium">HQBot</span>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <LibraryPage controller={controller} />
-              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">{pageContent}</div>
             </>
           ) : (
             <ConversationPanel
@@ -127,10 +142,8 @@ export function WorkspaceShell({ controller }: { controller: WorkspaceController
           <div className="flex h-full w-[17rem] shrink-0">{sidebar}</div>
           <div className="relative min-w-0 flex-1 overflow-hidden rounded-[24px] border border-divider bg-reader shadow-sm">
             <div className="flex h-full min-w-0">
-              {page === "library" ? (
-                <div className="min-w-0 flex-1 overflow-y-auto">
-                  <LibraryPage controller={controller} />
-                </div>
+              {page !== "chat" ? (
+                <div className="min-w-0 flex-1 overflow-y-auto">{pageContent}</div>
               ) : (
                 <>
                   <ConversationPanel

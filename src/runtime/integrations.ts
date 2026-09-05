@@ -24,7 +24,8 @@ export class TeammateMcpConnector extends McpConnector<Env> {
       connector: string,
       action: string,
       input: unknown
-    ) => PermissionDecision
+    ) => PermissionDecision,
+    private readonly isActive: () => Promise<boolean> = async () => true
   ) {
     super(ctx, env);
     this.connection = {
@@ -52,6 +53,8 @@ export class TeammateMcpConnector extends McpConnector<Env> {
       ...connectorTool,
       requiresApproval: true,
       execute: async (args, context) => {
+        if (!(await this.isActive()))
+          throw new Error("The teammate or project request is no longer active");
         if (this.permission?.(this.name(), name, args) === "deny")
           throw new Error("An owner permission rule blocks this action");
         if (!context?.executionId || !Number.isInteger(context.seq)) {

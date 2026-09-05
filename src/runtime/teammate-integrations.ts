@@ -290,7 +290,8 @@ export class TeammateIntegrations {
             connection,
             this.options.effects,
             this.options.markEffectUncertain,
-            this.options.permission
+            this.options.permission,
+            this.options.isActive
           )
       );
     return createCodemodeRuntime({

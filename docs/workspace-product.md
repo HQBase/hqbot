@@ -47,9 +47,12 @@ The same layout must work on a phone. Each action shows progress, an outcome, or
 
 ## Delivery checklist
 
-- [ ] Agent-managed memory and skill revisions, history, and library controls.
-- [ ] Scoped permissions for computer actions and MCP calls.
-- [ ] Projects, shared resources, direct handoffs, and group work.
+Checked items are implemented with local checks. Deployment and rendered acceptance remain a
+separate gate at the end of this list.
+
+- [x] Agent-managed memory and skill revisions, history, and library controls.
+- [x] Scoped permissions for computer actions and MCP calls.
+- [x] Projects, shared resources, direct handoffs, and group work.
 - [ ] Calendar routines, test runs, editing, and run history.
 - [ ] Signed generic, GitHub, and Slack event adapters with replay protection.
 - [ ] Device push, durable delivery, and notification preferences.

@@ -9,6 +9,7 @@ import { json, requireOwner, requireSameOrigin, workspace } from "./http/common"
 import { handleDesktop } from "./http/desktop";
 import { handleKnowledge } from "./http/knowledge";
 import { handlePermissions } from "./http/permissions";
+import { handleProjects } from "./http/projects";
 import { handleResources } from "./http/resources";
 import { HQBotTeammate } from "./teammate";
 
@@ -78,6 +79,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     handleResources,
     handleKnowledge,
     handlePermissions,
+    handleProjects,
     handleDesktop,
     handleBackups,
     handleArtifacts

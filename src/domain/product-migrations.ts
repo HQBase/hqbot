@@ -18,5 +18,17 @@ export const productMigrations: readonly SchemaMigration[] = [
         id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, item_id TEXT NOT NULL, kind TEXT NOT NULL,
         created_at TEXT NOT NULL, FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE)`
     ]
+  },
+  {
+    version: 14,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, revision INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS project_teammates (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, PRIMARY KEY(project_id, bot_id))`,
+      `CREATE TABLE IF NOT EXISTS project_resources (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL, item_id TEXT NOT NULL, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, PRIMARY KEY(project_id, kind, item_id))`,
+      `CREATE TABLE IF NOT EXISTS project_messages (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, sender_bot_id TEXT, content TEXT NOT NULL, parent_id TEXT, created_at TEXT NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS project_message_order ON project_messages(project_id, created_at, id)`,
+      `CREATE TABLE IF NOT EXISTS collaboration_deliveries (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, message_id TEXT NOT NULL REFERENCES project_messages(id) ON DELETE CASCADE, bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, sender_bot_id TEXT, root_id TEXT NOT NULL, depth INTEGER NOT NULL, response INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS collaboration_pending ON collaboration_deliveries(state, created_at)`
+    ]
   }
 ];

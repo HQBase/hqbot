@@ -16,7 +16,8 @@ checks its saved completion criteria. A text reply alone does not complete an ac
 - Compact context, keep searchable history, and recover from context overflow. Retrieve recent
   or relevant memories in pages. Discover all skills and load complete instructions on demand.
 - Require owner permission for computer actions that can change data or run arbitrary code.
-  Remote MCP calls always need separate approval.
+  Remote MCP calls require review by default. An explicit owner rule can allow a matching action
+  and input, with an optional expiry or task limit. A denial or review rule wins over an allow rule.
 - Keep versioned computer backups. A failed restore must preserve both the backup and current
   files. Show checkpoint failures and provide owner export and restore controls.
 - Show durable notifications when work completes, fails, or needs owner input.

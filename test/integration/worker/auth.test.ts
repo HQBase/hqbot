@@ -53,6 +53,84 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("serves persistent knowledge, scoped permissions, and projects through authenticated routes", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const created = await post(
+      "/api/bots",
+      { brief: "Product route test", conversation: true },
+      session
+    );
+    const { teammate } = (await created.json()) as { teammate: { id: string } };
+    const knowledge = `/api/bots/${teammate.id}/knowledge`;
+    expect((await request(knowledge)).status).toBe(401);
+    const saved = await post(
+      knowledge,
+      {
+        commandId: "remember",
+        entry: { kind: "memory", content: "Use source links", source: "Owner preference" }
+      },
+      session
+    );
+    expect(saved.status).toBe(200);
+    const { item } = (await saved.json()) as { item: { id: string; revision: number } };
+    expect(item.revision).toBe(1);
+    expect(
+      (
+        await post(
+          knowledge,
+          {
+            commandId: "revise",
+            entry: {
+              kind: "memory",
+              id: item.id,
+              revision: 1,
+              content: "Use source links and short reports",
+              source: "Owner correction"
+            }
+          },
+          session
+        )
+      ).status
+    ).toBe(200);
+    const history = await request(`${knowledge}?history=${item.id}`, {
+      headers: { Cookie: session }
+    });
+    expect(await history.json()).toMatchObject({ versions: [{ revision: 2 }, { revision: 1 }] });
+    const rules = `/api/bots/${teammate.id}/permission-rules`;
+    expect(
+      (
+        await post(
+          rules,
+          {
+            label: "Help center",
+            connector: "computer",
+            action: "browser_open",
+            decision: "allow",
+            scope: { kind: "origin", field: "url", origin: "https://example.com" }
+          },
+          session
+        )
+      ).status
+    ).toBe(200);
+    const permissions = await request(rules, { headers: { Cookie: session } });
+    expect(await permissions.json()).toMatchObject({
+      rules: [{ label: "Help center", decision: "allow" }],
+      connections: [{ connector: "computer" }]
+    });
+    const project = await post(
+      "/api/projects",
+      { name: "Website", botIds: [teammate.id] },
+      session
+    );
+    expect(project.status).toBe(200);
+    const projects = await request("/api/projects", { headers: { Cookie: session } });
+    expect(await projects.json()).toMatchObject({
+      projects: [{ name: "Website", botIds: [teammate.id], resources: [] }]
+    });
+    expect(
+      (await post("/api/projects", { name: "Unknown member", botIds: ["unknown"] }, session)).status
+    ).toBe(400);
+  });
   it("lists backups when the optional version path is absent", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const created = await post(
@@ -174,20 +252,9 @@ describe("HQBot Worker authentication", () => {
     }
 
     expect((await request("/health")).status).toBe(200);
-    expect(await storage.exec("SELECT version FROM schema_migrations ORDER BY version")).toEqual([
-      { version: 1 },
-      { version: 2 },
-      { version: 3 },
-      { version: 4 },
-      { version: 5 },
-      { version: 6 },
-      { version: 7 },
-      { version: 8 },
-      { version: 9 },
-      { version: 10 },
-      { version: 11 },
-      { version: 12 }
-    ]);
+    expect(await storage.exec("SELECT version FROM schema_migrations ORDER BY version")).toEqual(
+      schemaMigrations.map(({ version }) => ({ version }))
+    );
     expect(await storage.exec("SELECT name FROM pragma_table_info('owner') ORDER BY cid")).toEqual(
       expect.arrayContaining([{ name: "username" }, { name: "password_hash" }])
     );
