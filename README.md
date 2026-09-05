@@ -5,8 +5,8 @@
 <h1 align="center">Self-hosted AI teammates on Cloudflare</h1>
 
 <p align="center">
-  Chat with AI teammates, give them real work, watch their computer, and approve actions before
-  they send anything.
+  Chat with AI teammates, give them real work, watch their computer, and review actions that
+  need your decision.
 </p>
 
 <p align="center">
@@ -30,6 +30,9 @@ flowchart LR
   Bot --> Files[R2 durable files]
   Bot <-->|MCP| Tools[Connected tools]
 ```
+
+Read the [workspace guide](docs/workspace-guide.md) for the everyday interface and the
+[native client guide](clients/README.md) for macOS, iOS, and Android builds.
 
 ## What it does
 
@@ -58,7 +61,9 @@ flowchart LR
 - Saves best-effort recovery checkpoints to R2 before managed sleep.
 - Shows computer CPU, memory, disk, uptime, and estimated cost.
 - Connects to compatible remote MCP servers and discovers their tools at run time.
-- Leaves inbound events to a separate future signed webhook or channel layer.
+- Runs routines from signed GitHub, Slack, or generic inbound events, with replay protection.
+- Adds projects, shared work, searchable history, memory and skill revisions, templates, and an Inbox.
+- Supports named team access, scoped permissions, device notifications, and optional native clients.
 - Shows estimated model and computer cost by task, teammate, and overall use, plus raw Durable
   Object, Agent schedule, task, and R2 file footprints.
 - Stops active work on request and can delete a teammate with its saved state and files.
@@ -135,3 +140,7 @@ Read [How HQBot fits together](docs/architecture.md), [Privacy and safety](docs/
 ## License
 
 HQBot is available under AGPL-3.0-only. See [LICENSE](LICENSE).
+
+For an isolated UI preview, run `pnpm dev:ui`. Open `/__ui/workspace?page=library` to inspect the
+workspace with sample data. This preview has no Cloudflare credentials or live actions. With that
+server running, `pnpm test:ui` checks phone and desktop layouts in a fresh Chrome test profile.

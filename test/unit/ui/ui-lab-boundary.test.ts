@@ -42,6 +42,6 @@ describe("AI UI lab boundary", () => {
     const packageJson = JSON.parse(
       await readFile(join(uiRoot, "..", "..", "package.json"), "utf8")
     );
-    expect(packageJson.scripts["dev:ui"]).toBe("vite --open /__ui");
+    expect(packageJson.scripts["dev:ui"]).toBe("vite --config vite.ui.config.ts --open /__ui");
   });
 });

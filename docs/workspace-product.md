@@ -40,7 +40,7 @@ The same layout must work on a phone. Each action shows progress, an outcome, or
   Public templates require an explicit publish action and can be revoked.
 - Installed clients connect to a chosen customer-owned HQBot deployment. Desktop local execution
   is separate, disabled until paired, and asks locally before each command by default. Web pages
-  cannot use the native command bridge. Mobile builds support the same hosted work and decisions.
+  have no native command bridge. Mobile builds support the same hosted work and decisions.
 - Team access uses named accounts, roles, project membership, revocable invitations, and an audit
   trail. Authorization applies to HTTP, realtime connections, artifacts, and agent RPC entrypoints.
   Network and connector restrictions are enforced before tool execution.
@@ -60,9 +60,9 @@ separate gate at the end of this list.
 - [x] Demonstration recording and draft skill generation.
 - [x] Threads, reactions, mentions, search, and safe artifact previews.
 - [x] Bot duplication, template import/export, and revocable public sharing.
-- [ ] Responsive workspace UI and installable web app.
-- [ ] Desktop client and opt-in local execution companion.
-- [ ] iOS and Android clients and build instructions.
+- [x] Responsive workspace UI and installable web app.
+- [x] Desktop client and opt-in local execution companion.
+- [x] iOS and Android clients and build instructions.
 - [x] Team roles, invitations, access checks, and administration.
 - [ ] Fresh/update migration tests, full local gates, rendered UI checks, and deployed acceptance.
 
@@ -179,3 +179,13 @@ stable ID. Use a vision model with the teammate's budget and no tools. It must n
 demonstrated actions. Save uncertain steps as questions and mark the skill as draft. Only the
 owner's later review or a successful test can make it ready. Keep source recording IDs, generation
 status, and errors. Stop, archive, or delete must prevent an unfinished draft from being published.
+
+## Native client release boundary
+
+The macOS app, iOS Simulator app, and Android debug APK have local build checks. They connect to the
+hosted workspace without exposing native commands to JavaScript. macOS uses a separate companion
+with local approval. The working folder is a starting location, not filesystem isolation.
+
+Web Push and demonstration recording use supported browsers. Native shells do not yet register
+APNs or FCM tokens, and do not provide native screen recording. Device UI checks, release signing,
+notarization, and store publication remain distinct from compilation. See the client build guide.

@@ -12,6 +12,7 @@ import {
 
 import type { BotSkill } from "../../domain/types";
 import type { WorkspaceController } from "../hooks/use-workspace";
+import { useWorkspacePage } from "../hooks/use-workspace-page";
 
 import { ConversationPanel } from "./conversation-panel";
 import { DetailsPanel } from "./details/details-panel";
@@ -47,9 +48,7 @@ const SettingsPage = lazy(() =>
 
 export function WorkspaceShell({ controller }: { controller: WorkspaceController }) {
   const [prompt, setPrompt] = useState("");
-  const [page, setPage] = useState<
-    "chat" | "library" | "projects" | "automations" | "inbox" | "search" | "templates" | "settings"
-  >(() => (new URL(location.href).searchParams.get("page") === "inbox" ? "inbox" : "chat"));
+  const [page, setPage] = useWorkspacePage();
   const [mobileViewport, setMobileViewport] = useState(
     () => window.matchMedia("(max-width: 1023px)").matches
   );

@@ -54,6 +54,56 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("pairs a scoped local client, starts once, and rejects revoked device tokens", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Local files" }, session)
+    ).json()) as { teammate: { id: string } };
+    expect((await post("/api/local-devices/pair", { botIds: [teammate.id] })).status).toBe(401);
+    const { code } = (await (
+      await post("/api/local-devices/pair", { botIds: [teammate.id] }, session)
+    ).json()) as { code: string };
+    const paired = await post("/api/local-client/pair", { code, name: "Test Mac" });
+    expect(paired.status).toBe(201);
+    const device = (await paired.json()) as { id: string; token: string };
+    expect((await post("/api/local-client/pair", { code, name: "Duplicate" })).status).toBe(409);
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    const stamp = new Date().toISOString();
+    await storage.exec(
+      "INSERT INTO local_jobs (id,device_id,bot_id,command,directory,state,created_at,updated_at) VALUES (?,?,?,'pwd','','queued',?,?)",
+      "command",
+      device.id,
+      teammate.id,
+      stamp,
+      stamp
+    );
+    const client = (path: string, body?: unknown) =>
+      request(`/api/local-client${path}`, {
+        method: body ? "POST" : "GET",
+        headers: { Authorization: `Bearer ${device.token}`, "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined
+      });
+    expect(await (await client("/jobs")).json()).toMatchObject({ jobs: [{ id: "command" }] });
+    const claim = { id: "command", claimId: crypto.randomUUID() };
+    expect((await client("/claim", claim)).status).toBe(200);
+    expect((await client("/start", claim)).status).toBe(200);
+    expect((await client("/start", claim)).status).toBe(409);
+    expect(
+      (
+        await request(`/api/local-devices/${device.id}`, {
+          method: "DELETE",
+          headers: { Cookie: session, Origin: origin }
+        })
+      ).status
+    ).toBe(200);
+    expect((await client("/result", { ...claim, state: "completed", result: "late" })).status).toBe(
+      401
+    );
+    expect((await client("/jobs")).status).toBe(401);
+  });
+
   it("enforces named team access on HTTP, files, agent routes, and revocation", async () => {
     const ownerSession = cookie(await post("/api/auth/bootstrap", owner));
     const createBot = async (brief: string) =>

@@ -8,7 +8,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "vite",
-    "dev:ui": "vite --open /__ui",
+    "dev:ui": "vite --config vite.ui.config.ts --open /__ui",
     "build": "tsc -b && vite build",
     "test": "pnpm test:unit && pnpm test:integration",
     "test:unit": "vitest run --config vitest.config.ts && vitest run --config vitest.approvals.config.ts",
@@ -22,7 +22,8 @@
     "deploy": "node scripts/deploy.mjs",
     "deploy:dry-run": "pnpm build && wrangler deploy --dry-run",
     "check": "pnpm code:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:architecture && pnpm build",
-    "hqbot": "node scripts/install.mjs"
+    "hqbot": "node scripts/install.mjs",
+    "test:ui": "node scripts/check-ui.mjs"
   },
   "cloudflare": {
     "bindings": {
