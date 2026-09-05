@@ -134,7 +134,7 @@ export function ModelPanel({
             void changeMaxSteps(event.target.value ? Number(event.target.value) : null)
           }
         >
-          <option value="">Unlimited (default)</option>
+          <option value="">40 steps (default)</option>
           {[8, 16, 32, 64].map((steps) => (
             <option key={steps} value={steps}>
               {steps} steps
@@ -144,8 +144,8 @@ export function ModelPanel({
         <PiCaretDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-tertiary" />
       </div>
       <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-        One step is one model and tool round. Unlimited continues until the agent replies, waits, or
-        stops.
+        One step is one model and tool round. The default allows 40 steps per turn. Longer tasks
+        save a checkpoint and continue until the agent replies, waits, or stops.
       </p>
       {error ? <p className="mt-2 text-[11px] text-destructive">{error}</p> : null}
     </div>

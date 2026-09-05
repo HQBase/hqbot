@@ -2,13 +2,15 @@ import type { ProxyToolOutput } from "@cloudflare/codemode";
 import type {
   ChatResponseResult,
   PrepareStepContext,
+  Session,
   StepConfig,
   ThinkSubmissionInspection,
   TurnConfig,
   TurnContext
 } from "@cloudflare/think";
+import { defaultContextOverflowClassifier } from "@cloudflare/think";
 import { callable } from "agents";
-import { type LanguageModel, type ToolSet, tool } from "ai";
+import { generateText, type ToolSet, tool } from "ai";
 import type { IntegrationApproval } from "./domain/actions";
 import { createComputerBrowserTools } from "./runtime/computer-browser";
 import { createComputerDesktopTools } from "./runtime/computer-desktop";
@@ -17,13 +19,11 @@ import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/com
 import { createKnowledgeTools } from "./runtime/knowledge-tools";
 import type { LinuxProcessPollPayload } from "./runtime/managed-linux-process";
 import { mcpOAuthCallbackResponse, type TeammateConnection } from "./runtime/mcp";
-import { budgetedModel } from "./runtime/model-budget";
-import { listHQBotModels, modelTokenRates } from "./runtime/model-catalog";
-import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
 import { createStopProcessTool } from "./runtime/process-tools";
 import { createScheduleTool } from "./runtime/schedule-tool";
 import { teammateScheduledTasks } from "./runtime/schedules";
 import { clearLegacyScreenshotReplayError } from "./runtime/screenshot-replay-recovery";
+import { configureWorkSession } from "./runtime/session-context";
 import { suspendTeammateWork } from "./runtime/suspension";
 import { taskManagementInput } from "./runtime/task-management";
 import { createTeammateLinuxTool } from "./runtime/teammate-linux";
@@ -33,17 +33,36 @@ import {
   submitChatTurn,
   teammateResponseText
 } from "./runtime/turn";
-import {
-  GLM_PRIMARY_MODEL_ID,
-  type HQBotModelId,
-  type TeammateChatSubmission
-} from "./runtime/types";
+import { checkpointStep, DEFAULT_TURN_STEPS, repeatedStepResult } from "./runtime/turn-supervision";
+import { GLM_PRIMARY_MODEL_ID, type TeammateChatSubmission } from "./runtime/types";
 import { migrateTeammateWork, type WorkResumePayload } from "./runtime/work";
 import { FIRST_MESSAGE_STOPPED_KEY, TeammateRuntime } from "./teammate-runtime";
 import type { Sql } from "./workspace/sql";
 
 export class HQBotTeammate extends TeammateRuntime {
-  maxSteps = Number.POSITIVE_INFINITY;
+  maxSteps = DEFAULT_TURN_STEPS;
+  contextOverflow = {
+    reactive: true,
+    maxRetries: 1,
+    proactive: { maxInputTokens: 24_000, headroom: 0.8, maxCompactions: 2 }
+  };
+  classifyChatError = defaultContextOverflowClassifier;
+  private turnStepLimit = DEFAULT_TURN_STEPS;
+
+  configureSession(session: Session): Session {
+    return configureWorkSession(
+      session,
+      async (prompt) =>
+        (
+          await generateText({
+            model: this.getModel(),
+            prompt,
+            maxOutputTokens: 1_500,
+            maxRetries: 0
+          })
+        ).text
+    );
+  }
   chatStreamStallTimeoutMs = 120_000;
   workspaceBash = false;
   includeMcpTools = false;
@@ -51,32 +70,13 @@ export class HQBotTeammate extends TeammateRuntime {
   storeMessages = false;
   storeTools = false;
 
-  private modelCatalog: ReturnType<typeof listHQBotModels> | null = null;
-
-  private modelFor(modelId: HQBotModelId): LanguageModel {
-    return createHQBotModel({
-      primaryModelId: modelId,
-      resolve: (id) =>
-        budgetedModel({
-          model: concreteLanguageModel(this.resolveModel(id)),
-          modelId: id,
-          botId: this.name,
-          taskId: () => this.currentTaskId(),
-          workspace: this.workspaceAgent,
-          rates: async () => {
-            this.modelCatalog ??= listHQBotModels(this.env.AI);
-            return modelTokenRates(await this.modelCatalog, id);
-          }
-        }),
-      onAttempt: () => undefined
-    });
-  }
-
   getModel = () => this.modelFor(GLM_PRIMARY_MODEL_ID);
 
   getTools(): ToolSet {
     const tools: ToolSet = {
-      ...createKnowledgeTools(this.workspaceAgent, this.name),
+      ...createKnowledgeTools(this.workspaceAgent, this.name, (query) =>
+        this.session.search(query, { limit: 15 })
+      ),
       ...createComputerBrowserTools({
         botId: this.name,
         computer: this.computerRuntime,
@@ -153,7 +153,7 @@ export class HQBotTeammate extends TeammateRuntime {
         activeWork.state !== "running")
     )
       throw new Error("This task continuation is stale");
-    return prepareTeammateTurn({
+    const config = await prepareTeammateTurn({
       activeWork,
       botId: this.name,
       connectedServices: this.integrationRuntime
@@ -166,9 +166,32 @@ export class HQBotTeammate extends TeammateRuntime {
       metadata: this.activeTurnMetadata,
       workspaceAgent: this.workspaceAgent
     });
+    if (activeWork)
+      config.instructions = `${config.instructions}\nSaved completion criteria: ${JSON.stringify(this.taskSupervision.criteria(activeWork.taskId))}`;
+    this.turnStepLimit = config.maxSteps ?? DEFAULT_TURN_STEPS;
+    return config;
   }
 
-  beforeStep(ctx: PrepareStepContext): StepConfig | undefined {
+  async beforeStep(ctx: PrepareStepContext): Promise<StepConfig | undefined> {
+    if (repeatedStepResult(ctx)) {
+      const work = this.tasks.active();
+      if (work && !this.processes.active())
+        await this.tasks.manage({
+          action: "needs_user",
+          goal: work.goal,
+          checkpoint: `${work.checkpoint}\nThree identical tool results. Owner review is required before continuing.`
+        });
+      throw new Error(
+        "Repeated tool calls made no progress. Review the last result before continuing."
+      );
+    }
+    if (
+      (await this.integrationRuntime.pending()).length ||
+      this.tasks.active()?.state === "uncertain"
+    )
+      return { toolChoice: "none" } as unknown as StepConfig;
+    const checkpoint = checkpointStep(ctx, this.turnStepLimit);
+    if (checkpoint && !this.processes.active()) return checkpoint;
     const scheduleChanged = ctx.steps
       .at(-1)
       ?.toolResults.some(
@@ -182,6 +205,14 @@ export class HQBotTeammate extends TeammateRuntime {
   }
 
   async onChatResponse(result: ChatResponseResult): Promise<void> {
+    const pending = await this.integrationRuntime.pending();
+    const work = this.tasks.active();
+    if (pending.length && work?.state === "running" && !this.processes.active())
+      await this.tasks.manage({
+        action: "needs_user",
+        goal: work.goal,
+        checkpoint: `${work.checkpoint}\nWaiting for owner approval of the connected action.`
+      });
     await this.tasks.run(() =>
       this.tasks.settleTurn(
         this.activeTurnMetadata?.taskId,

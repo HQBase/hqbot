@@ -36,7 +36,7 @@ describe("ModelPanel", () => {
 
     expect(modelSelect.value).toBe(GLM_PRIMARY_MODEL_ID);
     expect(stepsSelect.value).toBe("");
-    expect(view.container.textContent).toContain("Unlimited (default)");
+    expect(view.container.textContent).toContain("40 steps (default)");
     expect(view.container.textContent).toContain("GLM 5.3 Flash");
     expect(view.container.textContent).toContain("DeepSeek V4 Flash");
     expect(view.container.textContent).not.toContain(HQBOT_MODELS[0]?.description);

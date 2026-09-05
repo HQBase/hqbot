@@ -1,4 +1,5 @@
 import { Think } from "@cloudflare/think";
+import type { LanguageModel } from "ai";
 import { ActionHistory } from "./runtime/action-history";
 import { TeammateComputer } from "./runtime/computer";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
@@ -8,9 +9,13 @@ import {
   ManagedLinuxProcessSupervisor
 } from "./runtime/managed-linux-process";
 import { connectionList } from "./runtime/mcp";
+import { budgetedModel } from "./runtime/model-budget";
+import { listHQBotModels, modelTokenRates } from "./runtime/model-catalog";
+import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
 import { TaskCoordinator } from "./runtime/task-coordinator";
+import { TaskSupervision } from "./runtime/task-supervision";
 import { TeammateIntegrations } from "./runtime/teammate-integrations";
-import type { WorkspaceAgentRpc } from "./runtime/types";
+import type { HQBotModelId, WorkspaceAgentRpc } from "./runtime/types";
 import type { ActiveWork, WorkResumePayload } from "./runtime/work";
 import { TeammateLinuxProcessStore, TeammateWorkStore } from "./runtime/work";
 import type { Sql } from "./workspace/sql";
@@ -22,7 +27,29 @@ export abstract class TeammateRuntime extends Think<Env> {
   private computer: TeammateComputer | null = null;
   private integrations: TeammateIntegrations | null = null;
   private linux: ManagedLinuxProcessSupervisor | null = null;
+  private supervisor: TaskSupervision | null = null;
   private taskCoordinator: TaskCoordinator | null = null;
+
+  private modelCatalog: ReturnType<typeof listHQBotModels> | null = null;
+
+  protected modelFor(modelId: HQBotModelId): LanguageModel {
+    return createHQBotModel({
+      primaryModelId: modelId,
+      resolve: (id) =>
+        budgetedModel({
+          model: concreteLanguageModel(this.resolveModel(id)),
+          modelId: id,
+          botId: this.name,
+          taskId: () => this.currentTaskId(),
+          workspace: this.workspaceAgent,
+          rates: async () => {
+            this.modelCatalog ??= listHQBotModels(this.env.AI);
+            return modelTokenRates(await this.modelCatalog, id);
+          }
+        }),
+      onAttempt: () => undefined
+    });
+  }
 
   abstract pollLinuxProcess(payload: LinuxProcessPollPayload): Promise<void>;
   abstract recoverRuntime(): Promise<void>;
@@ -34,8 +61,21 @@ export abstract class TeammateRuntime extends Think<Env> {
     return this.env.HQBOT_AGENT.getByName(this.env.HQBOT_ID) as unknown as WorkspaceAgentRpc;
   }
 
+  protected get taskSupervision(): TaskSupervision {
+    this.supervisor ??= new TaskSupervision(
+      this.sql.bind(this) as Sql,
+      async (id) => {
+        const file = await this.workspaceAgent.getFile(id, this.name);
+        return file && (await this.env.ARTIFACTS.head(file.key)) ? file : null;
+      },
+      () => this.integrationRuntime.history()
+    );
+    return this.supervisor;
+  }
+
   protected get tasks(): TaskCoordinator {
     this.taskCoordinator ??= new TaskCoordinator({
+      supervisor: this.taskSupervision,
       botId: this.name,
       cancelProcess: (current, cancelled) => this.processes.cancelWork(current, cancelled),
       cancelSchedule: (id) => this.cancelSchedule(id),

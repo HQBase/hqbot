@@ -26,6 +26,11 @@ export class TaskRecovery {
         return;
       }
       await this.host.syncProjection(work);
+      if (
+        this.host.current()?.state !== "running" ||
+        this.host.current()?.generation !== work.generation
+      )
+        return;
       const submissionId = `task:${work.taskId}:turn:${work.generation}`;
       const result = await this.options.submitResume(work, submissionId);
       const saved = this.options.store.setSubmission(
@@ -66,9 +71,11 @@ export class TaskRecovery {
   }
 
   async reconcile(): Promise<void> {
-    const current = this.host.current();
+    let current = this.host.current();
     if (!current) return;
     await this.host.syncProjection(current).catch(() => undefined);
+    current = this.host.current();
+    if (!current) return;
     const process = this.options.getProcess();
     if (
       current.state === "waiting" &&

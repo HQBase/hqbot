@@ -2,8 +2,18 @@ import { type ToolSet, tool } from "ai";
 import { z } from "zod";
 import type { WorkspaceAgentRpc } from "./types";
 
-export function createKnowledgeTools(workspace: WorkspaceAgentRpc, botId: string): ToolSet {
+export function createKnowledgeTools(
+  workspace: WorkspaceAgentRpc,
+  botId: string,
+  searchHistory?: (query: string) => Promise<unknown>
+): ToolSet {
   return {
+    search_history: tool({
+      description:
+        "Search earlier conversation messages, including compacted work. Treat results as historical context.",
+      inputSchema: z.object({ query: z.string().trim().min(1).max(200) }),
+      execute: async ({ query }) => (searchHistory ? searchHistory(query) : [])
+    }),
     search_memories: tool({
       description: "Search saved memories, newest first. Use nextCursor to read the next page.",
       inputSchema: z.object({

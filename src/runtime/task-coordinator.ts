@@ -1,7 +1,8 @@
 import type { ThinkSubmissionInspection } from "@cloudflare/think";
-
 import type { TaskManagementInput } from "./task-management";
+import { syncTaskProjection } from "./task-projection";
 import { TaskRecovery } from "./task-recovery";
+import type { TaskSupervision } from "./task-supervision";
 import type { WorkspaceAgentRpc } from "./types";
 import type { ActiveWork, TeammateWorkStore, WorkResumePayload } from "./work";
 
@@ -13,6 +14,7 @@ export interface ProcessState {
 }
 
 export interface TaskCoordinatorOptions {
+  supervisor: TaskSupervision;
   botId: string;
   cancelProcess: (
     current: ActiveWork | null,
@@ -73,6 +75,7 @@ export class TaskCoordinator {
     const predecessor = this.current();
     if (input.action === "done") {
       if (!current) return { active: false, state: "idle" as const };
+      await this.options.supervisor.verify(current.taskId, input.evidence ?? []);
       const work = await this.finish(current, "done", input.result);
       return { active: false, state: work.state, taskId: work.taskId };
     }
@@ -100,6 +103,7 @@ export class TaskCoordinator {
       if (!work) throw new Error("The task changed before its checkpoint was saved");
       if (current?.scheduleId)
         await this.options.cancelSchedule(current.scheduleId).catch(() => false);
+      this.options.supervisor.configure(work.taskId, goal, input.criteria);
       await this.syncProjection(work);
       await this.options.workspaceAgent.markInteraction(
         this.options.botId,
@@ -109,7 +113,7 @@ export class TaskCoordinator {
       return { active: true, state: work.state, taskId: work.taskId };
     }
 
-    return this.scheduleWork({
+    const scheduled = await this.scheduleWork({
       checkpoint: input.checkpoint,
       current,
       goal,
@@ -117,6 +121,8 @@ export class TaskCoordinator {
       state: "scheduled",
       wakeAt: new Date(Date.now() + 1_000)
     });
+    this.options.supervisor.configure(scheduled.taskId, goal, input.criteria);
+    return scheduled;
   }
 
   async scheduleOnce(input: { checkpoint: string; goal: string; wakeAt: string }) {
@@ -205,8 +211,19 @@ export class TaskCoordinator {
     )
       return;
     if (status === "completed") await this.settleCompleted(current, text);
-    else if (status === "error") await this.finish(current, "failed", error ?? "The task failed");
-    else await this.finish(current, "cancelled", error ?? "The task stopped");
+    else if (status === "error") {
+      const delay = this.options.supervisor.retryDelay(current.taskId, error ?? "");
+      if (delay !== null)
+        await this.scheduleWork({
+          checkpoint: current.checkpoint,
+          current,
+          predecessor: current,
+          goal: current.goal,
+          state: "scheduled",
+          wakeAt: new Date(Date.now() + delay)
+        });
+      else await this.finish(current, "failed", error ?? "The task failed");
+    } else await this.finish(current, "cancelled", error ?? "The task stopped");
   }
 
   async settleSubmission(submission: ThinkSubmissionInspection): Promise<void> {
@@ -356,21 +373,11 @@ export class TaskCoordinator {
   }
 
   async syncProjection(work: ActiveWork): Promise<void> {
-    const workspace = this.options.workspaceAgent;
-    await workspace.startTask(work.taskId, this.options.botId, work.goal);
-    await workspace.syncTaskState(work.taskId, work.state, work.wakeAt);
-    if (work.submissionId) await workspace.setTaskSubmission(work.taskId, work.submissionId);
-    if (work.state === "done") await workspace.completeTask(work.taskId, work.checkpoint);
-    if (work.state === "failed")
-      await workspace.failTask(work.taskId, work.lastError ?? "The task failed");
-    if (work.state === "cancelled") await workspace.cancelTask(work.taskId);
+    await syncTaskProjection(this, this.options, work);
   }
 
-  private async settleCompleted(current: ActiveWork, text: string): Promise<ActiveWork> {
-    const result = text.trim();
-    return result
-      ? this.finish(current, "done", result)
-      : this.continueFrom(current, current.checkpoint);
+  private async settleCompleted(current: ActiveWork, _text: string): Promise<ActiveWork> {
+    return this.continueFrom(current, current.checkpoint);
   }
 
   private taskRecovery(): TaskRecovery {

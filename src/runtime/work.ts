@@ -173,7 +173,7 @@ export class TeammateWorkStore {
       ["scheduled", "waiting", "running"].includes(current.state);
     const missingTransition =
       current?.taskId === payload.taskId &&
-      !isTerminalWork(current.state) &&
+      ["scheduled", "waiting", "running"].includes(current.state) &&
       current.generation + 1 === payload.generation &&
       current.taskId === payload.predecessorTaskId &&
       current.generation === payload.predecessorGeneration;

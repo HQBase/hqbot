@@ -69,6 +69,12 @@ function continuationHarness(submitError?: Error) {
     syncTaskState: vi.fn()
   };
   const tasks = new TaskCoordinator({
+    supervisor: {
+      configure: vi.fn(),
+      verify: vi.fn(),
+      observe: () => null,
+      retryDelay: () => null
+    } as never,
     botId: "bot-1",
     cancelProcess: vi.fn(),
     cancelSchedule: vi.fn(),
@@ -89,6 +95,12 @@ function continuationHarness(submitError?: Error) {
 describe("task coordinator", () => {
   it("rejects manage_task before it enters the queue when Bash owns the task", () => {
     const tasks = new TaskCoordinator({
+      supervisor: {
+        configure: vi.fn(),
+        verify: vi.fn(),
+        observe: () => null,
+        retryDelay: () => null
+      } as never,
       getProcess: () => ({ active: true, generation: 1, hasResult: false, taskId: "task-1" })
     } as never);
 

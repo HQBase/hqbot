@@ -88,7 +88,8 @@ describe("teammate work storage", () => {
       { version: 2 },
       { version: 3 },
       { version: 4 },
-      { version: 5 }
+      { version: 5 },
+      { version: 6 }
     ]);
     expect(
       database
