@@ -1,6 +1,5 @@
 import { getSandbox } from "@cloudflare/sandbox";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import { TeammateComputer } from "../../src/runtime/computer";
 import type {
   ComputerControlPayload,
@@ -9,6 +8,7 @@ import type {
 } from "../../src/runtime/computer-types";
 import { COMPUTER_CHECKPOINT_KEY } from "../../src/runtime/desktop";
 import type { WorkspaceAgentRpc } from "../../src/runtime/types";
+import { installFixedLengthStream } from "../support/fixed-length-stream";
 
 vi.mock("@cloudflare/sandbox", () => ({ getSandbox: vi.fn() }));
 
@@ -31,6 +31,7 @@ class MemoryStorage {
 }
 
 function harness(hasManagedProcess?: () => boolean) {
+  installFixedLengthStream();
   let schedule = 0;
   const storage = new MemoryStorage();
   const desktopProcess = {
@@ -56,11 +57,11 @@ function harness(hasManagedProcess?: () => boolean) {
     })),
     exists: vi.fn().mockResolvedValue({ exists: true }),
     getProcess: vi.fn().mockResolvedValue(desktopProcess),
-    readFile: vi.fn().mockResolvedValue({
+    readFile: vi.fn().mockImplementation(async () => ({
       content: new Blob(["checkpoint"]).stream(),
       mimeType: "application/gzip",
       size: 10
-    }),
+    })),
     setKeepAlive: vi.fn().mockResolvedValue(undefined),
     startProcess: vi.fn().mockResolvedValue(desktopProcess),
     stop: vi.fn().mockResolvedValue(undefined)
@@ -68,7 +69,7 @@ function harness(hasManagedProcess?: () => boolean) {
   vi.mocked(getSandbox).mockReturnValue(sandbox as never);
   const artifacts = {
     get: vi.fn().mockResolvedValue(null),
-    put: vi.fn().mockResolvedValue(undefined)
+    put: vi.fn(async (_key, body: ReadableStream) => new Response(body).arrayBuffer())
   };
   const recordResourceUsage = vi.fn().mockResolvedValue(undefined);
   const checkSpendPolicy = vi.fn().mockResolvedValue({ allowed: true, reason: null });

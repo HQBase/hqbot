@@ -1,4 +1,5 @@
 import { getSandbox, type Process, type Sandbox } from "@cloudflare/sandbox";
+import { putCheckpointStream } from "./checkpoint-stream";
 
 export const DESKTOP_PORT = 6080;
 export const COMPUTER_CHECKPOINT_KEY = (botId: string) =>
@@ -185,14 +186,10 @@ export async function checkpointComputer(
     if (result.exitCode !== 0) throw new Error("The computer checkpoint could not be created");
     const file = await sandbox.readFile(CHECKPOINT_PATH, { encoding: "none" });
     const versionKey = `teammates/${botId}/computer/backups/${new Date().toISOString()}-${crypto.randomUUID()}.tar.gz`;
-    await bucket.put(versionKey, file.content, {
-      httpMetadata: { contentType: "application/gzip" }
-    });
+    await putCheckpointStream(bucket, versionKey, file);
     // Read a second stream after the version is durable. Tee can buffer a large archive in memory.
     const latest = await sandbox.readFile(CHECKPOINT_PATH, { encoding: "none" });
-    await bucket.put(COMPUTER_CHECKPOINT_KEY(botId), latest.content, {
-      httpMetadata: { contentType: "application/gzip" }
-    });
+    await putCheckpointStream(bucket, COMPUTER_CHECKPOINT_KEY(botId), latest);
     return { size: file.size };
   } finally {
     await sandbox.deleteFile(CHECKPOINT_PATH).catch(() => undefined);

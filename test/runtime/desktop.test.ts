@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { getSandbox, type Process } from "@cloudflare/sandbox";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import {
   COMPUTER_CHECKPOINT_KEY,
   COMPUTER_IDLE_SECONDS,
@@ -18,6 +17,7 @@ import {
   stopLinuxComputer,
   teammateSandbox
 } from "../../src/runtime/desktop";
+import { installFixedLengthStream } from "../support/fixed-length-stream";
 
 vi.mock("@cloudflare/sandbox", () => ({ getSandbox: vi.fn() }));
 const getSandboxMock = vi.mocked(getSandbox);
@@ -38,11 +38,11 @@ function sandbox(current: Process | null = null) {
     exec: vi.fn().mockResolvedValue({ duration: 1, exitCode: 0, stderr: "", stdout: "" }),
     exists: vi.fn().mockResolvedValue({ exists: false }),
     getProcess: vi.fn().mockResolvedValue(current),
-    readFile: vi.fn().mockResolvedValue({
+    readFile: vi.fn().mockImplementation(async () => ({
       content: new Blob(["checkpoint"]).stream(),
       mimeType: "application/gzip",
       size: 10
-    }),
+    })),
     setKeepAlive: vi.fn().mockResolvedValue(undefined),
     startProcess: vi.fn().mockResolvedValue(started),
     stop: vi.fn().mockResolvedValue(undefined),
@@ -56,12 +56,13 @@ function bucket(checkpoint: { body: ReadableStream; size: number } | null = null
   return {
     delete: vi.fn().mockResolvedValue(undefined),
     get: vi.fn().mockResolvedValue(checkpoint),
-    put: vi.fn().mockResolvedValue(undefined)
+    put: vi.fn(async (_key, body: ReadableStream) => new Response(body).arrayBuffer())
   };
 }
 
 describe("teammate Linux computer", () => {
   beforeEach(() => {
+    installFixedLengthStream();
     getSandboxMock.mockReset();
   });
 

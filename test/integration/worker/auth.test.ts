@@ -53,6 +53,20 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("lists backups when the optional version path is absent", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const created = await post(
+      "/api/bots",
+      { brief: "Backup route test", conversation: true },
+      session
+    );
+    const { teammate } = (await created.json()) as { teammate: { id: string } };
+    const response = await request(`/api/bots/${teammate.id}/backups`, {
+      headers: { Cookie: session }
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ backups: [], status: { running: false } });
+  });
   it("reports health and protects owner-only routes", async () => {
     const health = await request("/health");
     expect(health.status).toBe(200);

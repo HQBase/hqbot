@@ -66,3 +66,7 @@ Task progress shows saved criteria, milestones, and completion evidence in teamm
 Each turn supplies the current UTC time for scheduling. The agent calls a required computer tool
 once; the runtime creates its approval card. Finite tasks save their next checkpoint with a
 one-time schedule. They do not need a computer command only to read the clock.
+
+Computer approval decisions are saved as new turn context before the runtime applies them. This
+lets the result resume a task that was parked for approval without reusing an old task generation.
+Backup uploads declare their byte length for R2 and stream without buffering the full archive.

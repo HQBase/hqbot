@@ -24,7 +24,8 @@ function fixture() {
     approve: vi.fn(),
     reject: vi.fn(),
     isActive: async () => true,
-    uncertain: vi.fn()
+    uncertain: vi.fn(),
+    beforeDecision: vi.fn().mockResolvedValue(undefined)
   };
   return { permissions: new ComputerPermissions(sql, host), host };
 }
@@ -59,6 +60,10 @@ it("rejects an old approval or changed input before dispatch", async () => {
   if (!pending) throw new Error("Pending action missing");
   await expect(permissions.decide("one", "different", true)).rejects.toThrow("stale");
   expect(host.approve).not.toHaveBeenCalled();
+  expect(host.beforeDecision).not.toHaveBeenCalled();
   await permissions.decide("one", pending.inputHash, true);
   expect(host.approve).toHaveBeenCalledWith("one");
+  expect(host.beforeDecision.mock.invocationCallOrder[0]).toBeLessThan(
+    host.approve.mock.invocationCallOrder[0] ?? 0
+  );
 });

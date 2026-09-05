@@ -27,6 +27,7 @@ export class ComputerPermissions {
       approve: (id: string) => Promise<unknown>;
       reject: (id: string) => Promise<unknown>;
       isActive: () => Promise<boolean>;
+      beforeDecision?: (id: string, approved: boolean) => Promise<void>;
       uncertain: () => Promise<void>;
     }
   ) {}
@@ -57,6 +58,7 @@ export class ComputerPermissions {
     const pending = (await this.pending()).find((item) => item.executionId === id);
     if (!pending || pending.inputHash !== hash)
       throw new Error("This computer approval is stale. Refresh before deciding.");
+    await this.host.beforeDecision?.(id, approved);
     return approved ? this.host.approve(id) : this.host.reject(id);
   }
   actions(tools: ToolSet): Record<string, Action> {

@@ -103,7 +103,7 @@ export function pathMatch(path: string, pattern: RegExp): string[] | null {
   const match = pattern.exec(path);
   if (!match) return null;
   try {
-    return match.slice(1).map(decodeURIComponent);
+    return match.slice(1).map((value) => (value === undefined ? "" : decodeURIComponent(value)));
   } catch {
     return null;
   }

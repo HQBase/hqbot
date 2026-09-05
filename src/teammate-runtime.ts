@@ -140,6 +140,30 @@ export abstract class TeammateRuntime extends Think<Env> {
   protected get computerPermissions(): ComputerPermissions {
     this.permissions ??= new ComputerPermissions(this.sql.bind(this) as Sql, {
       pending: () => this.pendingApprovals(),
+      beforeDecision: async (id, approved) => {
+        const messageId = `computer-decision:${id}`;
+        if (this.messages.some((message) => message.id === messageId)) return;
+        const work = this.tasks.active();
+        await this.addMessages([
+          {
+            id: messageId,
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: `The owner ${approved ? "approved" : "denied"} the exact computer action ${id}. Use its recorded tool outcome. Do not repeat the action.`
+              }
+            ],
+            metadata: {
+              turnMetadata: {
+                source: "computer-decision",
+                taskId: work?.taskId,
+                generation: work?.generation
+              }
+            }
+          }
+        ]);
+      },
       approve: (id) => this.approveExecution(id),
       reject: (id) => this.rejectExecution(id),
       isActive: async () => {
