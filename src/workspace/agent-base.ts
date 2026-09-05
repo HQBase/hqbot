@@ -121,8 +121,8 @@ export class WorkspaceAgentBase extends Agent<Env, Record<string, never>> {
     return memory;
   }
 
-  listMemories(botId: string): BotMemory[] {
-    return this.catalog.listMemories(botId);
+  listMemories(botId: string, options?: { query?: string; before?: string }): BotMemory[] {
+    return this.catalog.listMemories(botId, options);
   }
 
   deleteMemory(id: string, botId: string): boolean {

@@ -45,6 +45,40 @@ afterEach(() => {
 });
 
 describe("new teammate chat", () => {
+  it("ignores an old snapshot even if fetch ignores cancellation", async () => {
+    const one = { id: "one", name: "One" };
+    const two = { id: "two", name: "Two" };
+    const initial = {
+      bots: [one, two],
+      archivedBots: [],
+      selectedBot: one,
+      tasks: [],
+      realtime: { url: null }
+    };
+    let finishOld!: (value: Response) => void;
+    const old = new Promise<Response>((resolve) => {
+      finishOld = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(initial))
+        .mockReturnValueOnce(old)
+        .mockResolvedValueOnce(jsonResponse({ ...initial, selectedBot: two }))
+    );
+    const view = await renderComponent(createElement(WorkspaceHarness));
+    const oldLoad = controller().load();
+    controller().selectBot(two as never);
+    await interact();
+    finishOld(jsonResponse(initial));
+    await oldLoad;
+    await interact();
+    expect(controller().selectedBot?.id).toBe("two");
+    expect(controller().snapshot?.selectedBot?.id).toBe("two");
+    await view.unmount();
+  });
+
   it("starts with both mobile sidebars collapsed", async () => {
     vi.stubGlobal(
       "fetch",

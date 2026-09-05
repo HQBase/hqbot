@@ -17,6 +17,17 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
   const agent = await workspace(env);
 
   const memories = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/memories$/u);
+  if (request.method === "GET" && memories?.[0]) {
+    const items = await agent.listMemories(memories[0], {
+      query: url.searchParams.get("query") ?? "",
+      before: url.searchParams.get("before") ?? ""
+    });
+    const last = items.at(-1);
+    return json({
+      memories: items,
+      nextCursor: items.length === 50 && last ? `${last.createdAt}:${last.id}` : null
+    });
+  }
   if (request.method === "POST" && memories?.[0]) {
     const unavailable = await requireActiveTeammate(agent, memories[0]);
     if (unavailable) return unavailable;

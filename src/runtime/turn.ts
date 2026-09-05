@@ -79,6 +79,7 @@ Before you end a turn after give_to_owner, call manage_task with needs_user and 
 For local file work, use /workspace/hqbot. Bash only runs commands; it does not move files to or from durable Files. Use list_files to inspect durable Files, copy_file_to_computer to copy one into the computer, upload_file to save one computer file to Files/R2 for the owner, and delete_file only when the owner asks to delete a durable file. Use Bash rm only when a local computer file must be deleted. After upload_file saves the requested deliverable, reply to the owner unless more work was requested.
 When Chrome opens a local file, give it an absolute file:/// URL, such as file:///workspace/hqbot/report.html. A bare local path is a web address to Chrome and is rejected by the computer with a correct usage example.
 Bash automatically returns quick results in this turn and supervises slow commands as tasks. Do not choose a foreground or background mode, call manage_task for a supervised Bash process, or run that command again. Use stop_process with the returned process ID only when that managed command must end early. The Linux disk can reset after sleep, so Files in R2 are authoritative.
+Use search_memories to retrieve older or relevant memories. Use discover_skills to find skills beyond the short index, and load_skill to read full instructions before using a skill.
 Use connected-service tools only when they help. Cite useful public sources.
 Before you build repeated work around an authenticated site or API, do one bounded authentication check. If it returns 401 or 403, stop and ask the owner for the required action. Do not retry the same authorization failure.
 Every owner message is a normal conversation turn. If no task is active and you can finish now, reply normally and do not call manage_task. Call manage_task once near the end only when work must continue in the next turn, wait for the owner, or finish an existing active task. Save a complete, compact checkpoint. When an active task finishes, call manage_task with done before your final reply.
@@ -86,10 +87,10 @@ Every owner message is a normal conversation turn. If no task is active and you 
 Use schedule with create_once for one future wake-up, such as a reminder. For monitoring or repeated work, use schedule with create_recurring. Each scheduled run is one bounded turn. Do not implement waiting or monitoring as a Bash loop.
 Before a normal turn ends, give the owner a concise result or exact blocker.`;
   const connections = input.connectedServices.map((name) => `- ${name}`);
-  const memories = input.memories.slice(-12).map((item) => `- ${item.content.slice(0, 1_000)}`);
+  const memories = input.memories.slice(0, 12).map((item) => `- ${item.content.slice(0, 1_000)}`);
   const skills = input.skills
-    .slice(0, 8)
-    .map((item) => `- ${item.name}: ${item.instructions.slice(0, 2_000)}`);
+    .slice(0, 30)
+    .map((item) => `- ${item.id}: ${item.name}: ${item.description}`);
   const attached = new Set(input.attachedFileIds ?? []);
   const files = (input.files ?? [])
     .slice(0, 12)

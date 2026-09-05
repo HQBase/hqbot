@@ -15,6 +15,7 @@ import { createComputerDesktopTools } from "./runtime/computer-desktop";
 import { createComputerFileTools } from "./runtime/computer-files";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
 import { estimateModelUsage, identifyModel } from "./runtime/costs";
+import { createKnowledgeTools } from "./runtime/knowledge-tools";
 import type { LinuxProcessPollPayload } from "./runtime/managed-linux-process";
 import { mcpOAuthCallbackResponse, type TeammateConnection } from "./runtime/mcp";
 import { listHQBotModels, modelTokenRates } from "./runtime/model-catalog";
@@ -67,6 +68,7 @@ export class HQBotTeammate extends TeammateRuntime {
 
   getTools(): ToolSet {
     const tools: ToolSet = {
+      ...createKnowledgeTools(this.workspaceAgent, this.name),
       ...createComputerBrowserTools({
         botId: this.name,
         computer: this.computerRuntime,

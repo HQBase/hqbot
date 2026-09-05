@@ -122,9 +122,13 @@ export class WorkspaceCatalog {
     return { id, botId, content, createdAt };
   }
 
-  listMemories(botId: string): BotMemory[] {
+  listMemories(botId: string, options: { query?: string; before?: string } = {}): BotMemory[] {
+    const query = (options.query ?? "").trim().slice(0, 200);
+    const before = options.before ?? "";
     return this.sql<Row>`SELECT * FROM memories WHERE bot_id = ${botId}
-      ORDER BY created_at ASC LIMIT 50`.map(memoryFromRow);
+      AND (${query} = '' OR instr(lower(content), lower(${query})) > 0)
+      AND (${before} = '' OR created_at || ':' || id < ${before})
+      ORDER BY created_at DESC, id DESC LIMIT 50`.map(memoryFromRow);
   }
 
   deleteMemory(id: string, botId: string): boolean {

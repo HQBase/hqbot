@@ -189,33 +189,31 @@ describe("teammate Linux computer", () => {
     });
     expect(runtime.stub.writeFile).toHaveBeenCalledWith("/tmp/hqbot-workspace.tar.gz", body);
     expect(runtime.stub.exec).toHaveBeenCalledWith(
-      "mkdir -p /workspace && tar -xzf /tmp/hqbot-workspace.tar.gz -C /workspace && touch /tmp/hqbot-computer-prepared",
+      expect.stringContaining("tar -xzf /tmp/hqbot-workspace.tar.gz --no-same-owner -C"),
       { timeout: 120_000 }
     );
     expect(runtime.stub.deleteFile).toHaveBeenCalledWith("/tmp/hqbot-workspace.tar.gz");
   });
 
-  it("removes a corrupt R2 checkpoint and starts with a clean workspace", async () => {
+  it.each([
+    "invalid archive",
+    "disk full",
+    "permission denied"
+  ])("preserves the saved checkpoint when restore fails: %s", async (stderr) => {
     const runtime = sandbox();
     vi.mocked(runtime.stub.exec).mockResolvedValueOnce({
       duration: 1,
       exitCode: 1,
-      stderr: "invalid archive",
+      stderr,
       stdout: ""
     } as never);
-    const storage = bucket({ body: new Blob(["broken"]).stream(), size: 6 });
-
-    await expect(restoreComputer(runtime.stub, storage, "bot-1")).resolves.toEqual({
-      restored: false,
-      size: 0
-    });
-    expect(storage.delete).toHaveBeenCalledWith(COMPUTER_CHECKPOINT_KEY("bot-1"));
-    expect(runtime.stub.exec).toHaveBeenNthCalledWith(
-      2,
-      "find /workspace -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + && mkdir -p /workspace/hqbot && touch /tmp/hqbot-computer-prepared",
-      { timeout: 120_000 }
+    const storage = bucket({ body: new Blob(["saved"]).stream(), size: 5 });
+    await expect(restoreComputer(runtime.stub, storage, "bot-1")).rejects.toThrow(
+      "saved backup is unchanged"
     );
-    expect(runtime.stub.deleteFile).toHaveBeenCalledWith("/tmp/hqbot-workspace.tar.gz");
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(storage.put).not.toHaveBeenCalled();
+    expect(runtime.stub.exec).toHaveBeenCalledOnce();
   });
 
   it("closes Chrome for a clean stop and streams the workspace checkpoint to R2", async () => {

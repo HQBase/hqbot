@@ -38,6 +38,27 @@ describe("workspace teammate lifecycle", () => {
 
   afterEach(() => database.close());
 
+  it("retrieves all memories in recent pages and searches literal text", () => {
+    catalog.createBot(
+      "bot-1",
+      { name: "Test", title: "Test", description: "Test" },
+      "Test",
+      "@cf/zai-org/glm-5.3-flash",
+      2
+    );
+    for (let index = 0; index < 60; index++) {
+      catalog.createMemory(String(index).padStart(3, "0"), "bot-1", `memory ${index}`);
+    }
+    const first = catalog.listMemories("bot-1");
+    expect(first[0]?.content).toBe("memory 59");
+    const last = first.at(-1);
+    const second = catalog.listMemories("bot-1", { before: `${last?.createdAt}:${last?.id}` });
+    expect([...first, ...second]).toHaveLength(60);
+    expect(new Set([...first, ...second].map((item) => item.id)).size).toBe(60);
+    expect(catalog.listMemories("bot-1", { query: "memory 59" })[0]?.id).toBe("059");
+    expect(catalog.listMemories("bot-1", { query: "%" })).toEqual([]);
+  });
+
   it("archives a teammate and pauses its routines", () => {
     catalog.createBot(
       "bot-1",

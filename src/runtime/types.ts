@@ -21,6 +21,7 @@ export interface WorkspaceBotDto {
 
 export interface WorkspaceMemoryDto {
   id: string;
+  createdAt?: string;
   content: string;
 }
 
@@ -68,7 +69,10 @@ export interface SpendPolicyDto {
 
 export interface WorkspaceAgentRpc {
   getBot(botId: string): Promise<WorkspaceBotDto | null>;
-  listMemories(botId: string): Promise<WorkspaceMemoryDto[]>;
+  listMemories(
+    botId: string,
+    options?: { query?: string; before?: string }
+  ): Promise<WorkspaceMemoryDto[]>;
   listSkills(botId: string): Promise<WorkspaceSkillDto[]>;
   listRoutines(botId: string): Promise<WorkspaceRoutineDto[]>;
   createRoutine(input: {

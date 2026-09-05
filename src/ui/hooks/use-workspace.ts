@@ -32,12 +32,24 @@ export function useWorkspace(onSignedOut: () => void) {
   const newTeammateRef = useRef(false);
   const pendingInitialMessageRef = useRef<typeof pendingInitialMessage>(null);
   const creatingTeammateRef = useRef(false);
+  const loadRequest = useRef<{ id: number; controller?: AbortController }>({ id: 0 });
 
   const load = useCallback(async (requestedBotId?: string | null) => {
     const botId = requestedBotId === undefined ? selectedBotRef.current : requestedBotId;
+    if (botId !== selectedBotRef.current) return;
+    loadRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const id = loadRequest.current.id + 1;
+    loadRequest.current = { id, controller };
     const query = botId ? `?botId=${encodeURIComponent(botId)}` : "";
     try {
-      const next = await api<WorkspaceView>(`/api/snapshot${query}`);
+      const next = await api<WorkspaceView>(`/api/snapshot${query}`, { signal: controller.signal });
+      if (
+        controller.signal.aborted ||
+        loadRequest.current.id !== id ||
+        selectedBotRef.current !== botId
+      )
+        return;
       setSnapshot(next);
       if (!newTeammateRef.current) {
         const nextId = next.selectedBot?.id ?? next.bots[0]?.id ?? null;
@@ -46,17 +58,24 @@ export function useWorkspace(onSignedOut: () => void) {
       }
       setLoadError("");
     } catch (cause) {
+      if (
+        controller.signal.aborted ||
+        loadRequest.current.id !== id ||
+        selectedBotRef.current !== botId
+      )
+        return;
       setLoadError(errorMessage(cause, "HQBot could not load"));
     }
   }, []);
 
   useEffect(() => {
     void load(null);
+    return () => loadRequest.current.controller?.abort();
   }, [load]);
 
   const onEvent = useCallback(
     (event: WorkspaceEvent) => {
-      if (event.type === "snapshot") {
+      if (event.type === "snapshot" && event.snapshot.selectedBot?.id === selectedBotRef.current) {
         setSnapshot(event.snapshot);
         return;
       }

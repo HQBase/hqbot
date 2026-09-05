@@ -135,17 +135,27 @@ export async function restoreComputer(
   await sandbox.writeFile(CHECKPOINT_PATH, checkpoint.body);
   try {
     const result = await sandbox.exec(
-      `mkdir -p /workspace && tar -xzf ${CHECKPOINT_PATH} -C /workspace && touch ${PREPARED_PATH}`,
+      `set -eu
+stage=$(mktemp -d /workspace.restore.XXXXXX)
+previous=$(mktemp -d /workspace.previous.XXXXXX)
+trap 'rm -rf -- "$stage"' EXIT
+tar -xzf ${CHECKPOINT_PATH} --no-same-owner -C "$stage"
+mkdir -p /workspace
+rmdir "$previous"
+mv /workspace "$previous"
+if mv "$stage" /workspace; then
+  touch ${PREPARED_PATH}
+  rm -rf -- "$previous"
+else
+  mv "$previous" /workspace
+  exit 1
+fi`,
       { timeout: 120_000 }
     );
     if (result.exitCode !== 0) {
-      await bucket.delete(COMPUTER_CHECKPOINT_KEY(botId)).catch(() => undefined);
-      const clean = await sandbox.exec(
-        `find /workspace -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + && mkdir -p /workspace/hqbot && touch ${PREPARED_PATH}`,
-        { timeout: 120_000 }
+      throw new Error(
+        "Computer restore failed. The saved backup is unchanged. Retry or restore an older backup."
       );
-      if (clean.exitCode !== 0) throw new Error("A clean computer workspace could not be created");
-      return { restored: false, size: 0 };
     }
     return { restored: true, size: checkpoint.size };
   } finally {
