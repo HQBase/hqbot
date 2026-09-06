@@ -64,7 +64,7 @@ function modelText(value: unknown) {
 export function createComputerDesktopTools(options: DesktopToolsOptions): ToolSet {
   const session = tool({
     description:
-      "Manage the shared Linux computer. Start it when the owner asks. Give control to the owner when they ask or must enter a password, passkey, MFA code, or CAPTCHA. Take control back after the owner says they are done. Stop it only when the owner asks and no work is running.",
+      "Manage the shared Linux computer. Start it when the owner asks. Give control to the owner when they ask or must enter a password, passkey, MFA code, or CAPTCHA. The handoff Continue button returns control. Do not call take_back after Continue; that legacy action only confirms control is already returned. Stop it only when the owner asks and no work is running.",
     inputSchema: z.discriminatedUnion("action", [
       z.object({ action: z.literal("start") }),
       z.object({ action: z.literal("give_to_owner") }),
@@ -76,7 +76,7 @@ export function createComputerDesktopTools(options: DesktopToolsOptions): ToolSe
       if (input.action === "stop") {
         await options.computer.stop();
       } else if (input.action === "take_back") {
-        await options.computer.setOwnerControl(false);
+        await options.computer.assertModelControlAvailable();
         options.onReturn?.();
       } else {
         await options.computer.open({

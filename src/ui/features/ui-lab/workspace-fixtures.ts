@@ -97,7 +97,13 @@ export function installWorkspaceFixtures() {
                     executionId: "preview-open",
                     inputHash: "preview",
                     action: "browser_open",
-                    input: { url: "https://hqbase.example" }
+                    input: { url: "https://hqbase.example" },
+                    review: {
+                      title: "Open HQBase",
+                      reason: "Strict mode asks before opening this page.",
+                      details: "https://hqbase.example",
+                      decision: "review"
+                    }
                   }
                 ],
                 handoff: {
@@ -268,7 +274,7 @@ export function installWorkspaceFixtures() {
     else if (path === "/api/push/devices") body = { devices: [] };
     else if (path === "/api/models") body = { models: HQBOT_MODELS };
     else if (path.endsWith("/backups")) body = { backups: [], enabled: true };
-    else if (path.endsWith("/computer-permissions")) body = { policy: "review", approvals: [] };
+    else if (path.endsWith("/computer-permissions")) body = { policy: "autonomous", approvals: [] };
     else if (path.endsWith("/permission-rules")) body = { rules: [] };
     else if (path === "/api/local-devices") body = { devices: [], jobs: [] };
     else if (path === "/api/team/policy") body = { policy: { mode: "standard", origins: [] } };

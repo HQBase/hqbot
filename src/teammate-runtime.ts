@@ -5,6 +5,7 @@ import type { PermissionRuleInput } from "./domain/permissions";
 import { ActionHistory } from "./runtime/action-history";
 import { TeammateComputer } from "./runtime/computer";
 import { COMPUTER_ACTIONS, ComputerPermissions } from "./runtime/computer-permissions";
+import type { ComputerSafety } from "./runtime/computer-safety";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
 import { TeammateExternalEffects } from "./runtime/external-effects";
 import {
@@ -158,11 +159,12 @@ export abstract class TeammateRuntime extends Think<Env> {
 
   protected get computerPermissions(): ComputerPermissions {
     this.permissions ??= new ComputerPermissions(this.sql.bind(this) as Sql, {
+      safety: this.computerSafety,
       pending: () => this.pendingApprovals(),
       authorize: (name, input) => this.assertAgentToolAllowed(name, input),
       permission: (action, input, fallback) =>
         this.permissionRules.decide("computer", action, input, fallback),
-      beforeDecision: async (id, approved) => {
+      beforeDecision: async (id, approved, automatic) => {
         const messageId = `computer-decision:${id}`;
         if (this.messages.some((message) => message.id === messageId)) return;
         const work = this.tasks.active();
@@ -173,7 +175,7 @@ export abstract class TeammateRuntime extends Think<Env> {
             parts: [
               {
                 type: "text",
-                text: `The owner ${approved ? "approved" : "denied"} the exact computer action ${id}. Read the updated tool output in this conversation. This approval reference is not an action result ID. The output includes the saved actionId if you need read_action_result. Do not repeat the action.`
+                text: `${automatic ? "The owner’s computer policy allowed" : `The owner ${approved ? "approved" : "denied"}`} the exact computer action ${id}. Read the updated tool output in this conversation. This approval reference is not an action result ID. The output includes the saved actionId if you need read_action_result. Do not repeat the action.`
               }
             ],
             metadata: {
@@ -255,6 +257,7 @@ export abstract class TeammateRuntime extends Think<Env> {
   }
 
   protected abstract get ownerHandoffs(): OwnerHandoffs;
+  protected abstract get computerSafety(): ComputerSafety;
 
   protected async continueSavedAction(id: string, text: string) {
     await this.productContinuation(id);

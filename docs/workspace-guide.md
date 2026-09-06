@@ -100,3 +100,19 @@ When the agent needs you to sign in, the live computer appears in the chat. Ente
 on the computer, then select **I’m done—continue**. You can expand the screen. If the connection
 expires, select **Reconnect computer**. You do not need to find another teammate or type a resume
 message. The saved task continues with the same permissions and budget.
+
+
+Computer access defaults to **Autonomous · ask before consequential actions** for new teammates.
+The agent can browse, navigate, and prepare work without asking you about each click. It asks before
+sending, publishing, spending, destructive changes, access changes, or actions whose effects are
+unclear. Browser requests show the page, named control, and reason. Raw arguments are under
+**Technical details**.
+
+An independent AI check reviews ambiguous actions. It can make mistakes. Choose **Strict · approve
+each computer action** for closer control, or **Full access** to turn off automatic computer checks.
+Saved policies are kept during updates. Change an existing teammate's mode under Conversation info
+→ Permissions. Switching to Autonomous resumes pending routine actions that pass the new checks;
+consequential requests still wait. Connected-service permissions remain separate.
+
+The handoff **I’m done—continue** button returns control itself. You do not need to approve a
+second control request. The agent cannot take control while your handoff is open.

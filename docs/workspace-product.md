@@ -260,6 +260,20 @@ notarization, and store publication remain distinct from compilation. See the cl
 
 ### Inline owner actions
 
+New teammates use autonomous computer access. Routine browsing, navigation, local preparation,
+and control handoffs do not ask for approval. Sending messages, publishing, spending money,
+destructive changes, and access changes require review. An independent, tool-free model check
+examines ambiguous actions and the current browser target. Page content is evidence, not permission.
+Missing context or a failed check requires owner review. This check is not a proof that arbitrary
+code or a website is safe; strict review remains available. Explicit scoped rules take precedence.
+Remote MCP permissions remain separate and require review by default.
+
+Browser requests show the action, page, named target, and reason. Internal references and raw
+arguments are available only in optional technical details. Save the inspected target with the
+request and check it again before dispatch. Changed targets require a fresh request. Returning
+control with Continue needs no second approval; the agent cannot take control during an active
+owner handoff. Existing explicitly saved computer policies are preserved during upgrades.
+
 The initiating conversation shows pending computer and connected-service approvals for its own
 teammate and active descendants of its current team task. Each card names the acting teammate and
 shows the exact input. Decisions revalidate the task relationship, pending request, and input hash.

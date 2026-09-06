@@ -122,7 +122,7 @@ describe("Linux desktop tools", () => {
     expect(setOwnerControl).toHaveBeenCalledWith(true);
 
     await execute(tools.computer_session, { action: "take_back" }, "back-1");
-    expect(setOwnerControl).toHaveBeenLastCalledWith(false);
+    expect(setOwnerControl).toHaveBeenLastCalledWith(true);
     expect(open).toHaveBeenCalledTimes(2);
   });
 

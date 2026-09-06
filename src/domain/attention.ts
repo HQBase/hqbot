@@ -1,6 +1,7 @@
 import type { IntegrationApproval } from "./actions";
+import type { ComputerApproval } from "./computer-review";
 export interface OwnerAttention {
-  computerApprovals: { executionId: string; action: string; input: unknown; inputHash: string }[];
+  computerApprovals: ComputerApproval[];
   integrationApprovals: (IntegrationApproval & { connectorLabel?: string })[];
   handoff: { id: string; state: string; ownerControl: boolean; running: boolean } | null;
 }

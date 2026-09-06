@@ -9,6 +9,8 @@ export function ApprovalCard({
   description = "This connected-service tool can change remote data.",
   denyLabel = "Deny",
   details,
+  technicalDetails,
+  approveDisabled = false,
   disabled = false,
   pending,
   title = "Approve this action?",
@@ -19,6 +21,8 @@ export function ApprovalCard({
   description?: string;
   denyLabel?: string;
   details?: string | null;
+  technicalDetails?: string;
+  approveDisabled?: boolean;
   disabled?: boolean;
   pending: boolean;
   title?: string;
@@ -45,6 +49,14 @@ export function ApprovalCard({
             {details}
           </section>
         ) : null}
+        {technicalDetails && (
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">Technical details</summary>
+            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words">
+              {technicalDetails}
+            </pre>
+          </details>
+        )}
         <div className="flex justify-end gap-2">
           <Button
             disabled={pending || disabled}
@@ -55,7 +67,12 @@ export function ApprovalCard({
           >
             {denyLabel}
           </Button>
-          <Button disabled={pending || disabled} size="sm" type="button" onClick={onApprove}>
+          <Button
+            disabled={pending || disabled || approveDisabled}
+            size="sm"
+            type="button"
+            onClick={onApprove}
+          >
             {pending ? (
               <Spinner data-icon="inline-start" />
             ) : (

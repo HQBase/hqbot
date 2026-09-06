@@ -199,7 +199,10 @@ describe("agent turn", () => {
     expect(instructions).toContain("browser_press");
     expect(instructions).toContain("never repeat the same failed call unchanged");
     expect(instructions).toContain("computer_session with give_to_owner");
-    expect(instructions).toContain("computer_session with take_back");
+    expect(instructions).toContain(
+      "After Continue, control is already returned; do not call take_back"
+    );
+    expect(instructions).toContain("checks consequential or ambiguous actions before execution");
     expect(instructions).toContain("Never ask for those secrets in chat");
     expect(instructions).toContain("Never search the computer for credentials");
     expect(instructions).toContain("Never read, export, copy, log, or save passwords, cookies");

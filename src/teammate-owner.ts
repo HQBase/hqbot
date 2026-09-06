@@ -1,12 +1,26 @@
 import type { OwnerAttention } from "./domain/attention";
 import { ActionHistory } from "./runtime/action-history";
+import { readBrowserActionContext } from "./runtime/computer-action-context";
 import type { ComputerPolicy } from "./runtime/computer-permissions";
+import { reviewComputerAction } from "./runtime/computer-review-model";
+import { ComputerSafety } from "./runtime/computer-safety";
 import { OwnerHandoffs } from "./runtime/owner-handoff";
 import { TeammateRuntime } from "./teammate-runtime";
 import type { Sql } from "./workspace/sql";
 
 const scheduleRetry = { maxAttempts: 5, baseDelayMs: 1000, maxDelayMs: 10000 };
 export abstract class TeammateOwnerRuntime extends TeammateRuntime {
+  private safety: ComputerSafety | null = null;
+  protected get computerSafety(): ComputerSafety {
+    this.safety ??= new ComputerSafety(this.sql.bind(this) as Sql, {
+      inspect: (input) => readBrowserActionContext(this.computerRuntime, input),
+      classify: (action, input, context) =>
+        reviewComputerAction(this.getModel(), action, input, context),
+      ownerHasControl: async () =>
+        Boolean(this.ownerHandoffs.pending()) || (await this.computerRuntime.status()).ownerControl
+    });
+    return this.safety;
+  }
   private handoffs: OwnerHandoffs | null = null;
   protected get ownerHandoffs(): OwnerHandoffs {
     this.handoffs ??= new OwnerHandoffs(this.sql.bind(this) as Sql, {
@@ -36,8 +50,9 @@ export abstract class TeammateOwnerRuntime extends TeammateRuntime {
   getComputerPolicy() {
     return this.computerPermissions.get();
   }
-  setComputerPolicy(mode: ComputerPolicy) {
+  async setComputerPolicy(mode: ComputerPolicy) {
     this.computerPermissions.set(mode);
+    await this.computerPermissions.reconcile();
   }
   listComputerApprovals() {
     return this.computerPermissions.pending();

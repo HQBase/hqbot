@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import type { ComputerApproval, ComputerPolicy } from "../../../domain/computer-review";
 import { api, errorMessage } from "../../lib/api";
+import { ComputerApprovalCard } from "../chat/computer-approval-card";
 import { Button } from "../ui/button";
 import { Field, FieldDescription, FieldLabel } from "../ui/field";
 import { PermissionRulesPanel } from "./permission-rules-panel";
 
 interface PermissionView {
-  policy: "review" | "allow";
-  approvals: { executionId: string; action: string; input: unknown; inputHash: string }[];
+  policy: ComputerPolicy;
+  approvals: ComputerApproval[];
 }
 export function ComputerPermissionsPanel({
   botId,
@@ -81,54 +83,38 @@ export function ComputerPermissionsPanel({
                   disabled={busy}
                   onChange={(event) => void save({ policy: event.target.value })}
                 >
-                  <option value="review">Review computer actions</option>
-                  <option value="allow">Allow computer actions</option>
+                  <option value="autonomous">Autonomous · ask before consequential actions</option>
+                  <option value="review">Strict · approve each computer action</option>
+                  <option value="allow">Full access · no automatic approval checks</option>
                 </select>
                 <FieldDescription>
-                  Review asks before code runs, browser or desktop input changes, and file deletion.
-                  Allow grants these actions to this teammate, including use of signed-in sites.
-                  Scoped rules can require review, allow an action, or block it. Connected tools
-                  require review by default.
+                  Autonomous allows routine computer work. An independent check asks before sending,
+                  publishing, spending, destructive changes, access changes, or unclear actions. The
+                  check can make mistakes; Strict offers more control. Full access includes
+                  signed-in sites. Your scoped rules take precedence. Connected tools keep separate
+                  permissions.
                 </FieldDescription>
               </Field>
               {view.approvals.map((item) => (
-                <div
+                <ComputerApprovalCard
                   key={item.executionId}
-                  className="flex flex-col gap-3 rounded-xl border bg-card p-4"
-                >
-                  <strong>{item.action}</strong>
-                  <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all">
-                    {JSON.stringify(item.input, null, 2)}
-                  </pre>
-                  <div className="flex gap-4">
-                    <Button
-                      disabled={busy}
-                      type="button"
-                      onClick={() =>
-                        void save({
-                          executionId: item.executionId,
-                          inputHash: item.inputHash,
-                          approved: false
-                        })
-                      }
-                    >
-                      Deny
-                    </Button>
-                    <Button
-                      disabled={busy}
-                      type="button"
-                      onClick={() =>
-                        void save({
-                          executionId: item.executionId,
-                          inputHash: item.inputHash,
-                          approved: true
-                        })
-                      }
-                    >
-                      Approve exact action
-                    </Button>
-                  </div>
-                </div>
+                  approval={item}
+                  pending={busy}
+                  onDeny={() =>
+                    void save({
+                      executionId: item.executionId,
+                      inputHash: item.inputHash,
+                      approved: false
+                    })
+                  }
+                  onApprove={() =>
+                    void save({
+                      executionId: item.executionId,
+                      inputHash: item.inputHash,
+                      approved: true
+                    })
+                  }
+                />
               ))}
               <PermissionRulesPanel botId={botId} />
             </>

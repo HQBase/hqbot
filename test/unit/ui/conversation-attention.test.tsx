@@ -89,3 +89,39 @@ it("keeps the last request visible but disabled after a failed refresh", async (
   ).toBe(true);
   await view.unmount();
 });
+it("shows the named control and reason instead of raw references, with technical details collapsed", async () => {
+  const view = await renderComponent(
+    <OwnerActionCards
+      item={{
+        ...item,
+        handoff: null,
+        computerApprovals: [
+          {
+            executionId: "send",
+            action: "browser_click",
+            input: { ref: "e4" },
+            inputHash: "hash",
+            review: {
+              title: "Click “Send email”",
+              reason: "This sends a message to another person.",
+              details: "Mail · https://mail.example",
+              decision: "review"
+            }
+          }
+        ]
+      }}
+      disabled={false}
+      busy={null}
+      decide={vi.fn(async () => undefined)}
+    />
+  );
+  expect(view.container.textContent).toContain("Click “Send email”");
+  expect(view.container.textContent).toContain("This sends a message");
+  const details = view.container.querySelector("details");
+  expect(details?.open).toBe(false);
+  expect(details?.textContent).toContain('"ref": "e4"');
+  expect(view.container.querySelector('[aria-label="Action details"]')?.textContent).not.toContain(
+    "e4"
+  );
+  await view.unmount();
+});

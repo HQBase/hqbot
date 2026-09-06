@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Spinner } from "../ui/spinner";
 import { ApprovalCard } from "./approval-card";
+import { ComputerApprovalCard } from "./computer-approval-card";
 
 export function ConversationAttention({
   botId,
@@ -124,11 +125,10 @@ export function OwnerActionCards({
         </Alert>
       )}
       {item.computerApprovals.map((approval) => (
-        <ApprovalCard
+        <ComputerApprovalCard
           key={approval.executionId}
-          title="Allow this computer action?"
-          description={`${item.name} needs your approval for this computer action.`}
-          details={JSON.stringify(approval.input, null, 2)}
+          approval={approval}
+          name={item.name}
           disabled={disabled}
           pending={busy === `${item.botId}:${approval.executionId}`}
           onApprove={() =>

@@ -1,5 +1,6 @@
 import type { Sql } from "../workspace/sql";
 import { migrateActionHistory } from "./action-history";
+import { migrateComputerSafety } from "./computer-safety";
 import { migrateExternalEffects } from "./external-effects";
 import { migrateOwnerHandoffs } from "./owner-handoff";
 import { migratePermissionRules } from "./permission-rules";
@@ -131,6 +132,7 @@ export function migrateTeammateWork(sql: Sql): void {
     version INTEGER PRIMARY KEY,
     applied_at TEXT NOT NULL
   )`;
+  const fresh = sql`SELECT version FROM hqbot_work_migrations LIMIT 1`.length === 0;
   migrateOne(sql);
   migrateTwo(sql);
   migrateThree(sql);
@@ -154,5 +156,9 @@ export function migrateTeammateWork(sql: Sql): void {
   if (!isApplied(sql, 9)) {
     migrateOwnerHandoffs(sql);
     record(sql, 9);
+  }
+  if (!isApplied(sql, 10)) {
+    migrateComputerSafety(sql, fresh);
+    record(sql, 10);
   }
 }

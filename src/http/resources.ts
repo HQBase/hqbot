@@ -43,7 +43,7 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
       });
     if (request.method === "POST") {
       const body = await readJson(request);
-      if (body.policy === "review" || body.policy === "allow")
+      if (body.policy === "autonomous" || body.policy === "review" || body.policy === "allow")
         await peer.setComputerPolicy(body.policy);
       else if (typeof body.approved === "boolean")
         await peer.resolveComputerApproval(
