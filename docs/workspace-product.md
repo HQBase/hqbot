@@ -32,13 +32,28 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   Computer tools retain exact-action receipts and unknown-outcome handling. Agents cannot change
   their own permission rules.
 - Chief of Staff is the default pinned teammate for coordinating work. A team task has one saved
-  owner, completion criteria, a deadline, and a shared model cost limit. Model reservations count before requests start; unknown model prices block team work. Computer charges remain under the existing teammate and workspace limits. The owner gives specialists separate
-  assignments, reviews their returned evidence, and produces the final answer. Specialists cannot
-  pass the same assignment onward. The runtime rejects completion while assignments remain open
-  or results have not been reviewed. Delivery retries use stable IDs. Stopping the owner stops its
+  owner, completion criteria, a deadline, and a shared model cost limit. Model reservations count
+  before requests start; unknown model prices block team work. Computer charges remain under the
+  existing teammate and workspace limits. The owner can permit other teammates to manage work.
+  A permitted manager can split its assignment into smaller assignments, to at most three levels.
+  All levels share the original task budget, deadline, and cancellation. Each manager reviews its
+  direct reports before returning a result. Cycles, duplicate active work, and unreviewed completion
+  are rejected. Delivery retries use stable IDs. Stopping the owner stops its
   team task and rejects pending specialist approvals. Action history records those rejections,
   including after recovery. It must not label an approved or completed action as rejected.
   Direct conversations with specialists remain available.
+- Team management is an owner-controlled setting for each teammate. It specifies whether that
+  teammate may manage, create employees, or create managers, its allowed and default models, its
+  employee and active work branch limits, and its daily team model budget. New employees have
+  separate private state and no inherited connections or permissions. Stable creation keys prevent
+  duplicate employees after retries. Creating teammates is limited to owner conversations. Agents cannot change the policy. Model choices apply to one
+  assignment; they do not change the employee's model for unrelated conversations.
+- Specialists save concise milestone and blocker reports with a next step. Reports and completion
+  wake the responsible manager when needed. Managers can read saved status, request a fresh update,
+  and send changed guidance. Requests are durable, bounded, and read at the next safe model step;
+  they do not interrupt an external action or bypass an approval. Final results always return to
+  the responsible manager. The UI shows the last update and pending check-ins without claiming
+  that old progress is current. A waiting manager uses saved state rather than continuous model calls.
 - Projects explicitly select teammates and shared files or skills. Each group selects a lead;
   a new group request goes to that lead by default. Computer sessions, memory, integrations, and
   logins stay with each teammate. Chief of Staff can see the active roster and send bounded work

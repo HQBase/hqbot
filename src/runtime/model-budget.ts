@@ -34,6 +34,7 @@ export function budgetedModel(input: {
     const reservation = {
       eventId: crypto.randomUUID(),
       botId: input.botId,
+      modelId: input.modelId,
       taskId: input.taskId(),
       teamWorkId: await input.teamWorkId?.(),
       inputTokens,

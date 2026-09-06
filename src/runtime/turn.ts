@@ -25,6 +25,7 @@ interface PrepareTeammateTurnInput {
   context: TurnContext;
   maxSteps: number;
   modelFor(modelId: HQBotModelId): LanguageModel;
+  modelId?: HQBotModelId;
   metadata?: Record<string, unknown> | null;
   workspaceAgent: WorkspaceAgentRpc;
 }
@@ -233,7 +234,7 @@ export async function prepareTeammateTurn(input: PrepareTeammateTurnInput): Prom
   const instructions = teammateInstructions({
     activeWork: input.activeWork,
     attachedFileIds,
-    bot,
+    bot: bot && input.modelId ? { ...bot, modelId: input.modelId } : bot,
     connectedServices: input.connectedServices,
     files,
     memories,
@@ -244,7 +245,7 @@ export async function prepareTeammateTurn(input: PrepareTeammateTurnInput): Prom
     instructions,
     maxSteps: bot?.maxSteps ?? input.maxSteps,
     maxOutputTokens: 5_000,
-    model: input.modelFor(normalizeHQBotModelId(bot?.modelId)),
+    model: input.modelFor(normalizeHQBotModelId(input.modelId ?? bot?.modelId)),
     stopWhen: stopAfterBashHandoff,
     temperature: 0.2
   };

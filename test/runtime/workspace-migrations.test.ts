@@ -211,4 +211,43 @@ describe("workspace migrations", () => {
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     expect(database.prepare("SELECT * FROM team_work").all()).toEqual([]);
   });
+  it("upgrades active version 24 assignments without losing results, cost or queue state", () => {
+    database = new DatabaseSync(":memory:");
+    database.exec("PRAGMA foreign_keys=ON");
+    applyThrough(database, 24);
+    database.exec(`INSERT INTO bots(id,name,title,description,brief,created_at,updated_at) VALUES
+      ('chief','Chief','Chief','','','2026-09-06','2026-09-06'), ('worker','Worker','Worker','','','2026-09-06','2026-09-06');
+      INSERT INTO team_work(id,owner_bot_id,goal,criteria,deadline_at,budget_usd,state,start_input,created_at,updated_at)
+      VALUES ('work','chief','Check source','["Evidence"]','2026-09-07',1,'waiting','{}','2026-09-06','2026-09-06');
+      INSERT INTO team_assignments(id,work_id,assignment_key,bot_id,instruction,criterion,state,result,updated_at)
+      VALUES ('assignment','work','source','worker','Read source','Cite source','returned','Evidence saved','2026-09-06');
+      INSERT INTO team_turns(id,work_id,bot_id,state,created_at) VALUES ('review','work','chief','pending','2026-09-06');
+      INSERT INTO usage_events(id,bot_id,service,input_units,output_units,estimated_usd,created_at,team_work_id)
+      VALUES ('usage','worker','workers-ai',10,10,0.01,'2026-09-06','work');`);
+    const before = database.prepare("SELECT * FROM team_work").all();
+    migrateWorkspace(sqlFor(database));
+    migrateWorkspace(sqlFor(database));
+    expect(database.prepare("SELECT * FROM team_work").all()).toEqual(before);
+    expect(
+      database
+        .prepare(
+          "SELECT state,result,parent_id,manager_bot_id,depth,model_id FROM team_assignments"
+        )
+        .get()
+    ).toEqual({
+      state: "returned",
+      result: "Evidence saved",
+      parent_id: null,
+      manager_bot_id: "chief",
+      depth: 1,
+      model_id: null
+    });
+    expect(database.prepare("SELECT state FROM team_turns").get()).toEqual({ state: "pending" });
+    expect(
+      database
+        .prepare("SELECT SUM(estimated_usd) AS total FROM usage_events WHERE team_work_id='work'")
+        .get()
+    ).toEqual({ total: 0.01 });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
 });

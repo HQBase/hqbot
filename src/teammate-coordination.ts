@@ -1,6 +1,7 @@
 import type { ChatResponseResult } from "@cloudflare/think";
 import { type ToolSet, tool } from "ai";
 import { teamWorkInput } from "./domain/team-work";
+import { savedTeamResult } from "./runtime/team-result";
 import { teammateResponseText } from "./runtime/turn";
 import { activeDeliveryKey, TeammateProductRuntime } from "./teammate-product";
 
@@ -8,6 +9,7 @@ const activeTeamKey = "hqbot:active-team-work";
 interface ActiveTeam {
   workId: string;
   turnId?: string;
+  assignmentId?: string;
   specialist: boolean;
   finished?: boolean;
   cancelled?: boolean;
@@ -51,23 +53,17 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
       !(name === "collaborate" && (input as { action?: string })?.action !== "send")
     )
       throw new Error(
-        "Team tasks use coordinate for handoffs and waiting. Specialists cannot delegate or start routines."
+        "Team tasks use coordinate for handoffs and waiting. Do not start separate routines."
       );
     if (name === "manage_task" && !active.specialist)
       throw new Error("Use coordinate wait or finish for the team task you own.");
-    if (
-      name === "coordinate" &&
-      active.specialist &&
-      !["status", "team"].includes((input as { action: string }).action)
-    )
-      throw new Error("Only the task owner can coordinate work. Return your result and evidence.");
   }
   protected override productTools(): ToolSet {
     return {
       ...super.productTools(),
       coordinate: tool({
         description:
-          "Own and coordinate one team task. Chief of Staff can select workspace specialists; a group lead can select group members. List team, start with a goal and completion criteria, assign separate bounded jobs using stable keys, then wait. Specialists return asynchronously. Review every returned result and its evidence before finishing with checks for each saved criterion. Shared model budget, deadline, one owner, and leaf assignments are enforced. Each teammate keeps its own permissions, private memory, files, and computer.",
+          "Coordinate one team task. Read settings for owner-controlled management, hiring, model and budget limits. Team lists available teammates. Start saves a goal and completion criteria. Assign bounded jobs using stable keys; approved managers can delegate smaller parts within the same task. Wait ends the turn and resumes you when results or reports arrive. Report milestones and blockers with the next step. Check_in requests progress; redirect sends changed guidance at the next safe step. Review your direct reports and their evidence before finish, with a check for each criterion (criterion 0 for a delegated manager). One root budget, deadline and cancellation cover all work. Hire creates a teammate only when the owner has enabled it. Private permissions, memory, files, connections and computers stay separate.",
         inputSchema: teamWorkInput,
         execute: async (input, context) => {
           const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
@@ -124,7 +120,19 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
       const turn = await this.workspaceAgent.teamTurnForBot(id, this.name);
       if (!turn || !(await this.waitUntilStable({ timeout: 1 }))) return false;
       const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
-      if (active && (active.workId !== turn.workId || (active.specialist && active.turnId !== id)))
+      if (
+        active &&
+        (active.cancelled ||
+          active.workId !== turn.workId ||
+          (active.assignmentId && active.assignmentId !== turn.assignmentId))
+      )
+        return false;
+      if (
+        active?.specialist &&
+        active.turnId &&
+        active.turnId !== id &&
+        !(await this.ctx.storage.get(`hqbot:team-result:${active.turnId}`))
+      )
         return false;
       if (
         !active &&
@@ -142,6 +150,7 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
       await this.ctx.storage.put(activeTeamKey, {
         workId: turn.workId,
         turnId: id,
+        assignmentId: turn.assignmentId ?? undefined,
         specialist: Boolean(turn.assignmentId)
       });
       const submissionId = `team-work:${id}`;
@@ -187,11 +196,46 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     );
   }
   async teamWorkStatus(id: string) {
-    return {
-      status: (await this.inspectSubmission(`team-work:${id}`))?.status ?? "missing",
-      result: (await this.ctx.storage.get<TeamResult>(`hqbot:team-result:${id}`)) ?? null
-    };
+    const submission = await this.inspectSubmission(`team-work:${id}`);
+    let result = (await this.ctx.storage.get<TeamResult>(`hqbot:team-result:${id}`)) ?? null;
+    const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
+    if (
+      !result &&
+      submission?.status === "completed" &&
+      active?.turnId === id &&
+      !active.cancelled &&
+      Date.now() - (submission.completedAt ?? Date.now()) > 30000 &&
+      !this.tasks.active() &&
+      !this.processes.active() &&
+      !(await this.pendingApprovals()).length &&
+      !(await this.integrationRuntime.pending()).length &&
+      (await this.waitUntilStable({ timeout: 1 }))
+    ) {
+      const text = savedTeamResult(this.messages, `team-work:${id}`);
+      result = {
+        text:
+          text ??
+          "The completed turn has no verifiable saved answer. Review the conversation before retrying this assignment.",
+        failed: !text
+      };
+      await this.ctx.storage.put(`hqbot:team-result:${id}`, result);
+      await this.workspaceAgent.finishTeamTurn(id, this.name, result.text, result.failed);
+      const work = await this.workspaceAgent.teamWorkForBot(this.name, active.workId);
+      if (
+        !result.failed &&
+        work &&
+        ["active", "waiting"].includes(work.state) &&
+        (!active.specialist ||
+          work.assignments.some(
+            (item) => item.id === active.assignmentId && item.state === "submitted"
+          ))
+      )
+        await this.ctx.storage.put(activeTeamKey, { ...active, turnId: undefined });
+      else await this.ctx.storage.delete(activeTeamKey);
+    }
+    return { status: submission?.status ?? "missing", result };
   }
+
   protected override async assertProductTurnAllowed() {
     await super.assertProductTurnAllowed();
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
@@ -229,6 +273,22 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
         await this.workspaceAgent.finishTeamOwnerTurn(active.workId, this.name, value.failed);
       const work = await this.workspaceAgent.teamWorkForBot(this.name, active.workId);
       if (work && ["active", "waiting"].includes(work.state)) {
+        await this.workspaceAgent.markInteraction(this.name, "Waiting for team results", "working");
+        return;
+      }
+    }
+    if (active.specialist && !active.finished && !value.failed) {
+      const work = await this.workspaceAgent.teamWorkForBot(this.name, active.workId);
+      if (
+        work?.assignments.some(
+          (item) => item.id === active.assignmentId && item.state === "submitted"
+        )
+      ) {
+        await this.ctx.storage.put(activeTeamKey, {
+          workId: active.workId,
+          assignmentId: active.assignmentId,
+          specialist: true
+        });
         await this.workspaceAgent.markInteraction(this.name, "Waiting for team results", "working");
         return;
       }

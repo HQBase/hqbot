@@ -4,6 +4,7 @@ import { createTestHarness } from "wrangler";
 
 import { DEEPSEEK_FALLBACK_MODEL_ID } from "../../../src/domain/models";
 import { schemaMigrations } from "../../../src/domain/schema";
+import type { TeamPolicy } from "../../../src/domain/team-policy";
 import type { TeamWork, TeamWorkRpc } from "../../../src/domain/team-work";
 
 const origin = "http://hqbot.test";
@@ -55,6 +56,84 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("persists owner-controlled team settings and rejects unpriced or unauthenticated changes", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const snapshot = (await (
+      await request("/api/snapshot", { headers: { Cookie: session } })
+    ).json()) as { bots: { id: string; coordinationRole: string }[] };
+    const chief = snapshot.bots.find((bot) => bot.coordinationRole === "chief");
+    const path = `/api/bots/${chief?.id}/team-management`;
+    const initial = (await (await request(path, { headers: { Cookie: session } })).json()) as {
+      policy: TeamPolicy;
+    };
+    expect(initial.policy).toMatchObject({ canManage: true, canCreate: false });
+    const policy = {
+      ...initial.policy,
+      canCreate: true,
+      maxEmployees: 3,
+      allowedModelIds: [initial.policy.defaultModelId, DEEPSEEK_FALLBACK_MODEL_ID]
+    };
+    const patch = (body: unknown, authenticated = true) =>
+      request(path, {
+        method: "PATCH",
+        headers: {
+          Origin: origin,
+          "Content-Type": "application/json",
+          ...(authenticated ? { Cookie: session } : {})
+        },
+        body: JSON.stringify(body)
+      });
+    expect((await patch(policy, false)).status).toBe(401);
+    expect(
+      (
+        await patch({
+          ...policy,
+          allowedModelIds: ["openai/gpt-5.4"],
+          defaultModelId: "openai/gpt-5.4"
+        })
+      ).status
+    ).toBe(400);
+    expect((await patch(policy)).status).toBe(200);
+    expect(
+      (
+        (await (await request(path, { headers: { Cookie: session } })).json()) as {
+          policy: TeamPolicy;
+        }
+      ).policy
+    ).toEqual(policy);
+    const bindings = (await server.getWorker().getEnv()) as {
+      HQBOT_AGENT: { getByName(name: string): TeamWorkRpc };
+    };
+    const agent = bindings.HQBOT_AGENT.getByName("hqbot");
+    const hire = {
+      action: "hire" as const,
+      key: "hire-test",
+      name: "Evidence",
+      role: "Check public sources",
+      modelId: DEEPSEEK_FALLBACK_MODEL_ID
+    };
+    const employee = (await agent.coordinate(chief?.id ?? "", hire, undefined, "hire")) as {
+      id: string;
+      modelId: string;
+    };
+    expect(employee.modelId).toBe(DEEPSEEK_FALLBACK_MODEL_ID);
+    expect(
+      ((await agent.coordinate(chief?.id ?? "", hire, undefined, "retry")) as { id: string }).id
+    ).toBe(employee.id);
+    expect(await agent.getTeamPolicy(employee.id)).toMatchObject({
+      canManage: false,
+      canCreate: false
+    });
+    await expect(
+      agent.coordinate(
+        chief?.id ?? "",
+        { ...hire, key: "member-hire" },
+        undefined,
+        "member",
+        "member"
+      )
+    ).rejects.toBeDefined();
+  });
   it("keeps one Chief and cancels a saved team task across a Worker restart", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const snapshot = async () =>

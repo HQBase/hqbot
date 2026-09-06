@@ -38,7 +38,7 @@ export function reserveModelRequest(
   if (input.teamWorkId) {
     if (input.unpriced)
       throw new Error("Team tasks need a model with known prices to enforce their shared budget");
-    new TeamWorkStore(sql).assertAllowed(input.teamWorkId, input.botId, amount);
+    new TeamWorkStore(sql).assertAllowed(input.teamWorkId, input.botId, amount, input.modelId);
   }
   const totals = sql<{
     calls: number;

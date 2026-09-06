@@ -55,6 +55,7 @@ export interface WorkspaceRoutineDto {
 }
 
 export interface ModelReservationDto {
+  modelId?: string;
   teamWorkId?: string;
   eventId: string;
   botId: string;

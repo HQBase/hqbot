@@ -18,6 +18,7 @@ import { handleProjects } from "./http/projects";
 import { handlePush } from "./http/push";
 import { handleResources } from "./http/resources";
 import { handleTeam } from "./http/team";
+import { handleTeamManagement } from "./http/team-management";
 import { handlePublicTemplate, handleTemplates } from "./http/templates";
 import { HQBotTeammate } from "./teammate";
 
@@ -94,6 +95,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     handlePush,
     handleDemonstrations,
     handleResources,
+    handleTeamManagement,
     handleKnowledge,
     handleMessages,
     handleLocalDevices,

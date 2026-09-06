@@ -1,8 +1,18 @@
 import { z } from "zod";
+import type { TeamPolicy } from "./team-policy";
 
 const text = z.string().trim().min(1).max(4000);
 export const teamWorkInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("team") }),
+  z.object({ action: z.literal("settings") }),
+  z.object({
+    action: z.literal("hire"),
+    key: z.string().trim().min(1).max(80),
+    name: z.string().trim().min(1).max(80),
+    role: z.string().trim().min(1).max(1000),
+    modelId: z.string().optional(),
+    manager: z.boolean().optional()
+  }),
   z.object({ action: z.literal("status"), workId: z.string().optional() }),
   z.object({
     action: z.literal("start"),
@@ -17,7 +27,20 @@ export const teamWorkInput = z.discriminatedUnion("action", [
     key: z.string().trim().min(1).max(80),
     botId: z.string(),
     instruction: text,
-    criterion: text
+    criterion: text,
+    modelId: z.string().optional()
+  }),
+  z.object({
+    action: z.literal("report"),
+    summary: text,
+    nextStep: text,
+    blocked: z.boolean().default(false)
+  }),
+  z.object({
+    action: z.enum(["check_in", "redirect"]),
+    assignmentId: z.string(),
+    key: z.string().trim().min(1).max(80),
+    message: text
   }),
   z.object({
     action: z.literal("review"),
@@ -47,6 +70,22 @@ export interface TeamAssignment {
   result: string | null;
   review: string | null;
   updatedAt: string;
+  parentId?: string | null;
+  managerBotId?: string;
+  depth?: number;
+  modelId?: string | null;
+  waiting?: boolean;
+  progress?: { summary: string; nextStep: string; blocked: boolean; updatedAt: string } | null;
+}
+export interface TeamUpdate {
+  id: string;
+  assignmentId: string | null;
+  senderBotId: string;
+  recipientBotId: string;
+  kind: string;
+  message: string;
+  acknowledged: boolean;
+  createdAt: string;
 }
 export interface TeamWork {
   id: string;
@@ -62,6 +101,7 @@ export interface TeamWork {
   createdAt: string;
   updatedAt: string;
   assignments: TeamAssignment[];
+  updates?: TeamUpdate[];
 }
 export interface TeamTurn {
   id: string;
@@ -70,8 +110,14 @@ export interface TeamTurn {
   assignmentId: string | null;
   state: string;
   prompt: string;
+  modelId?: string | null;
 }
 export interface TeamWorkRpc {
+  getTeamPolicy(botId: string): Promise<TeamPolicy>;
+  teamBriefing(
+    botId: string,
+    workId: string
+  ): Promise<{ modelId: string | null; assignmentId: string | null; instructions: string } | null>;
   coordinate(
     botId: string,
     input: TeamWorkInput,

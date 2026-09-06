@@ -24,6 +24,7 @@ import { createScheduleTool } from "./runtime/schedule-tool";
 import { clearLegacyScreenshotReplayError } from "./runtime/screenshot-replay-recovery";
 import { suspendTeammateWork } from "./runtime/suspension";
 import { taskManagementInput } from "./runtime/task-management";
+import { prepareTeamStep } from "./runtime/team-step";
 import { createTeammateLinuxTool } from "./runtime/teammate-linux";
 import {
   finishTeammateResponse,
@@ -151,7 +152,12 @@ export class HQBotTeammate extends TeammateLocalRuntime {
         activeWork.state !== "running")
     )
       throw new Error("This task continuation is stale");
+    const teamWorkId = await this.currentTeamWorkId();
+    const briefing = teamWorkId
+      ? await this.workspaceAgent.teamBriefing(this.name, teamWorkId)
+      : null;
     const config = await prepareTeammateTurn({
+      modelId: briefing?.modelId ?? undefined,
       activeWork,
       botId: this.name,
       connectedServices: this.integrationRuntime
@@ -192,17 +198,6 @@ export class HQBotTeammate extends TeammateLocalRuntime {
       return { toolChoice: "none" } as unknown as StepConfig;
     const checkpoint = checkpointStep(ctx, this.turnStepLimit);
     if (checkpoint && !this.processes.active()) return checkpoint;
-    const coordinationChanged = ctx.steps
-      .at(-1)
-      ?.toolResults.some(
-        (result) =>
-          result.toolName === "coordinate" &&
-          typeof result.output === "object" &&
-          result.output !== null &&
-          (("waiting" in result.output && result.output.waiting) ||
-            ("state" in result.output && result.output.state === "completed"))
-      );
-    if (coordinationChanged) return { toolChoice: "none" } as unknown as StepConfig;
     const scheduleChanged = ctx.steps
       .at(-1)
       ?.toolResults.some(
@@ -213,6 +208,7 @@ export class HQBotTeammate extends TeammateLocalRuntime {
           ("schedule" in result.output || "deleted" in result.output)
       );
     if (scheduleChanged) return { toolChoice: "none" } as unknown as StepConfig;
+    return prepareTeamStep(ctx, await this.currentTeamWorkId(), this.name, this.workspaceAgent);
   }
 
   async onChatResponse(result: ChatResponseResult): Promise<void> {

@@ -7,6 +7,7 @@ import { reserveModelRequest } from "../../src/workspace/model-budget";
 import { WorkspaceProjects } from "../../src/workspace/projects";
 import type { Sql, SqlValue } from "../../src/workspace/sql";
 import { WorkspaceTasks } from "../../src/workspace/tasks";
+import { WorkspaceTeamPolicy } from "../../src/workspace/team-policy";
 import { TeamWorkDelivery } from "../../src/workspace/team-work-delivery";
 
 let db: DatabaseSync;
@@ -65,7 +66,7 @@ it("creates one pinned Chief and preserves existing teammates", () => {
   });
   expect(catalog.listBots()).toHaveLength(4);
 });
-it("enforces one owner, stable assignments, leaf work and reviewed completion", () => {
+it("enforces one owner, stable assignments, manager permission and reviewed completion", () => {
   start();
   expect(() =>
     work.start(chief, "another", { action: "start", goal: "Duplicate", criteria: ["done"] }, 1)
@@ -86,7 +87,7 @@ it("enforces one owner, stable assignments, leaf work and reviewed completion", 
   work.submitted("assignment:work:source");
   expect(() =>
     work.start("one", "recursive", { action: "start", goal: "Subteam", criteria: ["done"] }, 1)
-  ).toThrow("Specialists cannot delegate");
+  ).toThrow("existing team task");
   work.finishTurn(
     "assignment:work:source",
     "one",
@@ -260,4 +261,265 @@ it("rejects a replay with changed limits or changed completion evidence", () => 
     })
   ).toThrow("different saved");
   expect(work.pending()).toEqual([]);
+});
+
+function enableManager(botId = "one", maxConcurrent = 6) {
+  const policy = new WorkspaceTeamPolicy(sql);
+  policy.save(botId, { ...policy.get(botId), canManage: true, maxConcurrent });
+}
+function child(botId = "two", managerId = "one", key = "child") {
+  return work.assign(managerId, "work", {
+    action: "assign",
+    key,
+    botId,
+    instruction: `Research ${botId}`,
+    criterion: "Cited source"
+  });
+}
+it("resumes a nested manager once, reviews each handoff, and preserves one root budget", () => {
+  start();
+  enableManager();
+  const parent = assign();
+  work.submitted(`assignment:${parent.id}`);
+  const nested = child();
+  expect(nested).toMatchObject({
+    parentId: parent.id,
+    managerBotId: "one",
+    depth: 2,
+    workId: "work",
+    modelId: "test"
+  });
+  expect(work.forBot("two", "work")?.assignments.map((item) => item.id)).toEqual([nested.id]);
+  expect(work.forBot("one", "work")?.assignments).toHaveLength(2);
+  work.wait("one", "work");
+  work.wait(chief, "work");
+  work.ownerReturned("work", chief, false);
+  work.finishTurn(`assignment:${parent.id}`, "one", "Waiting for research", false);
+  expect(work.get("work")?.assignments.find((item) => item.id === parent.id)?.state).toBe(
+    "submitted"
+  );
+  work.finishTurn(`assignment:${nested.id}`, "two", "Source checked", false);
+  work = new TeamWorkDelivery(sql);
+  work.queueManagers("work");
+  work.queueManagers("work");
+  work.queueOwner("work");
+  expect(work.pending().map((item) => item.id)).toEqual([`manager:${parent.id}:1`]);
+  expect(() =>
+    work.review(chief, "work", {
+      action: "review",
+      assignmentId: nested.id,
+      check: "Root skips manager",
+      accepted: true
+    })
+  ).toThrow("no returned result");
+  work.review("one", "work", {
+    action: "review",
+    assignmentId: nested.id,
+    check: "Opened source",
+    accepted: true
+  });
+  const complete = {
+    action: "finish" as const,
+    result: "Checked evidence",
+    checks: [{ criterion: 0, check: "Source verified" }]
+  };
+  expect(work.finish("one", "work", complete)).toMatchObject({ state: "completed" });
+  expect(() => work.finish("one", "work", { ...complete, result: "Changed result" })).toThrow(
+    "different saved result"
+  );
+  work.finishTurn(`manager:${parent.id}:1`, "one", "A short final reply", false);
+  expect(work.get("work")?.assignments.find((item) => item.id === parent.id)?.result).toBe(
+    "Checked evidence"
+  );
+  work.queueOwner("work");
+  expect(work.pending().map((item) => item.id)).toEqual(["owner:work:1"]);
+  work.review(chief, "work", {
+    action: "review",
+    assignmentId: parent.id,
+    check: "Checked manager evidence",
+    accepted: true
+  });
+  expect(finish()?.state).toBe("completed");
+});
+it("allows handoff at a one-branch limit and blocks extra branches and deeper chains", () => {
+  start();
+  enableManager();
+  enableManager(chief, 1);
+  enableManager("two");
+  enableManager("outside");
+  assign();
+  const nested = child();
+  expect(nested.depth).toBe(2);
+  expect(() => child("outside", "one", "extra")).toThrow("Wait for");
+  const third = child("outside", "two", "third");
+  expect(third.depth).toBe(3);
+  catalog.createBot(
+    "four",
+    { name: "Four", title: "Four", description: "Research" },
+    "Research",
+    "test",
+    2
+  );
+  expect(() => child("four", "outside", "fourth")).toThrow("depth limit");
+  expect(() => child(chief, "outside", "cycle")).toThrow("another active teammate");
+});
+it("enforces allowed models without changing the employee default and applies revocation", () => {
+  start();
+  enableManager();
+  const policies = new WorkspaceTeamPolicy(sql);
+  policies.save(chief, { ...policies.get(chief), allowedModelIds: ["test", "alternate"] });
+  expect(() =>
+    work.assign(chief, "work", {
+      action: "assign",
+      key: "bad",
+      botId: "one",
+      instruction: "Check",
+      criterion: "done",
+      modelId: "unapproved"
+    })
+  ).toThrow("allowed");
+  const parent = work.assign(chief, "work", {
+    action: "assign",
+    key: "manager",
+    botId: "one",
+    instruction: "Research",
+    criterion: "done",
+    modelId: "alternate"
+  });
+  expect(work.turn(`assignment:${parent.id}`, "one")?.modelId).toBe("alternate");
+  expect(catalog.getBot("one")?.modelId).toBe("test");
+  const nested = child();
+  policies.save("one", { ...policies.get("one"), canManage: false });
+  expect(() => work.assertAllowed("work", "two")).toThrow("parent manager");
+  expect(work.turn(`assignment:${nested.id}`, "two")).toBeNull();
+  enableManager();
+  policies.save(chief, { ...policies.get(chief), allowedModelIds: ["test"] });
+  expect(() => work.assertAllowed("work", "one")).toThrow("model is no longer allowed");
+});
+it("stops all descendants when a manager fails and does not affect another branch", () => {
+  start();
+  enableManager();
+  const parent = assign();
+  const nested = child();
+  assign("outside", "separate");
+  work.finishTurn(`assignment:${parent.id}`, "one", "Stopped manager", true);
+  expect(work.get("work")?.assignments.find((item) => item.id === nested.id)?.state).toBe(
+    "cancelled"
+  );
+  expect(work.get("work")?.assignments.find((item) => item.botId === "outside")?.state).toBe(
+    "queued"
+  );
+  expect(work.cancellations()).toContainEqual({ work_id: "work", bot_id: "two" });
+  work.cancelBot(chief);
+  expect(work.pending()).toHaveLength(0);
+  work.finishTurn(`assignment:${nested.id}`, "two", "Late result", false);
+  expect(work.get("work")?.assignments.find((item) => item.id === nested.id)?.result).toBeNull();
+});
+it("saves check-ins across restarts and acknowledges only guidance the teammate has read", () => {
+  start();
+  const assignment = assign();
+  const input = {
+    action: "check_in" as const,
+    assignmentId: assignment.id,
+    key: "check",
+    message: "Give progress and the next step"
+  };
+  work.requestUpdate(chief, "work", input);
+  work.requestUpdate(chief, "work", input);
+  expect(work.get("work")?.updates).toHaveLength(1);
+  work.report("one", "work", "before-reading", {
+    action: "report",
+    summary: "Started",
+    nextStep: "Read source",
+    blocked: false
+  });
+  expect(work.get("work")?.updates?.find((item) => item.kind === "check_in")?.acknowledged).toBe(
+    false
+  );
+  work = new TeamWorkDelivery(sql);
+  expect(work.briefing("one", "work")?.instructions).toContain(input.message);
+  work.report("one", "work", "after-reading", {
+    action: "report",
+    summary: "Source opened",
+    nextStep: "Check evidence",
+    blocked: false
+  });
+  expect(work.get("work")?.updates?.find((item) => item.kind === "check_in")?.acknowledged).toBe(
+    true
+  );
+  expect(work.briefing("one", "work")?.instructions).toBe("");
+  expect(() => work.requestUpdate("outside", "work", input)).toThrow("no active assignment");
+});
+it("wakes a waiting manager for a blocker without duplicating its turn", () => {
+  start();
+  assign();
+  work.wait(chief, "work");
+  work.ownerReturned("work", chief, false);
+  work.report("one", "work", "blocker", {
+    action: "report",
+    summary: "Source requires access",
+    nextStep: "Use a public source",
+    blocked: true
+  });
+  work.queueOwner("work");
+  work.queueOwner("work");
+  expect(work.pending().filter((item) => item.bot_id === chief)).toHaveLength(1);
+  expect(work.briefing(chief, "work")?.instructions).toContain("Source requires access");
+});
+it("requires explicit hiring permission, deduplicates hires and never copies private resources", () => {
+  const policies = new WorkspaceTeamPolicy(sql);
+  const input = {
+    action: "hire" as const,
+    key: "researcher",
+    name: "Researcher",
+    role: "Check sources",
+    manager: false
+  };
+  expect(() => policies.hire(chief, input)).toThrow("enable creating");
+  policies.save(chief, { ...policies.get(chief), canCreate: true, maxEmployees: 1 });
+  const hired = policies.hire(chief, input);
+  expect(policies.hire(chief, input).id).toBe(hired.id);
+  expect(policies.get(hired.id)).toMatchObject({
+    canManage: false,
+    canCreate: false,
+    canCreateManagers: false
+  });
+  expect(catalog.listMemories(hired.id)).toEqual([]);
+  expect(() => policies.hire(chief, { ...input, role: "Changed role" })).toThrow(
+    "key is already in use"
+  );
+  expect(() => policies.hire(chief, { ...input, key: "second" })).toThrow("employee limit");
+  expect(() => policies.hire(chief, { ...input, key: "manager", manager: true })).toThrow(
+    "create managers"
+  );
+  sql`DELETE FROM bots WHERE id = ${hired.id}`;
+  expect(() => policies.hire(chief, input)).toThrow("removed or archived");
+});
+it("enforces actual fallback models and the daily budget across separate root tasks", () => {
+  start();
+  assign();
+  const policies = new WorkspaceTeamPolicy(sql);
+  policies.save(chief, { ...policies.get(chief), dailyBudgetUsd: 0.1 });
+  const reserve = (eventId: string, modelId: string, amount: number) =>
+    reserveModelRequest(sql, {} as never, catalog, new WorkspaceTasks(sql), {
+      eventId,
+      botId: "one",
+      taskId: null,
+      teamWorkId: "work",
+      unpriced: false,
+      modelId,
+      inputTokens: 100,
+      outputTokens: 100,
+      estimatedCostMicroUsd: amount * 1000000
+    });
+  expect(() => reserve("fallback", "other", 0.01)).toThrow("fallback is not allowed");
+  reserve("first", "test", 0.06);
+  work.stop("work", "End first task");
+  work.start(
+    chief,
+    "next",
+    { action: "start", goal: "Next task", criteria: ["Done"], budgetUsd: 0.1 },
+    1
+  );
+  expect(() => work.assertAllowed("next", chief, 0.05)).toThrow("daily team model budget");
 });

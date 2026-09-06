@@ -124,5 +124,26 @@ export const productMigrations: readonly SchemaMigration[] = [
       `ALTER TABLE usage_events ADD COLUMN team_work_id TEXT`,
       `CREATE INDEX team_work_costs ON usage_events(team_work_id)`
     ]
+  },
+  {
+    version: 25,
+    statements: [
+      `CREATE TABLE team_policies (bot_id TEXT PRIMARY KEY REFERENCES bots(id) ON DELETE CASCADE, policy_json TEXT NOT NULL)`,
+      `CREATE TABLE team_hires (id TEXT PRIMARY KEY, creator_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, bot_id TEXT REFERENCES bots(id) ON DELETE SET NULL, input_json TEXT NOT NULL, created_at TEXT NOT NULL)`,
+      `ALTER TABLE team_assignments ADD COLUMN parent_id TEXT REFERENCES team_assignments(id) ON DELETE CASCADE`,
+      `ALTER TABLE team_assignments ADD COLUMN manager_bot_id TEXT REFERENCES bots(id) ON DELETE CASCADE`,
+      `UPDATE team_assignments SET manager_bot_id = (SELECT owner_bot_id FROM team_work WHERE team_work.id = team_assignments.work_id)`,
+      `ALTER TABLE team_assignments ADD COLUMN depth INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE team_assignments ADD COLUMN model_id TEXT`,
+      `ALTER TABLE team_assignments ADD COLUMN waiting INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE team_assignments ADD COLUMN ready INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE team_assignments ADD COLUMN round INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE team_assignments ADD COLUMN completion_ready INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE team_assignments ADD COLUMN completion_checks TEXT`,
+      `ALTER TABLE team_assignments ADD COLUMN progress_json TEXT`,
+      `CREATE TABLE team_updates (id TEXT PRIMARY KEY, work_id TEXT NOT NULL REFERENCES team_work(id) ON DELETE CASCADE, assignment_id TEXT REFERENCES team_assignments(id) ON DELETE CASCADE, sender_bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, recipient_bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE, kind TEXT NOT NULL, message TEXT NOT NULL, acknowledged INTEGER NOT NULL DEFAULT 0, delivered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`,
+      `CREATE INDEX team_update_inbox ON team_updates(work_id, recipient_bot_id, acknowledged)`,
+      `CREATE INDEX team_assignment_parent ON team_assignments(parent_id)`
+    ]
   }
 ];

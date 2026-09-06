@@ -1,14 +1,29 @@
 import { getAgentByName } from "agents";
 import type { CollaborationRequest } from "../domain/projects";
+import type { TeamPolicy } from "../domain/team-policy";
 import { type TeamWorkInput, teamWorkInput } from "../domain/team-work";
 import type { HQBotTeammate } from "../teammate";
 import { positiveNumber } from "./budgets";
 import { ensureChief } from "./chief";
 import { WorkspaceProjectsAgent } from "./projects-agent";
 import { WorkspaceTeam } from "./team";
+import { WorkspaceTeamPolicy } from "./team-policy";
 import { TeamWorkDelivery } from "./team-work-delivery";
 
 export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
+  getTeamPolicy(botId: string) {
+    return new WorkspaceTeamPolicy(this.db).get(botId);
+  }
+  saveTeamPolicy(botId: string, value: TeamPolicy) {
+    const policy = this.ctx.storage.transactionSync(() =>
+      new WorkspaceTeamPolicy(this.db).save(botId, value)
+    );
+    this.changed();
+    return policy;
+  }
+  teamBriefing(botId: string, workId: string) {
+    return this.ctx.storage.transactionSync(() => this.teamWork.briefing(botId, workId));
+  }
   protected get teamWork() {
     return new TeamWorkDelivery(this.db);
   }
@@ -54,11 +69,24 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
           name: bot.name,
           title: bot.title,
           status: bot.status,
-          role: bot.coordinationRole
+          role: bot.coordinationRole,
+          modelId: bot.modelId,
+          canManage: this.getTeamPolicy(bot.id).canManage
         }));
     if (input.action === "status") return this.teamWork.forBot(botId, input.workId ?? workId);
+    if (input.action === "settings") return this.getTeamPolicy(botId);
     await this.wakeTeamWork();
     const result = this.ctx.storage.transactionSync(() => {
+      if (input.action === "hire") {
+        if (
+          requesterId ||
+          (workId &&
+            this.db`SELECT id FROM team_work WHERE id = ${workId} AND requester_id IS NOT NULL`
+              .length)
+        )
+          throw new Error("Only an owner conversation can create teammates");
+        return new WorkspaceTeamPolicy(this.db).hire(botId, input);
+      }
       if (input.action === "start")
         return this.teamWork.start(
           botId,
@@ -68,10 +96,14 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
           requesterId
         );
       if (!workId) throw new Error("Start a team task first");
+      if (input.action === "report") return this.teamWork.report(botId, workId, commandId, input);
+      if (input.action === "check_in" || input.action === "redirect")
+        return this.teamWork.requestUpdate(botId, workId, input);
       if (input.action === "assign") return this.teamWork.assign(botId, workId, input);
       if (input.action === "review") return this.teamWork.review(botId, workId, input);
       if (input.action === "wait") return this.teamWork.wait(botId, workId);
-      return this.teamWork.finish(botId, workId, input);
+      if (input.action === "finish") return this.teamWork.finish(botId, workId, input);
+      throw new Error("Unknown team action");
     });
     this.changed();
     return result;
@@ -147,7 +179,10 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
           /* Retry an idle owner check on the next wake. */
         }
       }
-      this.ctx.storage.transactionSync(() => this.teamWork.queueOwner(work.id));
+      this.ctx.storage.transactionSync(() => {
+        this.teamWork.queueManagers(work.id);
+        this.teamWork.queueOwner(work.id);
+      });
     }
     for (const row of this.teamWork.cancellations()) {
       try {
