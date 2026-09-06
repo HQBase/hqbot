@@ -32,6 +32,7 @@
     "src/domain/skills.ts",
     "src/domain/types.ts",
     "src/domain/team-work.ts",
+    "src/domain/team-questions.ts",
     "src/domain/team-policy.ts"
   ]
 }

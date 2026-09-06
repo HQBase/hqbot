@@ -351,17 +351,8 @@ it("allows handoff at a one-branch limit and blocks extra branches and deeper ch
   const nested = child();
   expect(nested.depth).toBe(2);
   expect(() => child("outside", "one", "extra")).toThrow("Wait for");
-  const third = child("outside", "two", "third");
-  expect(third.depth).toBe(3);
-  catalog.createBot(
-    "four",
-    { name: "Four", title: "Four", description: "Research" },
-    "Research",
-    "test",
-    2
-  );
-  expect(() => child("four", "outside", "fourth")).toThrow("depth limit");
-  expect(() => child(chief, "outside", "cycle")).toThrow("another active teammate");
+  expect(() => child("outside", "two", "third")).toThrow("depth limit");
+  expect(() => child(chief, "two", "cycle")).toThrow("another active teammate");
 });
 it("enforces allowed models without changing the employee default and applies revocation", () => {
   start();

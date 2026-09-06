@@ -77,6 +77,13 @@ export class TeamWorkDelivery extends TeamWorkUpdates {
     const work = this.get(workId);
     if (!work || !["active", "waiting"].includes(work.state)) return;
     if (row.assignment_id && !failed) {
+      if (
+        !work.assignments.some((item) => item.parentId === row.assignment_id) &&
+        this.parkForQuestions(work, String(row.assignment_id), botId)
+      ) {
+        this.sql`UPDATE team_turns SET state = 'completed' WHERE id = ${id}`;
+        return;
+      }
       const saved = this
         .sql<Row>`SELECT completion_ready FROM team_assignments WHERE id = ${row.assignment_id}`[0];
       if (
@@ -94,7 +101,7 @@ export class TeamWorkDelivery extends TeamWorkUpdates {
         .sql`UPDATE team_assignments SET state = ${failed ? "failed" : "returned"}, result = CASE WHEN completion_ready = 1 AND ${failed ? 1 : 0} = 0 THEN result ELSE ${result.slice(0, 12000)} END, waiting = 0, ready = 0, updated_at = ${now()} WHERE id = ${row.assignment_id} AND state IN ('queued', 'submitted')`;
     if (row.assignment_id && failed) this.cancelChildren(String(row.assignment_id));
     this
-      .sql`UPDATE team_updates SET acknowledged = 1 WHERE work_id = ${workId} AND recipient_bot_id = ${botId}`;
+      .sql`UPDATE team_updates SET acknowledged = 1 WHERE work_id = ${workId} AND recipient_bot_id = ${botId} AND kind NOT IN ('question', 'answer', 'question_closed')`;
     this.sql`UPDATE team_turns SET state = 'completed' WHERE id = ${id}`;
     if (!row.assignment_id && failed)
       this.stop(
@@ -141,6 +148,7 @@ export class TeamWorkDelivery extends TeamWorkUpdates {
       const id = text(row, "id");
       const botId = text(row, "bot_id");
       const children = work.assignments.filter((item) => item.parentId === id);
+      if (!children.length) continue;
       if (
         children.some((item) => ["queued", "submitted"].includes(item.state)) &&
         !work.updates?.some((item) => item.recipientBotId === botId && !item.acknowledged)

@@ -32,7 +32,10 @@ export function TeamAssignmentCard({
   const active =
     ["active", "waiting"].includes(work.state) && ["queued", "submitted"].includes(item.state);
   const request = work.updates?.find(
-    (update) => update.assignmentId === item.id && update.kind !== "report" && !update.acknowledged
+    (update) =>
+      update.assignmentId === item.id &&
+      ["check_in", "redirect"].includes(update.kind) &&
+      !update.acknowledged
   );
   async function send(action: "check_in" | "redirect") {
     setPending(true);

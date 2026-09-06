@@ -134,6 +134,99 @@ describe("HQBot Worker authentication", () => {
       )
     ).rejects.toBeDefined();
   });
+  it("keeps specialist questions across restart and rejects replies from another assignment", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const snapshot = (await (
+      await request("/api/snapshot", { headers: { Cookie: session } })
+    ).json()) as { bots: { id: string; coordinationRole: string }[] };
+    const chief = snapshot.bots.find((bot) => bot.coordinationRole === "chief")?.id ?? "missing";
+    const employees: string[] = [];
+    for (const brief of ["Question writer", "Question researcher", "Question outsider"]) {
+      const result = (await (
+        await post("/api/bots", { brief, conversation: true }, session)
+      ).json()) as { teammate: { id: string } };
+      employees.push(result.teammate.id);
+    }
+    const agent = async () =>
+      (
+        (await server.getWorker().getEnv()) as {
+          HQBOT_AGENT: { getByName(name: string): TeamWorkRpc };
+        }
+      ).HQBOT_AGENT.getByName("hqbot");
+    const initial = await agent();
+    const work = (await initial.coordinate(
+      chief,
+      {
+        action: "start",
+        goal: "Check peer question recovery",
+        criteria: ["Saved reply"],
+        budgetUsd: 0.1
+      },
+      undefined,
+      "peer-start"
+    )) as TeamWork;
+    const workId = String(work.id);
+    for (const botId of employees.slice(0, 2))
+      await initial.coordinate(
+        chief,
+        {
+          action: "assign",
+          key: botId,
+          botId,
+          instruction: `Check ${botId}`,
+          criterion: "Evidence"
+        },
+        workId,
+        botId
+      );
+    const input = {
+      action: "ask" as const,
+      key: "source",
+      botId: employees[1],
+      question: "Which saved source supports this?"
+    };
+    const result = (await initial.coordinate(employees[0], input, workId, "question")) as {
+      questionId: string;
+    };
+    const questionId = String(result.questionId);
+    await initial.coordinate(employees[0], input, workId, "retry");
+    await expect(
+      initial.coordinate(
+        employees[2],
+        { action: "answer", questionId: questionId, answer: "Fake" },
+        workId,
+        "spoof"
+      )
+    ).rejects.toBeDefined();
+    await server.update((options) => ({
+      ...options,
+      workers: options.workers.map((worker) => ({
+        ...worker,
+        vars: { HQBOT_TEST_RESTART: "peer-questions" }
+      }))
+    }));
+    const resumed = await agent();
+    expect((await resumed.teamBriefing(employees[1], workId))?.instructions).toContain(questionId);
+    await resumed.coordinate(
+      employees[1],
+      {
+        action: "answer",
+        questionId: questionId,
+        answer: "The saved official source supports it."
+      },
+      workId,
+      "answer"
+    );
+    const saved = await resumed.teamWorkForBot(chief, workId);
+    expect(saved?.updates?.filter((item) => item.kind === "question")).toHaveLength(1);
+    expect(saved?.updates?.find((item) => item.kind === "answer")?.message).toContain(
+      "saved official source"
+    );
+    expect((await post(`/api/bots/${chief}/stop`, {}, session)).status).toBe(200);
+    await expect(
+      resumed.coordinate(employees[0], { ...input, key: "late" }, workId, "late")
+    ).rejects.toBeDefined();
+  });
   it("keeps one Chief and cancels a saved team task across a Worker restart", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const snapshot = async () =>

@@ -7,14 +7,22 @@ Teammates continue working in Cloudflare when you close the page.
 Use the pinned **Chief of Staff** conversation for work that needs several teammates. It owns the
 final answer, assigns separate jobs, waits for results, and reviews their evidence. Each team task
 has completion checks, a deadline, and a shared model budget. You can allow other teammates to
-manage work. A manager can pass smaller parts to specialists, up to three assignment levels.
+manage work. A task can have a Chief, managers, and specialists: at most two delegation levels
+below its owner. A specialist cannot add another management layer.
 Every manager reviews its direct reports. Stop the main task to stop every branch and its pending
 approvals. You can still talk to any specialist directly.
 
 Open **Agent settings → Team management** to choose who can manage or create teammates, the models
 they can use, and their limits. Creating teammates is off by default. New employees keep separate
 memory, files, connections, and permissions. You can also allow a manager to create other managers;
-those new managers cannot hire unless you enable it. Group leads can manage their own groups.
+those new managers cannot hire unless you enable it. Within a task, they still cannot add a third
+delegation level. Group leads can manage their own groups.
+
+Specialists can ask other active specialists on the same task for facts they already have.
+Questions do not create work or grant access. Each assignment can ask three questions, one at a
+time, with twenty questions per task. Questions close after ten minutes or when a participant is
+no longer available. A waiting specialist resumes when an answer or closure arrives. Activity shows
+who asked, who answered, and the saved exchange. Results still go to the responsible manager for review.
 
 Use **Activity → Progress** to see who reports to whom, the assigned model, saved progress, and
 reviewed results. Expand an active assignment to **Check in** or **Change guidance**. The request

@@ -77,50 +77,81 @@ try {
       deviceScaleFactor: 1,
       mobile: width < 500
     });
-    for (const page of ["library", "projects", "automations", "inbox", "settings", "search"]) {
-      await call("Page.navigate", { url: `http://127.0.0.1:5199/__ui/workspace?page=${page}` });
-      let heading;
-      for (let attempt = 0; attempt < 50; attempt++) {
-        await pause(100);
-        heading = await evaluate("document.querySelector('h1')?.textContent");
-        if (heading?.toLowerCase() === page) break;
-      }
-      assert.equal(heading?.toLowerCase(), page, `${page} did not load`);
-      await pause(250);
-      const metrics = await evaluate(
-        `({width:innerWidth,overflow:[...document.querySelectorAll('main *')].filter(e=>{const r=e.getBoundingClientRect();return r.width>1&&r.left>=0&&r.left<innerWidth&&r.right>innerWidth+2}).map(e=>({tag:e.tagName,class:e.className,text:e.textContent.slice(0,60)})).slice(0,8)})`
+    await call("Page.navigate", { url: "http://127.0.0.1:5199/__ui/workspace" });
+    for (let attempt = 0; attempt < 50; attempt++) {
+      if (
+        await evaluate(`Boolean(document.querySelector('button[aria-label="Conversation info"]'))`)
+      )
+        break;
+      await pause(100);
+    }
+    await evaluate(`document.querySelector('button[aria-label="Conversation info"]').click()`);
+    for (const section of [
+      "Files",
+      "Integrations",
+      "Memory",
+      "Skills",
+      "Routines",
+      "Permissions",
+      "Cost",
+      "Agent settings",
+      "Activity"
+    ]) {
+      await evaluate(
+        `[...document.querySelectorAll('nav[aria-label="Conversation resources"] button')].find(b => b.textContent === '${section}').click()`
       );
-      assert.equal(metrics.width, width, "Test viewport width");
+      await pause(400);
+      assert.equal(await evaluate(`document.querySelector('aside h2')?.textContent`), section);
+      const overflow = await evaluate(
+        `(() => { const r = document.querySelector('aside').getBoundingClientRect(); return r.right > innerWidth + 2 || r.left < 0; })()`
+      );
+      assert.equal(overflow, false, `${section} fits at ${width}px`);
       await writeFile(
-        path.join(output, `${page}-${width}.png`),
+        path.join(output, `${section.toLowerCase().replaceAll(" ", "-")}-${width}.png`),
         Buffer.from((await call("Page.captureScreenshot", { format: "png" })).data, "base64")
       );
-      assert.deepEqual(
-        metrics.overflow,
-        [],
-        `${page} overflows at ${width}px: ${JSON.stringify(metrics.overflow)}`
-      );
-      if (page === "settings") {
-        for (const tab of ["Devices", "Network", "People"]) {
-          await evaluate(
-            `[...document.querySelectorAll('nav[aria-label="Settings"] button')].find(b=>b.textContent==='${tab}').click()`
-          );
-          await pause(300);
-          await writeFile(
-            path.join(output, `settings-${tab.toLowerCase()}-${width}.png`),
-            Buffer.from((await call("Page.captureScreenshot", { format: "png" })).data, "base64")
-          );
-        }
+      console.log(`${section} ${width}px: rendered, no horizontal overflow`);
+      if (section !== "Activity") {
+        await evaluate(
+          `document.querySelector('button[aria-label="Back to conversation info"]').click()`
+        );
+        await pause(100);
       }
-      console.log(`${page} ${width}px: rendered, no horizontal overflow`);
     }
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (await evaluate(`Boolean(document.querySelector('[aria-label="Specialist questions"]'))`))
+        break;
+      await pause(100);
+    }
+    await evaluate(`document.querySelector('[aria-label="Specialist questions"] summary').click()`);
+    const questions = await evaluate(
+      `document.querySelector('[aria-label="Specialist questions"]').textContent`
+    );
+    assert(
+      questions.includes("Writer → Operator") &&
+        questions.includes("Answered") &&
+        questions.includes("saved official source"),
+      "Question and saved answer are visible"
+    );
+    const questionOverflow = await evaluate(
+      `(() => { const r = document.querySelector('[aria-label="Specialist questions"]').getBoundingClientRect(); return r.right > innerWidth + 2 || r.left < 0; })()`
+    );
+    assert.equal(questionOverflow, false, "Specialist questions fit the viewport");
+    await evaluate(
+      `document.querySelector('[aria-label="Specialist questions"]').scrollIntoView({block:'center'})`
+    );
+    await writeFile(
+      path.join(output, `specialist-questions-${width}.png`),
+      Buffer.from((await call("Page.captureScreenshot", { format: "png" })).data, "base64")
+    );
+    console.log(`Specialist questions ${width}px: expanded saved answer, no horizontal overflow`);
   }
   await evaluate("localStorage.setItem('hqbot_theme_v1','light')");
-  await call("Page.navigate", { url: "http://127.0.0.1:5199/__ui/workspace?page=library" });
+  await call("Page.navigate", { url: "http://127.0.0.1:5199/__ui/workspace" });
   await pause(700);
   assert.equal(await evaluate("document.documentElement.dataset.theme"), "light");
   await writeFile(
-    path.join(output, "library-light-1440.png"),
+    path.join(output, "conversation-light-1440.png"),
     Buffer.from((await call("Page.captureScreenshot", { format: "png" })).data, "base64")
   );
   assert.deepEqual(errors, [], "Unexpected browser exceptions");

@@ -168,7 +168,8 @@ export function TeamManagementPanel({ botId }: { botId: string }) {
                         <FieldContent>
                           <FieldLabel htmlFor={`${id}-managers`}>Can create managers</FieldLabel>
                           <FieldDescription>
-                            New managers can delegate. Only you can give them permission to hire.
+                            New managers can delegate to specialists. Tasks allow two delegation
+                            levels below their owner. Only you can give managers permission to hire.
                           </FieldDescription>
                         </FieldContent>
                       </Field>

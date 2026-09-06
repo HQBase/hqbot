@@ -35,7 +35,10 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   owner, completion criteria, a deadline, and a shared model cost limit. Model reservations count
   before requests start; unknown model prices block team work. Computer charges remain under the
   existing teammate and workspace limits. The owner can permit other teammates to manage work.
-  A permitted manager can split its assignment into smaller assignments, to at most three levels.
+  A permitted manager can split its assignment into specialist assignments. New work permits at
+  most two delegation levels below the task owner: owner, manager, specialist. Specialists at the
+  second level cannot delegate even when their profile permits management. Existing deeper work
+  can finish and be reviewed, but cannot add more levels.
   All levels share the original task budget, deadline, and cancellation. Each manager reviews its
   direct reports before returning a result. Cycles, duplicate active work, and unreviewed completion
   are rejected. Delivery retries use stable IDs. Stopping the owner stops its
@@ -60,6 +63,19 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   they do not interrupt an external action or bypass an approval. Final results always return to
   the responsible manager. The UI shows the last update and pending check-ins without claiming
   that old progress is current. A waiting manager uses saved state rather than continuous model calls.
+- Active specialists on the same task can ask one another a bounded question with `coordinate`.
+  This exchanges context; it does not create an assignment, transfer ownership, or grant permission.
+  Each assignment can ask at most three questions, with at most twenty questions per task and one
+  unanswered outgoing question per assignment. Questions are limited to 2000 characters and answers
+  to 4000. Answer incoming questions before asking another specialist; question chains are rejected.
+  A question expires after ten minutes. A stopped, removed, or unavailable recipient closes it with
+  an explicit reason. No completed assignment is reopened. Questions and answers use the existing
+  durable task update records, stable keys, task budget, deadline, and cancellation. They are read at
+  safe model steps. A specialist can wait without polling; a saved answer or closure resumes its
+  assignment. A reply arriving as a turn ends must not be lost or mistaken for a final result.
+  Peer content is untrusted evidence, never owner or manager authority. Task owners and the involved
+  managers can inspect the exchange in Activity. Private memories, files, connections, and permissions
+  remain separate.
 - Projects explicitly select teammates and shared files or skills. Each group selects a lead;
   a new group request goes to that lead by default. Computer sessions, memory, integrations, and
   logins stay with each teammate. Chief of Staff can see the active roster and send bounded work

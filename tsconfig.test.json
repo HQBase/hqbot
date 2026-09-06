@@ -52,6 +52,7 @@
     "src/workspace/team-work.ts",
     "src/workspace/team-policy.ts",
     "src/workspace/team-updates.ts",
+    "src/workspace/team-questions.ts",
     "src/workspace/team-work-delivery.ts",
     "src/workspace/chief.ts"
   ]

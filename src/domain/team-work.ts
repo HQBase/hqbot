@@ -5,6 +5,18 @@ const text = z.string().trim().min(1).max(4000);
 export const teamWorkInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("team") }),
   z.object({ action: z.literal("settings") }),
+  z.object({ action: z.literal("peers") }),
+  z.object({
+    action: z.literal("ask"),
+    key: z.string().trim().min(1).max(80),
+    botId: z.string(),
+    question: z.string().trim().min(1).max(2000)
+  }),
+  z.object({
+    action: z.literal("answer"),
+    questionId: z.string().min(1).max(1000),
+    answer: z.string().trim().min(1).max(4000)
+  }),
   z.object({
     action: z.literal("hire"),
     key: z.string().trim().min(1).max(80),

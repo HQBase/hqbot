@@ -1,3 +1,4 @@
+import { teamQuestions } from "../domain/team-questions";
 import type { TeamWorkInput } from "../domain/team-work";
 import { WorkspaceProjects } from "./projects";
 import { now, type Row } from "./sql";
@@ -82,8 +83,17 @@ export class WorkspaceTeamWork extends TeamWorkStore {
       this.catalog.getBot(input.botId)?.hidden !== false
     )
       throw new Error("Choose another active teammate");
-    if ((parent?.depth ?? 0) >= 3)
+    if ((parent?.depth ?? 0) >= 2)
       throw new Error("The team task reached its delegation depth limit");
+    if (
+      parent &&
+      teamQuestions(work.updates).some(
+        (item) =>
+          !item.response &&
+          (item.sourceAssignmentId === parent.id || item.targetAssignmentId === parent.id)
+      )
+    )
+      throw new Error("Finish the pending specialist question before delegating work");
     const modelId =
       input.modelId ??
       this.catalog.getBot(input.botId)?.modelId ??
@@ -167,6 +177,19 @@ export class WorkspaceTeamWork extends TeamWorkStore {
     }
     const { work, parent } = this.manager(id, botId);
     const assignments = parent ? this.managed(work, botId) : work.assignments;
+    if (
+      parent &&
+      teamQuestions(work.updates).some(
+        (item) =>
+          (!item.response &&
+            [item.sourceAssignmentId, item.targetAssignmentId].includes(parent.id)) ||
+          (item.sourceAssignmentId === parent.id &&
+            item.response &&
+            !this.sql<Row>`SELECT delivered FROM team_updates WHERE id = ${item.response.id}`[0]
+              ?.delivered)
+      )
+    )
+      throw new Error("Read and resolve pending specialist questions before finishing");
     if (
       assignments.some((item) => ["queued", "submitted", "returned", "failed"].includes(item.state))
     )

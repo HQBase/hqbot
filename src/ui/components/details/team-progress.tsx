@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { ActivityStatus, ActivityTime } from "./activity-parts";
 import { TeamAssignmentCard } from "./team-assignment-card";
+import { TeamQuestions } from "./team-questions";
 
 export function TeamProgress({
   botId,
@@ -120,6 +121,7 @@ export function TeamProgress({
           />
         </div>
       ))}
+      <TeamQuestions work={work} names={view.names} />
     </section>
   );
 }

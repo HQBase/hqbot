@@ -96,6 +96,9 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
           requesterId
         );
       if (!workId) throw new Error("Start a team task first");
+      if (input.action === "peers") return this.teamWork.peers(botId, workId);
+      if (input.action === "ask") return this.teamWork.ask(botId, workId, input);
+      if (input.action === "answer") return this.teamWork.answer(botId, workId, input);
       if (input.action === "report") return this.teamWork.report(botId, workId, commandId, input);
       if (input.action === "check_in" || input.action === "redirect")
         return this.teamWork.requestUpdate(botId, workId, input);
@@ -180,6 +183,7 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
         }
       }
       this.ctx.storage.transactionSync(() => {
+        this.teamWork.queueQuestionTurns(work.id);
         this.teamWork.queueManagers(work.id);
         this.teamWork.queueOwner(work.id);
       });

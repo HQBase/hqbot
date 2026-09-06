@@ -112,7 +112,15 @@ export class TeamWorkStore {
           ...work,
           assignments: work.assignments.filter((item) => visible.has(item.id)),
           updates: work.updates?.filter(
-            (item) => item.recipientBotId === botId || item.senderBotId === botId
+            (item) =>
+              item.recipientBotId === botId ||
+              item.senderBotId === botId ||
+              (["question", "answer", "question_closed"].includes(item.kind) &&
+                work.assignments.some(
+                  (assignment) =>
+                    visible.has(assignment.id) &&
+                    [item.senderBotId, item.recipientBotId].includes(assignment.botId)
+                ))
           )
         }
       : null;

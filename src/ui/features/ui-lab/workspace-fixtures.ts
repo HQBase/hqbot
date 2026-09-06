@@ -86,7 +86,12 @@ export function installWorkspaceFixtures() {
     let body: unknown;
     if (path.endsWith("/team-work"))
       body = {
-        names: { researcher: "Researcher", support: "Support", operator: "Operator" },
+        names: {
+          researcher: "Researcher",
+          support: "Support",
+          operator: "Operator",
+          writer: "Writer"
+        },
         work: {
           id: "preview-team",
           ownerBotId: "researcher",
@@ -100,7 +105,48 @@ export function installWorkspaceFixtures() {
           result: null,
           createdAt: stamp,
           updatedAt: stamp,
+          updates: [
+            {
+              id: "question:copy:limits",
+              assignmentId: "source",
+              senderBotId: "writer",
+              recipientBotId: "operator",
+              kind: "question",
+              message: JSON.stringify({
+                sourceAssignmentId: "copy",
+                text: "Does the official source support the limits in our launch copy?"
+              }),
+              acknowledged: true,
+              createdAt: stamp
+            },
+            {
+              id: "answer:question:copy:limits",
+              assignmentId: "copy",
+              senderBotId: "operator",
+              recipientBotId: "writer",
+              kind: "answer",
+              message:
+                "Yes. The saved official source supports those limits. Keep the qualification about retries in the final copy.",
+              acknowledged: true,
+              createdAt: stamp
+            }
+          ],
           assignments: [
+            {
+              id: "copy",
+              managerBotId: "researcher",
+              depth: 1,
+              modelId: HQBOT_MODELS[0].id,
+              workId: "preview-team",
+              key: "copy",
+              botId: "writer",
+              instruction: "Prepare the checked launch copy",
+              criterion: "Use the verified source",
+              state: "returned",
+              result: "The draft includes the verified limits and retry qualification.",
+              review: null,
+              updatedAt: stamp
+            },
             {
               id: "source",
               parentId: "draft",

@@ -180,6 +180,9 @@ function teamStep(part: AgentPart): { label: string; summary: string } | undefin
   const steps: Record<string, [string, string]> = {
     settings: ["Check team settings", "Management limits and allowed models checked."],
     team: ["Find teammates", "Available teammates checked."],
+    peers: ["Find task specialists", "Available specialists on this task checked."],
+    ask: ["Ask a specialist", "A question was saved within the current task."],
+    answer: ["Answer a specialist", "An answer was saved for the requesting specialist."],
     start: ["Start team task", "Goal, completion checks and limits saved."],
     assign: ["Delegate work", "Assignment saved for the selected teammate."],
     wait: ["Wait for teammates", "Work will resume when a result or report arrives."],
