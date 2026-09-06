@@ -17,6 +17,7 @@ import type { BotTeammate } from "../../domain/types";
 import { useTheme } from "../features/theme/theme-provider";
 import { cn } from "../lib/cn";
 import { initials, relativeTime } from "../lib/format";
+import { messagePreview } from "../lib/message-preview";
 import type { TeammateSummary } from "../types";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
@@ -242,6 +243,10 @@ function TeammateRow({
   selected: boolean;
   onSelect: (bot: BotTeammate) => void;
 }) {
+  const preview = useMemo(
+    () => messagePreview(bot.lastMessage ?? "New teammate"),
+    [bot.lastMessage]
+  );
   return (
     <button
       aria-current={selected ? "page" : undefined}
@@ -260,9 +265,7 @@ function TeammateRow({
           {bot.pinned ? <PiPushPinSimpleFill className="size-3 shrink-0 text-tertiary" /> : null}
           {archived ? <PiArchive className="size-3 shrink-0 text-tertiary" /> : null}
         </span>
-        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-          {bot.lastMessage ?? "New teammate"}
-        </span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">{preview}</span>
       </span>
       <span className="flex flex-col items-end gap-1">
         <time className="tabular-nums text-[11px] text-tertiary">
