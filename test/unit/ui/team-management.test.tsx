@@ -63,6 +63,37 @@ it("shows a retry after a settings load failure", async () => {
   expect(view.container.textContent).toContain("Try again");
   await view.unmount();
 });
+it("keeps a failed save beside the button and preserves the draft for retry", async () => {
+  let fail = true;
+  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+    if (init?.method === "PATCH" && fail)
+      return Response.json({ error: "Connection lost. Try again." }, { status: 503 });
+    return Response.json({
+      policy: init?.method === "PATCH" ? JSON.parse(String(init.body)) : policy,
+      models: HQBOT_MODELS.filter((model) => model.rates)
+    });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const view = await renderComponent(<TeamManagementPanel botId="chief" />);
+  const budget = view.container.querySelector<HTMLInputElement>('input[id$="-budget"]');
+  if (!budget) throw new Error("Budget control was not shown");
+  await setInputValue(budget, "3");
+  const form = view.container.querySelector("form");
+  const submit = () =>
+    form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  await interact(submit);
+  const button = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+  expect(button?.previousElementSibling?.getAttribute("role")).toBe("alert");
+  expect(button?.previousElementSibling?.textContent).toContain("Connection lost. Try again.");
+  expect(budget.value).toBe("3");
+  expect(button?.disabled).toBe(false);
+  fail = false;
+  await interact(submit);
+  expect(form?.querySelector('[role="alert"]')).toBeNull();
+  expect(button?.disabled).toBe(true);
+  expect(budget.value).toBe("3");
+  await view.unmount();
+});
 it("sends one check-in for the exact assignment and shows pending guidance", async () => {
   const fetcher = vi.fn(async () => Response.json({ pending: true }));
   vi.stubGlobal("fetch", fetcher);

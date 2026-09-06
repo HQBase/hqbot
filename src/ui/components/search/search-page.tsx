@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PiMagnifyingGlass } from "react-icons/pi";
 import type { SearchHit } from "../../../domain/messages";
 import type { WorkspaceController } from "../../hooks/use-workspace";
@@ -24,6 +24,10 @@ export function SearchPage({
   const [selected, setSelected] = useState<SearchHit | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    searchInput.current?.focus();
+  }, []);
   useEffect(() => {
     const abort = new AbortController();
     setBusy(Boolean(query.trim()));
@@ -58,6 +62,7 @@ export function SearchPage({
       <div className="relative">
         <PiMagnifyingGlass className="absolute left-3 top-3 text-muted-foreground" />
         <Input
+          ref={searchInput}
           aria-label="Search workspace"
           className="pl-9"
           value={query}

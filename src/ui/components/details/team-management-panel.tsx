@@ -97,7 +97,7 @@ export function TeamManagementPanel({ botId }: { botId: string }) {
             <Spinner /> Loading team settings
           </p>
         )}
-        {error && (
+        {!view && error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -275,6 +275,11 @@ export function TeamManagementPanel({ botId }: { botId: string }) {
                       </FieldDescription>
                     </Field>
                   </>
+                )}
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
                 )}
                 <Button className="self-start" size="sm" disabled={saving || !dirty} type="submit">
                   {saving ? (

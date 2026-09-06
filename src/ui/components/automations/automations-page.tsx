@@ -72,10 +72,14 @@ export function AutomationsPage({
             </Button>
           )}
           <div>
-            <h1 className={cn("font-semibold tracking-tight", !scopeBotId && "text-2xl")}>
-              {routine?.name ?? (scopeBotId ? "Routines" : "Automations")}
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
+            {scopeBotId ? (
+              routine && <h3 className="font-semibold tracking-tight">{routine.name}</h3>
+            ) : (
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {routine?.name ?? "Automations"}
+              </h1>
+            )}
+            <p className={cn("text-sm text-muted-foreground", (!scopeBotId || routine) && "mt-2")}>
               {routine
                 ? routineScheduleLabel(routine.schedule)
                 : scopeBotId
