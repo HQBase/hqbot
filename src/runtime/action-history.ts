@@ -62,6 +62,25 @@ export class ActionHistory {
     );
   }
 
+  readResult(id: string, offset: number) {
+    const row = this
+      .sql<Row>`SELECT id, state, result FROM hqbot_action_history WHERE id = ${id}`[0];
+    if (!row) throw new Error("Saved action not found for this teammate");
+    const result = row.result === null ? "No result recorded." : String(row.result);
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > result.length)
+      throw new Error("Choose an offset within the saved result");
+    const end = Math.min(offset + 8000, result.length);
+    return {
+      id,
+      state: text(row, "state"),
+      offset,
+      totalCharacters: result.length,
+      nextOffset: end < result.length ? end : null,
+      text: result.slice(offset, end),
+      untrusted: true
+    };
+  }
+
   reconcileRejections(executions: Pick<ExecutionState, "id" | "status" | "log">[]): void {
     for (const action of this.list().filter((item) => item.state === "pending")) {
       const execution = executions.find((item) => item.id === action.executionId);
@@ -78,6 +97,17 @@ export class ActionHistory {
   enqueue(id: string, message: string): void {
     this
       .sql`INSERT OR IGNORE INTO hqbot_action_continuations (id, message) VALUES (${id}, ${message})`;
+  }
+
+  hasPendingContinuation(): boolean {
+    return Boolean(
+      this.sql`SELECT id FROM hqbot_action_continuations WHERE submitted = 0 LIMIT 1`.length ||
+        this.sql`SELECT a.id FROM hqbot_action_history a
+          WHERE a.state IN ('approved', 'applied') AND NOT EXISTS (
+            SELECT 1 FROM hqbot_action_continuations c
+            WHERE c.id = 'integration:' || a.execution_id AND c.submitted = 1
+          ) LIMIT 1`.length
+    );
   }
 
   async flush(submit: (id: string, message: string) => Promise<void>): Promise<void> {

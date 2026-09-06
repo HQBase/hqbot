@@ -70,6 +70,7 @@ export class HQBotTeammate extends TeammateLocalRuntime {
   private runtimeTools(): ToolSet {
     const tools: ToolSet = {
       ...this.productTools(),
+      read_action_result: this.integrationRuntime.resultTool(),
       ...createKnowledgeTools(this.workspaceAgent, this.name, (query) =>
         this.session.search(query, { limit: 15 })
       ),

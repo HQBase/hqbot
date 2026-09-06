@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { PiUsersThree } from "react-icons/pi";
+import { PiPlugsConnected, PiUsersThree } from "react-icons/pi";
 import type { BotTeammate } from "../../../domain/types";
 import { AgentMessage, type AgentPart } from "./agent-message";
 import { MessageDiscussion } from "./message-discussion";
@@ -14,6 +14,27 @@ export function ConversationMessage({
   onAsk: (text: string) => void;
 }) {
   if (message.role !== "user" && message.role !== "assistant") return null;
+  if (
+    message.role === "user" &&
+    ["integration:", "resolved:", "rule-denied:"].some((prefix) => message.id.startsWith(prefix)) &&
+    message.parts.some(
+      (part) => part.type === "text" && part.text.startsWith("[hqbot:action-result]")
+    )
+  )
+    return (
+      <div
+        id={`message-${message.id}`}
+        className="mx-auto flex max-w-lg items-start gap-2 rounded-xl border border-divider bg-muted/40 px-4 py-3 text-xs text-muted-foreground"
+      >
+        <PiPlugsConnected aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="font-medium text-foreground">Connected service update</p>
+          <p className="leading-relaxed">
+            The teammate received a saved action update. View its outcome in Activity → Actions.
+          </p>
+        </div>
+      </div>
+    );
   if (message.role === "user" && message.id.startsWith("team-work:")) {
     const text = message.parts
       .filter((part) => part.type === "text")

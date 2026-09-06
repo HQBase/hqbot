@@ -24,6 +24,10 @@ model calls. Work branches share the main task's limit; passing one branch down 
 extra branch. The daily team model budget covers all tasks that manager owns and resets at
 midnight UTC. Existing workspace, teammate, and task budgets still apply.
 
+An approved service call stays with its assignment until the teammate has processed the result.
+If a result is too long for one reply, the teammate can read its saved pages without calling the
+service again. Activity keeps the full action record. Chat shows a short service update.
+
 Click the conversation name or the **info** button to open its sidebar on the right. On a phone,
 it opens in a sheet. Close it to return to your messages. The sidebar starts closed.
 

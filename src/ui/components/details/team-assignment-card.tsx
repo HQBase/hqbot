@@ -62,7 +62,7 @@ export function TeamAssignmentCard({
     }
   }
   return (
-    <details className="min-w-0 rounded-xl border border-divider bg-card p-3">
+    <details className="group/assignment min-w-0 rounded-xl border border-divider bg-card p-3">
       <summary className="cursor-pointer rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
         <span className="inline-flex flex-wrap items-center gap-2">
           <strong className="font-medium">{names[item.botId] ?? "Specialist"}</strong>
@@ -79,9 +79,11 @@ export function TeamAssignmentCard({
         <span className="mt-1 block text-xs text-muted-foreground">
           Reports to {names[item.managerBotId || work.ownerBotId] ?? "task owner"}
         </span>
-        <span className="mt-2 block break-words text-sm leading-relaxed">{item.instruction}</span>
+        <span className="mt-2 line-clamp-3 break-words text-sm leading-relaxed group-open/assignment:line-clamp-none">
+          {item.instruction}
+        </span>
         {item.progress && (
-          <span className="mt-2 block break-words text-xs text-muted-foreground">
+          <span className="mt-2 line-clamp-2 break-words text-xs text-muted-foreground group-open/assignment:line-clamp-none">
             {item.progress.summary}
           </span>
         )}

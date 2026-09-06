@@ -86,6 +86,22 @@ describe("generic MCP connections", () => {
     expect(message).not.toContain("other:1");
   });
 
+  it("marks a shortened result and directs recovery to saved evidence without repeating the action", () => {
+    const message = integrationOutcomeText(
+      {
+        executionId: "large",
+        result: { text: "x".repeat(5000), url: "https://example.com/source" },
+        status: "completed"
+      },
+      [{ id: "large:0", executionId: "large", state: "applied" }]
+    );
+    expect(message).toContain("Result shortened");
+    expect(message).toContain("read_action_result");
+    expect(message).toContain("nextOffset");
+    expect(message).toContain("large:0");
+    expect(message).toContain("Do not repeat the external action");
+  });
+
   it("returns a closed OAuth result page without provider-controlled text", async () => {
     const response = mcpOAuthCallbackResponse(false);
 

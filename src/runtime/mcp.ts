@@ -28,7 +28,12 @@ export function integrationOutcomeText(
   }
   let result = "No result was returned.";
   try {
-    result = JSON.stringify(output.result, null, 2)?.slice(0, 4_000) ?? result;
+    const serialized = JSON.stringify(output.result, null, 2);
+    if (serialized)
+      result =
+        serialized.length > 4000
+          ? `${serialized.slice(0, 4000)}\n[Result shortened. Use read_action_result with a confirmed action ID and offset 0, then nextOffset, to read the saved service result. Do not repeat the external action to retrieve missing evidence.]`
+          : serialized;
   } catch {
     // Keep the safe fallback for values that cannot be serialized.
   }

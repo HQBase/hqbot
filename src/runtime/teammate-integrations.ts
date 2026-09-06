@@ -8,6 +8,7 @@ import type { Tool } from "ai";
 import type { IntegrationApproval } from "../domain/actions";
 import type { PermissionDecision } from "../domain/permissions";
 import type { ActionHistory } from "./action-history";
+import { createActionResultTool } from "./action-result";
 
 import type { TeammateExternalEffects } from "./external-effects";
 import {
@@ -160,6 +161,14 @@ export class TeammateIntegrations {
 
   history() {
     return this.options.history.list();
+  }
+
+  hasPendingContinuation() {
+    return this.options.history.hasPendingContinuation();
+  }
+
+  resultTool(): Tool {
+    return createActionResultTool(this.options.history);
   }
 
   async refreshHistory() {

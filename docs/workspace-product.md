@@ -41,6 +41,11 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   are rejected. Delivery retries use stable IDs. Stopping the owner stops its
   team task and rejects pending specialist approvals. Action history records those rejections,
   including after recovery. It must not label an approved or completed action as rejected.
+  Approval execution and result delivery are part of the same assignment. A manager must not receive
+  a pre-approval reply as the result while that delivery is pending. Recovery follows the latest
+  saved continuation and cannot substitute an earlier reply.
+  Large service results are marked as shortened. An agent can read the saved result in bounded
+  pages by action ID, without repeating the external request or reading another teammate's data.
   Direct conversations with specialists remain available.
 - Team management is an owner-controlled setting for each teammate. It specifies whether that
   teammate may manage, create employees, or create managers, its allowed and default models, its
@@ -65,6 +70,8 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   A failed settings save keeps the draft and shows its error beside the save control.
   Each info section has one page title. A selected routine adds its own name below that title.
   Opening workspace search puts keyboard focus in the search field.
+  Collapsed assignment cards shorten long instructions and reports; expansion shows the full text.
+  Internal service-result messages show a compact notice, with exact results in Activity.
 - Routines support intervals and calendar rules with an IANA time zone, editing, manual tests,
   pause/resume, and run history. Signed inbound events can start selected routines. Signature
   verification, timestamp checks where supported, replay protection, and bounded queues precede

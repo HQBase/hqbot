@@ -31,6 +31,8 @@ export function assertAgentToolPolicy(policy: AdminPolicy, name: string) {
     "load_skill",
     "collaborate",
     "codemode",
+    "coordinate",
+    "read_action_result",
     "stop_process",
     "list_files",
     "read_file"

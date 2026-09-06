@@ -13,12 +13,19 @@ interface ActiveTeam {
   specialist: boolean;
   finished?: boolean;
   cancelled?: boolean;
+  resultSubmissionId?: string;
 }
 interface TeamResult {
   text: string;
   failed: boolean;
 }
 export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime {
+  protected override async productContinuation(id: string) {
+    await super.productContinuation(id);
+    const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
+    if (active && !active.finished && !active.cancelled)
+      await this.ctx.storage.put(activeTeamKey, { ...active, resultSubmissionId: id });
+  }
   protected override async currentTeamWorkId() {
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
     return active?.finished ? undefined : active?.workId;
@@ -196,9 +203,10 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     );
   }
   async teamWorkStatus(id: string) {
-    const submission = await this.inspectSubmission(`team-work:${id}`);
-    let result = (await this.ctx.storage.get<TeamResult>(`hqbot:team-result:${id}`)) ?? null;
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
+    const submissionId = (active?.turnId === id && active.resultSubmissionId) || `team-work:${id}`;
+    const submission = await this.inspectSubmission(submissionId);
+    let result = (await this.ctx.storage.get<TeamResult>(`hqbot:team-result:${id}`)) ?? null;
     if (
       !result &&
       submission?.status === "completed" &&
@@ -207,11 +215,15 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
       Date.now() - (submission.completedAt ?? Date.now()) > 30000 &&
       !this.tasks.active() &&
       !this.processes.active() &&
+      !this.integrationRuntime.hasPendingContinuation() &&
       !(await this.pendingApprovals()).length &&
       !(await this.integrationRuntime.pending()).length &&
       (await this.waitUntilStable({ timeout: 1 }))
     ) {
-      const text = savedTeamResult(this.messages, `team-work:${id}`);
+      const current = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
+      if (current?.resultSubmissionId !== active.resultSubmissionId || current?.cancelled)
+        return { status: "running", result: null };
+      const text = savedTeamResult(this.messages, submissionId);
       result = {
         text:
           text ??
@@ -255,6 +267,9 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     if (
       this.tasks.active() ||
       this.processes.active() ||
+      this.integrationRuntime.hasPendingContinuation() ||
+      (active.resultSubmissionId &&
+        this.activeTurnMetadata?.integrationResultId !== active.resultSubmissionId) ||
       (await this.pendingApprovals()).length ||
       (await this.integrationRuntime.pending()).length
     )

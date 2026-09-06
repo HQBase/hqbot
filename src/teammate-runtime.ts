@@ -83,6 +83,8 @@ export abstract class TeammateRuntime extends Think<Env> {
     return Boolean(bot && !bot.hidden);
   }
 
+  protected async productContinuation(_id: string): Promise<void> {}
+
   protected get taskSupervision(): TaskSupervision {
     this.supervisor ??= new TaskSupervision(
       this.sql.bind(this) as Sql,
@@ -284,9 +286,11 @@ export abstract class TeammateRuntime extends Think<Env> {
         );
       },
       continueTurn: async (id, text) => {
+        await this.productContinuation(id);
         const work = this.tasks.active();
         const metadata = {
           source: "integration-result",
+          integrationResultId: id,
           ...(work ? { taskId: work.taskId, generation: work.generation } : {})
         };
         await this.submitMessages(

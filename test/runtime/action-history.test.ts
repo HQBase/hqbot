@@ -51,6 +51,47 @@ it("resumes an unsent result after storage recovery with the same submission ID"
   expect(submit).toHaveBeenNthCalledWith(2, "result:one", "saved result");
 });
 
+it("reads every page of a long saved result without changing the action or crossing teammates", async () => {
+  const { history } = fixture();
+  await history.pending(action);
+  const result = { text: "Source detail. ".repeat(900), url: "https://example.com/source" };
+  history.outcome("one", 0, "applied", result);
+  let offset: number | null = 0;
+  let joined = "";
+  while (offset !== null) {
+    const page = history.readResult("one:0", offset);
+    expect(page.text.length).toBeLessThanOrEqual(8000);
+    expect(page.untrusted).toBe(true);
+    expect(page.state).toBe("applied");
+    joined += page.text;
+    offset = page.nextOffset;
+  }
+  expect(JSON.parse(joined)).toEqual(result);
+  expect(history.list()[0].state).toBe("applied");
+  expect(() => fixture().history.readResult("one:0", 0)).toThrow("not found");
+  expect(() => history.readResult("one:0", -1)).toThrow("offset");
+  expect(() => history.readResult("one:0", joined.length + 1)).toThrow("offset");
+});
+
+it("keeps an approved action pending until its result continuation is durably submitted", async () => {
+  const { history, sql } = fixture();
+  const pending = await history.pending(action);
+  expect(history.hasPendingContinuation()).toBe(false);
+  history.decide("one", 0, pending.inputHash, "approved");
+  expect(new ActionHistory(sql).hasPendingContinuation()).toBe(true);
+  history.outcome("one", 0, "applied", { checked: true });
+  expect(history.hasPendingContinuation()).toBe(true);
+  history.enqueue("integration:one", "Checked result");
+  await expect(
+    history.flush(async () => {
+      throw new Error("Disconnected");
+    })
+  ).rejects.toThrow();
+  expect(new ActionHistory(sql).hasPendingContinuation()).toBe(true);
+  await history.flush(async () => undefined);
+  expect(new ActionHistory(sql).hasPendingContinuation()).toBe(false);
+});
+
 it("records bulk stop and connection removal without rejecting an action that won the race", async () => {
   const { history } = fixture();
   const actions = [
