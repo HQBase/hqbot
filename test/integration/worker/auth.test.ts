@@ -183,6 +183,17 @@ describe("HQBot Worker authentication", () => {
       await post("/api/bots", { brief: "Submission callback test", conversation: true }, session)
     ).json()) as { teammate: { id: string } };
     const path = `/api/bots/${teammate.id}`;
+    expect((await request(`${path}/task-health`)).status).toBe(401);
+    const health = await (
+      await request(`${path}/task-health`, { headers: { Cookie: session } })
+    ).json();
+    expect(health).toMatchObject({
+      processActive: false,
+      handoffPending: false,
+      approvalCount: 0,
+      submissions: [],
+      incompleteTools: []
+    });
     await request(`${path}/task-progress`, { headers: { Cookie: session } });
     const storage = await server
       .getWorker()

@@ -27,6 +27,9 @@ export async function handleResources(request: Request, env: Env): Promise<Respo
     const names = Object.fromEntries((await agent.listBots()).map((bot) => [bot.id, bot.name]));
     return json({ work, names });
   }
+  const health = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/task-health$/u);
+  if (request.method === "GET" && health?.[0])
+    return json(await (await teammate(env, health[0])).getTaskHealth());
   const progress = pathMatch(url.pathname, /^\/api\/bots\/([^/]+)\/task-progress$/u);
   if (request.method === "GET" && progress?.[0])
     return json(await (await teammate(env, progress[0])).getTaskProgress());

@@ -308,3 +308,7 @@ or submitting an access change still passes through the action permission check.
 Submission status callbacks for pending, running, and obsolete turns return without waiting on
 HQBot's task queue. Think can emit these callbacks while a queued task operation is creating or
 cancelling a turn. Waiting on that same queue would deadlock the continuation.
+
+The owner-only GET `/api/bots/:id/task-health` endpoint reports turn stability, pending work,
+heartbeat time, recovery scheduling, and submission IDs and states. It returns no prompts, tool
+inputs, tool outputs, credentials, or mail content. It does not change the task.

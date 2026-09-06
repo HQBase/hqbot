@@ -85,6 +85,64 @@ export abstract class TeammateRecoveryRuntime extends TeammateLocalRuntime {
     if (work?.state === "waiting" && !this.processes.active())
       await this.tasks.run(() => this.tasks.reconcile());
   }
+  async getTaskHealth() {
+    const work = this.tasks.current();
+    const scheduleId = await this.ctx.storage.get<string>(scheduleKey);
+    return {
+      work: work
+        ? {
+            taskId: work.taskId,
+            generation: work.generation,
+            state: work.state,
+            submissionId: work.submissionId,
+            updatedAt: work.updatedAt
+          }
+        : null,
+      stable: await this.waitUntilStable({ timeout: 10 }),
+      pendingInteraction: this.hasPendingInteraction(),
+      processActive: Boolean(this.processes.active()),
+      handoffPending: Boolean(this.ownerHandoffs.pending()),
+      approvalCount: (await this.pendingApprovals()).length,
+      heartbeat: await this.ctx.storage.get<TaskHeartbeat>(heartbeatKey),
+      watchdogScheduled: Boolean(scheduleId && (await this.getScheduleById(scheduleId))),
+      unresolvedEffects: this
+        .sql`SELECT effect_key FROM hqbot_external_effect_receipts WHERE state = 'uncertain'`
+        .length,
+      submissions: (await this.listSubmissions({ limit: 5 })).map((s) => ({
+        id: s.submissionId,
+        status: s.status,
+        createdAt: s.createdAt,
+        startedAt: s.startedAt,
+        completedAt: s.completedAt,
+        hasError: Boolean(s.error),
+        taskId: s.metadata?.taskId,
+        generation: s.metadata?.generation
+      })),
+      incompleteTools: this.messages
+        .flatMap((m) =>
+          m.parts.flatMap((p) => {
+            const part = p as { type: string; state?: string; toolCallId?: string };
+            return part.state &&
+              [
+                "input-streaming",
+                "input-available",
+                "approval-requested",
+                "approval-responded"
+              ].includes(part.state)
+              ? [
+                  {
+                    messageId: m.id,
+                    type: part.type,
+                    state: part.state,
+                    toolCallId: part.toolCallId
+                  }
+                ]
+              : [];
+          })
+        )
+        .slice(-20)
+    };
+  }
   async onChatResponse(result: ChatResponseResult): Promise<void> {
     const pending = [
       ...(await this.integrationRuntime.pending()),
