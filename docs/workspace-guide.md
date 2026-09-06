@@ -91,3 +91,12 @@ Revoke a link to stop future downloads; a copy already downloaded stays with its
 Install the web app from your browser, or build the [native clients](../clients/README.md). The web
 app uses an offline page when disconnected; it does not cache conversations or files for offline
 reading. Server work continues. Push and screen recording need a supported browser.
+
+When a task needs your approval, its card appears in the conversation, including requests from
+specialists working on that task. Review the action and choose Approve or Deny there. Use
+Conversation info → Permissions to change persistent rules.
+
+When the agent needs you to sign in, the live computer appears in the chat. Enter your credentials
+on the computer, then select **I’m done—continue**. You can expand the screen. If the connection
+expires, select **Reconnect computer**. You do not need to find another teammate or type a resume
+message. The saved task continues with the same permissions and budget.

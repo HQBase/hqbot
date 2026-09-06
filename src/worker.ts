@@ -2,6 +2,7 @@ import { routeAgentRequest } from "agents";
 
 import { HQBotAgent } from "./agent";
 import { handleArtifacts } from "./http/artifacts";
+import { handleAttention } from "./http/attention";
 import { handleAuth } from "./http/auth";
 import { handleAutomations } from "./http/automations";
 import { handleBackups } from "./http/backups";
@@ -89,6 +90,7 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
   const crossOrigin = requireSameOrigin(request);
   if (crossOrigin) return crossOrigin;
   for (const handler of [
+    handleAttention,
     handleBots,
     handleAutomations,
     handleEventSettings,

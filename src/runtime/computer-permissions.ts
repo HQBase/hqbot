@@ -128,7 +128,9 @@ export class ComputerPermissions {
                   })
                 );
                 history.outcome(executionId, 0, "applied", result ?? null);
-                return result;
+                return result && typeof result === "object" && !Array.isArray(result)
+                  ? { ...result, actionId: `${executionId}:0` }
+                  : { result, actionId: `${executionId}:0` };
               } catch (cause) {
                 history.outcome(executionId, 0, "uncertain", null);
                 await this.host.uncertain();

@@ -22,6 +22,7 @@
     "src/ui/**/*.tsx",
     "src/domain/models.ts",
     "src/domain/actions.ts",
+    "src/domain/attention.ts",
     "src/domain/knowledge.ts",
     "src/domain/permissions.ts",
     "src/domain/projects.ts",

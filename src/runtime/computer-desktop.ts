@@ -13,6 +13,8 @@ interface DesktopToolsOptions {
   botId: string;
   computer: TeammateComputer;
   taskId: () => unknown;
+  onHandoff?: (id: string) => Promise<void>;
+  onReturn?: () => void;
 }
 
 const numberText = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/u;
@@ -75,6 +77,7 @@ export function createComputerDesktopTools(options: DesktopToolsOptions): ToolSe
         await options.computer.stop();
       } else if (input.action === "take_back") {
         await options.computer.setOwnerControl(false);
+        options.onReturn?.();
       } else {
         await options.computer.open({
           eventId: `session:${context.toolCallId}`,
@@ -93,6 +96,7 @@ export function createComputerDesktopTools(options: DesktopToolsOptions): ToolSe
           }
         }
       }
+      if (input.action === "give_to_owner") await options.onHandoff?.(context.toolCallId);
       return { action: input.action, status: await options.computer.status() };
     },
     toModelOutput: ({ output }) => modelText(output)

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { StrictMode, useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IntegrationApproval as PendingAction } from "../../../src/domain/actions";
 
 import type { BotFile, BotTeammate } from "../../../src/domain/types";
@@ -9,6 +9,13 @@ import { RealtimeConversation } from "../../../src/ui/components/realtime-conver
 import type { WorkspaceController } from "../../../src/ui/hooks/use-workspace";
 import * as initialMessageModule from "../../../src/ui/lib/initial-message";
 import { interact, renderComponent } from "./render.tsx";
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ items: [] }))
+  );
+});
 
 const submitInitialMessage = vi.hoisted(() =>
   vi.fn(async (): Promise<"pending" | "delivered"> => "delivered")
@@ -213,6 +220,12 @@ describe("RealtimeConversation", () => {
         metadata: { turnMetadata: { source: "active-task" } }
       },
       {
+        id: "handoff-result",
+        role: "user",
+        parts: [{ type: "text", text: "[hqbot:action-result] Owner returned control." }],
+        metadata: { turnMetadata: { source: "integration-result" } }
+      },
+      {
         id: "assistant-2",
         role: "assistant",
         parts: [{ type: "text", text: "The background work is complete." }]
@@ -239,6 +252,7 @@ describe("RealtimeConversation", () => {
 
     expect(view.container.textContent).toContain("Research this topic");
     expect(view.container.textContent).not.toContain("[hqbot:active-task]");
+    expect(view.container.textContent).not.toContain("[hqbot:action-result]");
     expect(view.container.textContent).toContain("The background work is complete.");
     await view.unmount();
   });
@@ -795,16 +809,33 @@ describe("RealtimeConversation", () => {
   });
 
   it("shows and resolves a connected-service approval", async () => {
-    agent.listIntegrationApprovals.mockResolvedValue([
-      {
-        args: { title: "Open an issue" },
-        connector: "mcp_github",
-        executionId: "execution-1",
-        inputHash: "reviewed-input",
-        method: "create_issue",
-        seq: 1
-      }
-    ]);
+    const fetcher = vi.fn(async (_path: string, init?: RequestInit) =>
+      Response.json(
+        init?.method === "POST"
+          ? { saved: true }
+          : {
+              items: [
+                {
+                  botId: teammate.id,
+                  name: teammate.name,
+                  computerApprovals: [],
+                  handoff: null,
+                  integrationApprovals: [
+                    {
+                      args: { title: "Open an issue" },
+                      connector: "mcp_github",
+                      executionId: "execution-1",
+                      inputHash: "reviewed-input",
+                      method: "create_issue",
+                      seq: 1
+                    }
+                  ]
+                }
+              ]
+            }
+      )
+    );
+    vi.stubGlobal("fetch", fetcher);
     const controller = {
       detailsOpen: true,
       error: "",
@@ -824,14 +855,16 @@ describe("RealtimeConversation", () => {
       />
     );
 
-    expect(view.container.textContent).toContain("Connected-service approval");
+    expect(view.container.textContent).toContain("Allow this connected action?");
     expect(view.container.textContent).toContain("Open an issue");
     await interact(() =>
       [...view.container.querySelectorAll("button")]
         .find((button) => button.textContent?.includes("Approve"))
         ?.click()
     );
-    expect(agent.approveIntegrationAction).toHaveBeenCalledWith("execution-1", 1, "reviewed-input");
+    expect(
+      JSON.parse(String(fetcher.mock.calls.find(([, init]) => init?.method === "POST")?.[1]?.body))
+    ).toMatchObject({ id: "execution-1", seq: 1, inputHash: "reviewed-input", approved: true });
     await view.unmount();
   });
 

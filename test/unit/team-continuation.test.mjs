@@ -46,6 +46,7 @@ function fixture() {
         delete: async (key) => storage.delete(key)
       }
     },
+    ownerHandoffs: { pending: () => null },
     tasks: { active: () => null },
     processes: { active: () => null },
     integrationRuntime: integration,
@@ -115,4 +116,13 @@ it("keeps team context for the final integration response", async () => {
     message: message("final", "assistant", "Verified evidence")
   });
   expect(finish).toHaveBeenCalledExactlyOnceWith("turn", "specialist", "Verified evidence", false);
+});
+
+it("keeps a specialist assignment open while its owner handoff is pending", async () => {
+  const { host, integration, finish } = fixture();
+  integration.hasPendingContinuation.mockReturnValue(false);
+  host.ownerHandoffs.pending = () => ({ id: "login" });
+  expect((await host.teamWorkStatus("turn")).result).toBeNull();
+  await host.productResponse({ status: "completed", message: host.messages[1] });
+  expect(finish).not.toHaveBeenCalled();
 });

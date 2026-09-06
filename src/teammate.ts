@@ -80,6 +80,8 @@ export class HQBotTeammate extends TeammateLocalRuntime {
         taskId: () => this.currentTaskId()
       }),
       ...createComputerDesktopTools({
+        onHandoff: (id) => this.ownerHandoffs.record(id),
+        onReturn: () => this.ownerHandoffs.cancel(),
         botId: this.name,
         computer: this.computerRuntime,
         taskId: () => this.currentTaskId()
@@ -218,7 +220,11 @@ export class HQBotTeammate extends TeammateLocalRuntime {
       ...(await this.listComputerApprovals())
     ];
     const work = this.tasks.active();
-    if (pending.length && work?.state === "running" && !this.processes.active())
+    if (
+      (pending.length || this.ownerHandoffs.pending()) &&
+      work?.state === "running" &&
+      !this.processes.active()
+    )
       await this.tasks.manage({
         action: "needs_user",
         goal: work.goal,
@@ -265,6 +271,7 @@ export class HQBotTeammate extends TeammateLocalRuntime {
     await this.computerRuntime.reconcileOwnerControl();
     await this.processes.reconcile();
     await this.tasks.reconcile();
+    await this.ownerHandoffs.recover();
     await this.integrationRuntime.recover();
   }
 
@@ -322,18 +329,6 @@ export class HQBotTeammate extends TeammateLocalRuntime {
   @callable()
   resolveUnknownAction(id: string, evidence: string, happened: boolean) {
     return this.integrationRuntime.resolveUnknown(id, evidence, happened);
-  }
-
-  getComputerStatus() {
-    return this.computerRuntime.status();
-  }
-
-  setComputerControl(ownerControl: boolean) {
-    return this.computerRuntime.setOwnerControl(ownerControl);
-  }
-
-  renewComputerControl() {
-    return this.computerRuntime.setOwnerControl(true, true);
   }
 
   @callable()

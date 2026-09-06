@@ -43,7 +43,10 @@ it("requires review by default and uses the explicit owner policy for computer c
   expect(await action.approval({ input: { script: "echo test" }, ctx })).toBe(true);
   permissions.set("allow");
   expect(await action.approval({ input: { script: "echo test" }, ctx })).toBe(false);
-  await action.execute({ script: "echo test" }, ctx);
+  expect(await action.execute({ script: "echo test" }, ctx)).toMatchObject({
+    ok: true,
+    actionId: "computer:first:0"
+  });
   await action.execute({ script: "echo test" }, ctx);
   expect(execute).toHaveBeenCalledOnce();
 });

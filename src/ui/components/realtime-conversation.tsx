@@ -2,17 +2,15 @@ import { useAgentChat } from "@cloudflare/think/react";
 import { useAgent } from "agents/react";
 import type { UIMessage } from "ai";
 import { type ChangeEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { IntegrationApproval } from "../../domain/actions";
 import type { BotTeammate } from "../../domain/types";
 import { useInitialMessageDelivery } from "../hooks/use-initial-message-delivery";
-import { useIntegrationApprovals } from "../hooks/use-integration-approvals";
 import type { WorkspaceController } from "../hooks/use-workspace";
 import { artifactReferences, uploadArtifacts } from "../lib/artifact-upload";
 import { isInternalContinuation } from "../lib/internal-messages";
-import { integrationActionDetails, type TeammateIntegrationClient } from "../lib/mcp";
+import type { TeammateIntegrationClient } from "../lib/mcp";
 import { AgentMessage, type AgentPart, ThinkingIndicator } from "./chat/agent-message";
-import { ApprovalCard } from "./chat/approval-card";
 import { ChatComposer, type ComposerFile } from "./chat/chat-composer";
+import { ConversationAttention } from "./chat/conversation-attention";
 import { ConversationMessage } from "./chat/conversation-message";
 import { Shimmer } from "./chat/shimmer";
 import { ConversationHeader } from "./conversation-header";
@@ -42,14 +40,7 @@ export function RealtimeConversation({
     credentials: "include",
     throttle: 50
   });
-  const { approvals, refreshApprovals } = useIntegrationApprovals({
-    botId: bot.id,
-    botStatus: bot.status,
-    chatStatus: chat.status,
-    ready: agent.ready,
-    stub: agent.stub
-  });
-  const [resolving, setResolving] = useState<string | null>(null);
+  const [attentionCount, setAttentionCount] = useState(0);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [admitting, setAdmitting] = useState(false);
   const [optimisticMessage, setOptimisticMessage] = useState<string | null>(null);
@@ -145,7 +136,7 @@ export function RealtimeConversation({
   const loadingEmpty =
     visibleMessages.length === 0 &&
     !pendingInitialMessage &&
-    approvals.length === 0 &&
+    attentionCount === 0 &&
     (chat.status !== "ready" || chat.isRecovering);
   useLayoutEffect(() => {
     const conversation = conversationRef.current;
@@ -239,25 +230,7 @@ export function RealtimeConversation({
       ].slice(0, 5)
     );
   }
-  async function resolveApproval(approval: IntegrationApproval, approved: boolean): Promise<void> {
-    setResolving(approval.executionId);
-    setLocalError("");
-    try {
-      if (approved)
-        await agent.stub.approveIntegrationAction(
-          approval.executionId,
-          approval.seq,
-          approval.inputHash
-        );
-      else await agent.stub.rejectIntegrationAction(approval.executionId, approval.seq);
-      await refreshApprovals();
-      await controller.load(bot.id);
-    } catch (cause) {
-      setLocalError(cause instanceof Error ? cause.message : "The approval could not be recorded");
-    } finally {
-      setResolving(null);
-    }
-  }
+
   async function stop(): Promise<void> {
     setLocalError("");
     try {
@@ -312,7 +285,7 @@ export function RealtimeConversation({
           visibleMessages.length === 0 &&
           !pendingInitialMessage &&
           !optimisticMessage &&
-          approvals.length === 0 ? (
+          attentionCount === 0 ? (
             <div className="my-auto flex min-h-56 flex-col items-center justify-center text-center">
               <p className="text-sm font-medium text-foreground">Start a conversation</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
@@ -351,17 +324,7 @@ export function RealtimeConversation({
               recovering={chat.isRecovering}
             />
           ) : null}
-          {approvals.map((approval) => (
-            <ApprovalCard
-              description={`${approval.connector} requested ${approval.method}. Review the exact input before you approve it.`}
-              details={integrationActionDetails(approval)}
-              key={`${approval.executionId}:${approval.seq}`}
-              pending={resolving === approval.executionId}
-              title="Connected-service approval"
-              onApprove={() => void resolveApproval(approval, true)}
-              onDeny={() => void resolveApproval(approval, false)}
-            />
-          ))}
+          <ConversationAttention botId={bot.id} onCount={setAttentionCount} />
         </div>
       </div>
       <div className="shrink-0 bg-gradient-to-t from-reader via-reader to-reader/80 pt-2">

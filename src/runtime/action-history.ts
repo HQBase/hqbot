@@ -105,7 +105,7 @@ export class ActionHistory {
     return Boolean(
       this.sql`SELECT id FROM hqbot_action_continuations WHERE submitted = 0 LIMIT 1`.length ||
         this.sql`SELECT a.id FROM hqbot_action_history a
-          WHERE a.state IN ('approved', 'applied') AND NOT EXISTS (
+          WHERE a.connector != 'computer' AND a.state IN ('approved', 'applied') AND NOT EXISTS (
             SELECT 1 FROM hqbot_action_continuations c
             WHERE c.id = 'integration:' || a.execution_id AND c.submitted = 1
           ) LIMIT 1`.length

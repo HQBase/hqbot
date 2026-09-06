@@ -145,6 +145,42 @@ try {
       Buffer.from((await call("Page.captureScreenshot", { format: "png" })).data, "base64")
     );
     console.log(`Specialist questions ${width}px: expanded saved answer, no horizontal overflow`);
+    await call("Page.navigate", { url: "http://127.0.0.1:5199/__ui/workspace?attention" });
+    for (let attempt = 0; attempt < 60; attempt++) {
+      if (
+        await evaluate(
+          `Boolean(document.querySelector('[aria-label="Computer handoff from Operator"]'))`
+        )
+      )
+        break;
+      await pause(100);
+    }
+    const handoff = await evaluate(
+      `document.querySelector('[aria-label="Computer handoff from Operator"]')?.textContent`
+    );
+    assert(handoff?.includes("I’m done—continue"), "Inline handoff has a resume action");
+    assert(handoff?.includes("Reconnect computer"), "Expired control can reconnect from chat");
+    assert(
+      await evaluate(
+        `document.querySelector('[aria-label="Action details"]')?.textContent.includes('https://hqbase.example')`
+      ),
+      "Exact computer approval is inline"
+    );
+    await evaluate(
+      `document.querySelector('[aria-label="Computer handoff from Operator"]').scrollIntoView({block:'center'})`
+    );
+    assert.equal(
+      await evaluate(
+        `(() => {const r = document.querySelector('[aria-label="Computer handoff from Operator"]').getBoundingClientRect();return r.left < 0 || r.right > innerWidth + 2;})()`
+      ),
+      false,
+      "Inline handoff fits the viewport"
+    );
+    await writeFile(
+      path.join(output, `inline-handoff-${width}.png`),
+      Buffer.from((await call("Page.captureScreenshot", { format: "png" })).data, "base64")
+    );
+    console.log(`Inline approval and handoff ${width}px: rendered in conversation`);
   }
   await evaluate("localStorage.setItem('hqbot_theme_v1','light')");
   await call("Page.navigate", { url: "http://127.0.0.1:5199/__ui/workspace" });

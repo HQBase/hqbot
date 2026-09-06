@@ -257,3 +257,20 @@ with local approval. The working folder is a starting location, not filesystem i
 Web Push and demonstration recording use supported browsers. Native shells do not yet register
 APNs or FCM tokens, and do not provide native screen recording. Device UI checks, release signing,
 notarization, and store publication remain distinct from compilation. See the client build guide.
+
+### Inline owner actions
+
+The initiating conversation shows pending computer and connected-service approvals for its own
+teammate and active descendants of its current team task. Each card names the acting teammate and
+shows the exact input. Decisions revalidate the task relationship, pending request, and input hash.
+Persistent permission rules remain in Conversation info.
+
+A computer handoff is saved before the agent ends its turn. The conversation automatically shows
+an interactive screen when owner control is available, with an optional expanded view. Passwords
+and MFA codes are entered only on that screen. An explicit “I’m done—continue” decision returns
+control and durably resumes the same teammate and task once. A lost control lease shows a reconnect
+action for the existing handoff. Stops and archived teammates invalidate pending handoffs.
+
+Computer tool results include their saved action ID. Approval references are not result IDs.
+Computer actions use Think's durable approval continuation; they must not wait for a separate MCP
+continuation. Owner handoffs use a durable continuation and survive reloads and Worker restarts.

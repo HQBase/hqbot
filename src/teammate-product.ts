@@ -3,7 +3,7 @@ import { generateText } from "ai";
 import { collaborationTools } from "./runtime/collaboration-tool";
 import { configureWorkSession } from "./runtime/session-context";
 import { teammateResponseText } from "./runtime/turn";
-import { TeammateRuntime } from "./teammate-runtime";
+import { TeammateOwnerRuntime } from "./teammate-owner";
 
 export const activeDeliveryKey = "hqbot:active-delivery";
 const startedDeliveryKey = "hqbot:started-delivery";
@@ -11,7 +11,7 @@ interface DeliveryResult {
   text: string;
   failed: boolean;
 }
-export abstract class TeammateProductRuntime extends TeammateRuntime {
+export abstract class TeammateProductRuntime extends TeammateOwnerRuntime {
   private acceptingWork = false;
   protected async admitProductWork(accept: () => Promise<boolean>): Promise<boolean> {
     if (this.acceptingWork) return false;

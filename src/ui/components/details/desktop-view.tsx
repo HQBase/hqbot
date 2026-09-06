@@ -21,7 +21,19 @@ const emptyStatus: ComputerStatus = {
   running: false
 };
 
-export function DesktopView({ active = false, botId }: { active?: boolean; botId: string }) {
+export function DesktopView({
+  active = false,
+  botId,
+  embedded = false,
+  continuing = false,
+  onContinue
+}: {
+  active?: boolean;
+  botId: string;
+  embedded?: boolean;
+  continuing?: boolean;
+  onContinue?: () => void;
+}) {
   const endpoint = `/api/bots/${encodeURIComponent(botId)}/desktop`;
   const previousActive = useRef(active);
   const refreshPending = useRef(false);
@@ -221,26 +233,37 @@ export function DesktopView({ active = false, botId }: { active?: boolean; botId
         <p aria-live="polite" className="min-w-40 flex-1 text-[11px] text-muted-foreground">
           {visibleError ||
             (computer.ownerControl
-              ? "You have control. Tell the agent when you are done."
+              ? embedded
+                ? "You have control. Use I’m done—continue when finished."
+                : "You have control. Tell the agent when you are done."
               : computer.running
                 ? "View only. Ask the agent if you need control."
                 : "The agent starts the computer when work needs it.")}
         </p>
+        {large && onContinue && (
+          <Button disabled={continuing} onClick={onContinue}>
+            I’m done—continue
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
     <Dialog open={maximized} onOpenChange={setMaximized}>
-      <DetailsSection badge={badge} defaultOpen icon={PiDesktopTower} title="Computer">
-        <p className="mb-3 text-xs leading-5 text-muted-foreground">
-          The agent uses one private Linux Sandbox for Bash, Chrome, and other GUI apps. Its live
-          screen appears automatically.
-        </p>
-        {computerSurface()}
-        {computerStatus()}
-        <ComputerResourceGrid resources={computer.resources} running={computer.running} />
-      </DetailsSection>
+      {embedded ? (
+        computerSurface()
+      ) : (
+        <DetailsSection badge={badge} defaultOpen icon={PiDesktopTower} title="Computer">
+          <p className="mb-3 text-xs leading-5 text-muted-foreground">
+            The agent uses one private Linux Sandbox for Bash, Chrome, and other GUI apps. Its live
+            screen appears automatically.
+          </p>
+          {computerSurface()}
+          {computerStatus()}
+          <ComputerResourceGrid resources={computer.resources} running={computer.running} />
+        </DetailsSection>
+      )}
       <DialogContent className="flex h-[min(92dvh,900px)] w-[min(96vw,1440px)] max-w-none flex-col gap-3 overflow-hidden p-3 sm:p-4 max-lg:left-0 max-lg:top-0 max-lg:h-dvh max-lg:w-screen max-lg:translate-x-0 max-lg:translate-y-0 max-lg:gap-0 max-lg:rounded-none max-lg:border-0 max-lg:p-0">
         <DialogHeader className="shrink-0 pr-12 max-lg:px-4 max-lg:py-3">
           <DialogTitle className="text-sm">Linux computer</DialogTitle>

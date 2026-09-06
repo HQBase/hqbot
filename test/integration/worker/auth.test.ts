@@ -56,6 +56,51 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("serves inline owner actions across a Worker restart and rejects unauthorized decisions", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const snapshot = (await (
+      await request("/api/snapshot", { headers: { Cookie: session } })
+    ).json()) as { bots: { id: string }[] };
+    const botId = snapshot.bots[0]?.id;
+    const path = `/api/bots/${botId}/attention`;
+    expect((await request(path)).status).toBe(401);
+    const initial = (await (await request(path, { headers: { Cookie: session } })).json()) as {
+      items: { botId: string; computerApprovals: unknown[]; handoff: unknown }[];
+    };
+    expect(initial.items).toHaveLength(1);
+    expect(initial.items[0]).toMatchObject({ botId, computerApprovals: [], handoff: null });
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: String(botId) });
+    await storage.exec(
+      "INSERT INTO hqbot_owner_handoffs (id, state, team_work_id, created_at) VALUES ('test-login', 'pending', NULL, '2026-09-06T12:00:00Z')"
+    );
+    await server.update((options) => ({
+      ...options,
+      workers: options.workers.map((worker) => ({
+        ...worker,
+        vars: { HQBOT_TEST_RESTART: "inline-handoff" }
+      }))
+    }));
+    const restored = (await (await request(path, { headers: { Cookie: session } })).json()) as {
+      items: { handoff: { id: string } }[];
+    };
+    expect(restored.items[0]?.handoff.id).toBe("test-login");
+    expect((await request(path, { headers: { Cookie: session } })).status).toBe(200);
+    expect(
+      (await post(path, { botId: "unrelated", kind: "continue", id: "stale" }, session)).status
+    ).toBe(409);
+    expect(
+      (
+        await request(path, {
+          method: "POST",
+          headers: { Cookie: session, Origin: "https://evil.example" },
+          body: JSON.stringify({ botId, kind: "continue", id: "stale" })
+        })
+      ).status
+    ).toBe(403);
+  });
+
   it("persists owner-controlled team settings and rejects unpriced or unauthenticated changes", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const snapshot = (await (

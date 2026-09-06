@@ -147,6 +147,7 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
       )
         return false;
       if (
+        this.ownerHandoffs.pending() ||
         this.tasks.active() ||
         this.processes.active() ||
         (await this.pendingApprovals()).length ||
@@ -177,6 +178,7 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
     if (!active || active.workId !== workId) return;
     await this.ctx.storage.put(activeTeamKey, { ...active, cancelled: true });
+    this.ownerHandoffs.cancel();
     const reason = "This team task was stopped or reached a limit";
     await this.tasks.cancel(reason);
     for (const submission of await this.listSubmissions({ status: ["running"] }))
@@ -195,6 +197,7 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
       return false;
     return (
       !(
+        this.ownerHandoffs.pending() ||
         this.tasks.active() ||
         this.processes.active() ||
         (await this.pendingApprovals()).length ||
@@ -214,6 +217,7 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
       !active.cancelled &&
       Date.now() - (submission.completedAt ?? Date.now()) > 30000 &&
       !this.tasks.active() &&
+      !this.ownerHandoffs.pending() &&
       !this.processes.active() &&
       !this.integrationRuntime.hasPendingContinuation() &&
       !(await this.pendingApprovals()).length &&
@@ -265,6 +269,7 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     if (!active) return super.productResponse(result);
     if (active.cancelled) return;
     if (
+      this.ownerHandoffs.pending() ||
       this.tasks.active() ||
       this.processes.active() ||
       this.integrationRuntime.hasPendingContinuation() ||

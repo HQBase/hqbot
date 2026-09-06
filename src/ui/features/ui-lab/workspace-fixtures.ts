@@ -84,7 +84,33 @@ export function installWorkspaceFixtures() {
       return Response.json({ error: "Preview only. No change was saved." }, { status: 400 });
     const path = url.pathname;
     let body: unknown;
-    if (path.endsWith("/team-work"))
+    if (path.endsWith("/attention"))
+      body = {
+        items: new URLSearchParams(location.search).has("attention")
+          ? [
+              {
+                botId: "operator",
+                name: "Operator",
+                integrationApprovals: [],
+                computerApprovals: [
+                  {
+                    executionId: "preview-open",
+                    inputHash: "preview",
+                    action: "browser_open",
+                    input: { url: "https://hqbase.example" }
+                  }
+                ],
+                handoff: {
+                  id: "preview-handoff",
+                  state: "pending",
+                  ownerControl: false,
+                  running: false
+                }
+              }
+            ]
+          : []
+      };
+    else if (path.endsWith("/team-work"))
       body = {
         names: {
           researcher: "Researcher",

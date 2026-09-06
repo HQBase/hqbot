@@ -4,11 +4,7 @@ import { assertAgentToolPolicy, assertConnectorPolicy } from "./domain/admin-pol
 import type { PermissionRuleInput } from "./domain/permissions";
 import { ActionHistory } from "./runtime/action-history";
 import { TeammateComputer } from "./runtime/computer";
-import {
-  COMPUTER_ACTIONS,
-  ComputerPermissions,
-  type ComputerPolicy
-} from "./runtime/computer-permissions";
+import { COMPUTER_ACTIONS, ComputerPermissions } from "./runtime/computer-permissions";
 import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/computer-types";
 import { TeammateExternalEffects } from "./runtime/external-effects";
 import {
@@ -19,6 +15,7 @@ import { connectionList, mcpConnectorName } from "./runtime/mcp";
 import { budgetedModel } from "./runtime/model-budget";
 import { listHQBotModels, modelTokenRates } from "./runtime/model-catalog";
 import { concreteLanguageModel, createHQBotModel } from "./runtime/models";
+import type { OwnerHandoffs } from "./runtime/owner-handoff";
 import { PermissionRules } from "./runtime/permission-rules";
 import { TaskCoordinator } from "./runtime/task-coordinator";
 import { TaskSupervision } from "./runtime/task-supervision";
@@ -176,7 +173,7 @@ export abstract class TeammateRuntime extends Think<Env> {
             parts: [
               {
                 type: "text",
-                text: `The owner ${approved ? "approved" : "denied"} the exact computer action ${id}. Use its recorded tool outcome. Do not repeat the action.`
+                text: `The owner ${approved ? "approved" : "denied"} the exact computer action ${id}. Read the updated tool output in this conversation. This approval reference is not an action result ID. The output includes the saved actionId if you need read_action_result. Do not repeat the action.`
               }
             ],
             metadata: {
@@ -215,9 +212,6 @@ export abstract class TeammateRuntime extends Think<Env> {
       : null;
   }
 
-  getComputerPolicy() {
-    return this.computerPermissions.get();
-  }
   private get permissionRules() {
     return new PermissionRules(this.sql.bind(this) as Sql, () => this.currentTaskId());
   }
@@ -241,16 +235,6 @@ export abstract class TeammateRuntime extends Think<Env> {
   deletePermissionRule(id: string) {
     return this.permissionRules.remove(id);
   }
-  setComputerPolicy(mode: ComputerPolicy) {
-    this.computerPermissions.set(mode);
-  }
-  listComputerApprovals() {
-    return this.computerPermissions.pending();
-  }
-  resolveComputerApproval(id: string, hash: string, approved: boolean) {
-    return this.computerPermissions.decide(id, hash, approved);
-  }
-
   protected get computerRuntime(): TeammateComputer {
     this.computer ??= new TeammateComputer({
       botId: this.name,
@@ -270,6 +254,34 @@ export abstract class TeammateRuntime extends Think<Env> {
     return this.computer;
   }
 
+  protected abstract get ownerHandoffs(): OwnerHandoffs;
+
+  protected async continueSavedAction(id: string, text: string) {
+    await this.productContinuation(id);
+    const work = this.tasks.active();
+    const metadata = {
+      source: "integration-result",
+      integrationResultId: id,
+      ...(work ? { taskId: work.taskId, generation: work.generation } : {})
+    };
+    await this.submitMessages(
+      [
+        {
+          id,
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: `[hqbot:action-result]\n${text}\nContinue the owner's request. Verify the final result.`
+            }
+          ],
+          metadata: { turnMetadata: metadata }
+        }
+      ],
+      { channel: "web", idempotencyKey: id, submissionId: id, metadata }
+    );
+  }
+
   protected get integrationRuntime(): TeammateIntegrations {
     this.integrations ??= new TeammateIntegrations({
       authorizeServer: async (url) =>
@@ -285,30 +297,7 @@ export abstract class TeammateRuntime extends Think<Env> {
           { idempotent: true, retry: scheduleRetry }
         );
       },
-      continueTurn: async (id, text) => {
-        await this.productContinuation(id);
-        const work = this.tasks.active();
-        const metadata = {
-          source: "integration-result",
-          integrationResultId: id,
-          ...(work ? { taskId: work.taskId, generation: work.generation } : {})
-        };
-        await this.submitMessages(
-          [
-            {
-              id,
-              role: "user",
-              parts: [
-                {
-                  type: "text",
-                  text: `[hqbot:action-result]\n${text}\nContinue the owner's request. Verify the final result.`
-                }
-              ]
-            }
-          ],
-          { channel: "web", idempotencyKey: id, submissionId: id, metadata }
-        );
-      },
+      continueTurn: (id, text) => this.continueSavedAction(id, text),
       addAssistantMessage: (id, text) => this.addAssistantMessage(id, text),
       addServer: (name, url, token) =>
         this.addMcpServer(name, url, {
@@ -351,6 +340,7 @@ export abstract class TeammateRuntime extends Think<Env> {
   }
 
   protected async closeRuntimeResources(): Promise<void> {
+    this.ownerHandoffs.cancel();
     await this.integrationRuntime.rejectAll();
     if (this.env.SANDBOX) await this.computerRuntime.stop();
     this.resetTurnState();

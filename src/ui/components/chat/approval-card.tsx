@@ -9,6 +9,7 @@ export function ApprovalCard({
   description = "This connected-service tool can change remote data.",
   denyLabel = "Deny",
   details,
+  disabled = false,
   pending,
   title = "Approve this action?",
   onApprove,
@@ -18,6 +19,7 @@ export function ApprovalCard({
   description?: string;
   denyLabel?: string;
   details?: string | null;
+  disabled?: boolean;
   pending: boolean;
   title?: string;
   onApprove: () => void;
@@ -44,10 +46,16 @@ export function ApprovalCard({
           </section>
         ) : null}
         <div className="flex justify-end gap-2">
-          <Button disabled={pending} size="sm" type="button" variant="outline" onClick={onDeny}>
+          <Button
+            disabled={pending || disabled}
+            size="sm"
+            type="button"
+            variant="outline"
+            onClick={onDeny}
+          >
             {denyLabel}
           </Button>
-          <Button disabled={pending} size="sm" type="button" onClick={onApprove}>
+          <Button disabled={pending || disabled} size="sm" type="button" onClick={onApprove}>
             {pending ? (
               <Spinner data-icon="inline-start" />
             ) : (

@@ -1,6 +1,7 @@
 import type { Sql } from "../workspace/sql";
 import { migrateActionHistory } from "./action-history";
 import { migrateExternalEffects } from "./external-effects";
+import { migrateOwnerHandoffs } from "./owner-handoff";
 import { migratePermissionRules } from "./permission-rules";
 import { migrateTaskSupervision } from "./task-supervision";
 
@@ -149,5 +150,9 @@ export function migrateTeammateWork(sql: Sql): void {
   if (!isApplied(sql, 8)) {
     migratePermissionRules(sql);
     record(sql, 8);
+  }
+  if (!isApplied(sql, 9)) {
+    migrateOwnerHandoffs(sql);
+    record(sql, 9);
   }
 }
