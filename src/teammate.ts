@@ -19,6 +19,7 @@ import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/com
 import { createKnowledgeTools } from "./runtime/knowledge-tools";
 import type { LinuxProcessPollPayload } from "./runtime/managed-linux-process";
 import { mcpOAuthCallbackResponse, type TeammateConnection } from "./runtime/mcp";
+import { resumeOwnerTask } from "./runtime/owner-task-resume";
 import { createStopProcessTool } from "./runtime/process-tools";
 import { createScheduleTool } from "./runtime/schedule-tool";
 import { clearLegacyScreenshotReplayError } from "./runtime/screenshot-replay-recovery";
@@ -48,16 +49,14 @@ export class HQBotTeammate extends TeammateLocalRuntime {
   };
   classifyChatError = defaultContextOverflowClassifier;
   private turnStepLimit = DEFAULT_TURN_STEPS;
-
+  private turnActive = false;
   chatStreamStallTimeoutMs = 120_000;
   workspaceBash = false;
   includeMcpTools = false;
   waitForMcpConnections = { timeout: 10_000 };
   storeMessages = false;
   storeTools = false;
-
   getModel = () => this.modelFor(GLM_PRIMARY_MODEL_ID);
-
   getTools(): ToolSet {
     return Object.fromEntries(
       Object.entries(this.runtimeTools()).filter(([name]) => !COMPUTER_ACTIONS.has(name))
@@ -66,7 +65,6 @@ export class HQBotTeammate extends TeammateLocalRuntime {
   getActions() {
     return this.computerPermissions.actions(this.runtimeTools());
   }
-
   private runtimeTools(): ToolSet {
     const tools: ToolSet = {
       ...this.productTools(),
@@ -126,7 +124,6 @@ export class HQBotTeammate extends TeammateLocalRuntime {
         : tools
     );
   }
-
   async onStart(): Promise<void> {
     await clearLegacyScreenshotReplayError(this.ctx.storage).catch(() => false);
     migrateTeammateWork(this.sql.bind(this) as Sql);
@@ -143,42 +140,47 @@ export class HQBotTeammate extends TeammateLocalRuntime {
       }
     );
   }
-
   async beforeTurn(ctx: TurnContext): Promise<TurnConfig> {
-    await this.assertProductTurnAllowed();
-    const activeWork = this.tasks.active();
-    if (
-      this.activeTurnMetadata?.source === "active-task" &&
-      (!activeWork ||
-        this.activeTurnMetadata.taskId !== activeWork.taskId ||
-        this.activeTurnMetadata.generation !== activeWork.generation ||
-        activeWork.state !== "running")
-    )
-      throw new Error("This task continuation is stale");
-    const teamWorkId = await this.currentTeamWorkId();
-    const briefing = teamWorkId
-      ? await this.workspaceAgent.teamBriefing(this.name, teamWorkId)
-      : null;
-    const config = await prepareTeammateTurn({
-      modelId: briefing?.modelId ?? undefined,
-      activeWork,
-      botId: this.name,
-      connectedServices: this.integrationRuntime
-        .list()
-        .filter((connection) => connection.status === "ready")
-        .map((connection) => connection.name),
-      context: ctx,
-      maxSteps: this.maxSteps,
-      modelFor: (modelId) => this.modelFor(modelId),
-      metadata: this.activeTurnMetadata,
-      workspaceAgent: this.workspaceAgent
-    });
-    if (activeWork)
-      config.instructions = `${config.instructions}\nSaved completion criteria: ${JSON.stringify(this.taskSupervision.criteria(activeWork.taskId))}`;
-    this.turnStepLimit = config.maxSteps ?? DEFAULT_TURN_STEPS;
-    return config;
+    this.turnActive = true;
+    try {
+      await this.assertProductTurnAllowed();
+      await this.resumeOwnerTask();
+      const activeWork = this.tasks.active();
+      if (
+        this.activeTurnMetadata?.source === "active-task" &&
+        (!activeWork ||
+          this.activeTurnMetadata.taskId !== activeWork.taskId ||
+          this.activeTurnMetadata.generation !== activeWork.generation ||
+          activeWork.state !== "running")
+      )
+        throw new Error("This task continuation is stale");
+      const teamWorkId = await this.currentTeamWorkId();
+      const briefing = teamWorkId
+        ? await this.workspaceAgent.teamBriefing(this.name, teamWorkId)
+        : null;
+      const config = await prepareTeammateTurn({
+        modelId: briefing?.modelId ?? undefined,
+        activeWork,
+        botId: this.name,
+        connectedServices: this.integrationRuntime
+          .list()
+          .filter((connection) => connection.status === "ready")
+          .map((connection) => connection.name),
+        context: ctx,
+        maxSteps: this.maxSteps,
+        modelFor: (modelId) => this.modelFor(modelId),
+        metadata: this.activeTurnMetadata,
+        workspaceAgent: this.workspaceAgent
+      });
+      if (activeWork)
+        config.instructions = `${config.instructions}\nSaved completion criteria: ${JSON.stringify(this.taskSupervision.criteria(activeWork.taskId))}`;
+      this.turnStepLimit = config.maxSteps ?? DEFAULT_TURN_STEPS;
+      return config;
+    } catch (cause) {
+      this.turnActive = false;
+      throw cause;
+    }
   }
-
   async beforeStep(ctx: PrepareStepContext): Promise<StepConfig | undefined> {
     await this.assertProductTurnAllowed();
     if (repeatedStepResult(ctx)) {
@@ -213,68 +215,81 @@ export class HQBotTeammate extends TeammateLocalRuntime {
     if (scheduleChanged) return { toolChoice: "none" } as unknown as StepConfig;
     return prepareTeamStep(ctx, await this.currentTeamWorkId(), this.name, this.workspaceAgent);
   }
-
   async onChatResponse(result: ChatResponseResult): Promise<void> {
-    const pending = [
-      ...(await this.integrationRuntime.pending()),
-      ...(await this.listComputerApprovals())
-    ];
-    const work = this.tasks.active();
-    if (
-      (pending.length || this.ownerHandoffs.pending()) &&
-      work?.state === "running" &&
-      !this.processes.active()
-    )
-      await this.tasks.manage({
-        action: "needs_user",
-        goal: work.goal,
-        checkpoint: `${work.checkpoint}\nWaiting for owner approval of the connected action.`
-      });
-    await this.tasks.run(() =>
-      this.tasks.settleTurn(
-        this.activeTurnMetadata?.taskId,
-        this.activeTurnMetadata?.generation,
-        result.status,
-        teammateResponseText(result),
-        result.error
+    try {
+      const pending = [
+        ...(await this.integrationRuntime.pending()),
+        ...(await this.listComputerApprovals())
+      ];
+      const work = this.tasks.active();
+      if (
+        (pending.length || this.ownerHandoffs.pending()) &&
+        work?.state === "running" &&
+        !this.processes.active()
       )
-    );
-    const activeWork = this.tasks.active();
-    await finishTeammateResponse({
-      botId: this.name,
-      interactionStatus:
-        activeWork?.state === "running" || this.processes.active() ? "working" : "idle",
-      result,
-      workspaceAgent: this.workspaceAgent
-    });
-    if (pending.length > 0) {
-      await this.workspaceAgent.markInteraction(
-        this.name,
-        "Action needs approval",
-        "needs_approval"
+        await this.tasks.manage({
+          action: "needs_user",
+          goal: work.goal,
+          checkpoint: `${work.checkpoint}\nWaiting for owner approval of the connected action.`
+        });
+      await this.tasks.run(() =>
+        this.tasks.settleTurn(
+          this.activeTurnMetadata?.taskId,
+          this.activeTurnMetadata?.generation,
+          result.status,
+          teammateResponseText(result),
+          result.error
+        )
       );
+      const activeWork = this.tasks.active();
+      await finishTeammateResponse({
+        botId: this.name,
+        interactionStatus:
+          activeWork?.state === "running" || this.processes.active() ? "working" : "idle",
+        result,
+        workspaceAgent: this.workspaceAgent
+      });
+      if (pending.length > 0) {
+        await this.workspaceAgent.markInteraction(
+          this.name,
+          "Action needs approval",
+          "needs_approval"
+        );
+      }
+      await this.productResponse(result);
+      await this.computerRuntime.recoveryCheckpoint().catch(() => undefined);
+    } finally {
+      this.turnActive = false;
     }
-    await this.productResponse(result);
-    await this.computerRuntime.recoveryCheckpoint().catch(() => undefined);
   }
-
   protected onSubmissionStatus(submission: ThinkSubmissionInspection): Promise<void> {
     return this.tasks.run(() => this.tasks.settleSubmission(submission));
   }
-
   @callable()
   async reconcileScheduledTasks(): Promise<void> {
     await this.internal_reconcileScheduledTasks();
   }
-
+  private resumeOwnerTask() {
+    return resumeOwnerTask(
+      this.tasks,
+      this.activeTurnMetadata,
+      async () =>
+        !(await this.canAct()) ||
+        Boolean(this.ownerHandoffs.pending()) ||
+        (await this.integrationRuntime.pending()).length > 0 ||
+        (await this.listComputerApprovals()).length > 0
+    );
+  }
   async recoverRuntime(): Promise<void> {
     await this.computerRuntime.reconcileOwnerControl();
     await this.processes.reconcile();
-    await this.tasks.reconcile();
+    if (!this.turnActive) {
+      await this.resumeOwnerTask();
+      if (!this.turnActive) await this.tasks.reconcile();
+    }
     await this.ownerHandoffs.recover();
     await this.integrationRuntime.recover();
   }
-
   @callable()
   submitChat(input: TeammateChatSubmission) {
     const firstSubmission = input.submissionId === `first:${this.name}`;
@@ -286,12 +301,10 @@ export class HQBotTeammate extends TeammateLocalRuntime {
         firstSubmission && Boolean(await this.ctx.storage.get<boolean>(FIRST_MESSAGE_STOPPED_KEY))
     });
   }
-
   @callable()
   listConnections(): TeammateConnection[] {
     return this.integrationRuntime.list();
   }
-
   @callable()
   connectMcp(input: { name: string; url: string; token?: string }): Promise<TeammateConnection> {
     return this.integrationRuntime.connect(input);

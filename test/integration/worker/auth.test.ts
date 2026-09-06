@@ -101,6 +101,61 @@ describe("HQBot Worker authentication", () => {
     ).toBe(403);
   });
 
+  it("repairs an owner-result wait only after the handoff is closed", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Owner resume test", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    const path = `/api/bots/${teammate.id}`;
+    await request(`${path}/attention`, { headers: { Cookie: session } });
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: teammate.id });
+    const stamp = new Date().toISOString();
+    await storage.exec(
+      "INSERT INTO hqbot_active_work (slot,task_id,goal,checkpoint,state,generation,wake_at,schedule_id,submission_id,last_error,created_at,updated_at) VALUES (1,'owner-resume','Resume test','Verify after sign-in','needs_user',2,NULL,NULL,NULL,NULL,?,?)",
+      stamp,
+      stamp
+    );
+    await storage.exec(
+      "INSERT INTO hqbot_owner_handoffs (id,state,team_work_id,created_at) VALUES ('login','pending',NULL,?)",
+      stamp
+    );
+    const env = (await server.getWorker().getEnv()) as {
+      HQBOT_TEAMMATE: {
+        getByName(id: string): {
+          addMessages(messages: unknown[]): Promise<void>;
+          recoverRuntime(): Promise<void>;
+        };
+      };
+    };
+    const peer = env.HQBOT_TEAMMATE.getByName(teammate.id);
+    await peer.addMessages([
+      {
+        id: "computer-decision:test",
+        role: "user",
+        parts: [{ type: "text", text: "The owner approved the test action." }],
+        metadata: {
+          turnMetadata: { source: "computer-decision", taskId: "owner-resume", generation: 2 }
+        }
+      }
+    ]);
+    await peer.recoverRuntime();
+    expect(await storage.exec("SELECT state FROM hqbot_active_work")).toEqual([
+      { state: "needs_user" }
+    ]);
+    await storage.exec("UPDATE hqbot_owner_handoffs SET state = 'completed' WHERE id = 'login'");
+    await peer.recoverRuntime();
+    expect(await storage.exec("SELECT state FROM hqbot_active_work")).toEqual([
+      { state: "scheduled" }
+    ]);
+    expect((await post(`${path}/stop`, {}, session)).status).toBe(200);
+    await peer.recoverRuntime();
+    expect(await storage.exec("SELECT state FROM hqbot_active_work")).toEqual([
+      { state: "cancelled" }
+    ]);
+  });
+
   it("persists owner-controlled team settings and rejects unpriced or unauthenticated changes", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const snapshot = (await (

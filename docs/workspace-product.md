@@ -288,3 +288,9 @@ action for the existing handoff. Stops and archived teammates invalidate pending
 Computer tool results include their saved action ID. Approval references are not result IDs.
 Computer actions use Think's durable approval continuation; they must not wait for a separate MCP
 continuation. Owner handoffs use a durable continuation and survive reloads and Worker restarts.
+
+An owner decision or completed sign-in restores the matching saved task to running before its
+next turn. The task keeps its completion criteria and checkpoint. Recovery can repair an old
+waiting state only when the latest saved owner-result message matches the task and generation,
+and no approval or owner handoff remains open. Stopped tasks, unknown action outcomes, and waits
+for a new owner reply do not resume from an older decision.

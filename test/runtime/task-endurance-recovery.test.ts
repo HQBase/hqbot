@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resumeOwnerTask } from "../../src/runtime/owner-task-resume";
 import { TaskCoordinator, type TaskCoordinatorOptions } from "../../src/runtime/task-coordinator";
 import { TaskSupervision } from "../../src/runtime/task-supervision";
 import {
@@ -171,5 +172,112 @@ describe("endurance recovery", () => {
       state: "cancelled",
       lastError: "Runtime submission aborted"
     });
+  });
+});
+
+describe("owner task resume", () => {
+  async function waiting() {
+    const h = harness();
+    const tasks = h.restart();
+    await tasks.manage({
+      action: "needs_user",
+      goal: "Prepare a report",
+      checkpoint: "Finish after sign-in"
+    });
+    const work = h.store.current();
+    if (!work) throw new Error("Missing saved task");
+    return {
+      ...h,
+      tasks,
+      work,
+      metadata: { source: "computer-decision", taskId: work.taskId, generation: work.generation }
+    };
+  }
+
+  it.each([
+    "computer-decision",
+    "integration-result"
+  ])("continues beyond the resumed %s turn without another owner message", async (source) => {
+    const h = await waiting();
+    const metadata = { ...h.metadata, source, integrationResultId: "handoff:login" };
+    await resumeOwnerTask(h.tasks, metadata, async () => false);
+    expect(h.store.current()).toMatchObject({
+      state: "running",
+      generation: h.work.generation,
+      checkpoint: h.work.checkpoint,
+      submissionId: source === "integration-result" ? "handoff:login" : null
+    });
+    await h.tasks.settleTurn(h.work.taskId, h.work.generation, "completed", "Still working");
+    expect(h.submitResume).toHaveBeenCalledOnce();
+    expect(h.store.current()).toMatchObject({
+      state: "running",
+      generation: h.work.generation + 1
+    });
+    await resumeOwnerTask(h.tasks, metadata, async () => false);
+    expect(h.submitResume).toHaveBeenCalledOnce();
+  });
+
+  it("repairs the saved legacy wait after restart and schedules only one wake", async () => {
+    const h = await waiting();
+    const restarted = h.restart();
+    await resumeOwnerTask(restarted, h.metadata, async () => false);
+    await restarted.reconcile();
+    await resumeOwnerTask(h.restart(), h.metadata, async () => false);
+    await h.restart().reconcile();
+    expect(h.schedules.size).toBe(1);
+    const wake = [...h.schedules.values()][0];
+    if (!wake) throw new Error("Missing recovery wake");
+    await h.restart().resume(wake.payload);
+    expect(h.submitResume).toHaveBeenCalledOnce();
+    expect(h.store.current()?.state).toBe("running");
+  });
+
+  it("keeps open approvals and sign-in handoffs waiting", async () => {
+    const h = await waiting();
+    await resumeOwnerTask(h.tasks, h.metadata, async () => true);
+    await h.tasks.reconcile();
+    expect(h.store.current()?.state).toBe("needs_user");
+    expect(h.schedules.size).toBe(0);
+  });
+
+  it("ignores stale, unrelated, and untrusted metadata", async () => {
+    const h = await waiting();
+    for (const metadata of [
+      undefined,
+      { ...h.metadata, taskId: "other" },
+      { ...h.metadata, generation: 0 },
+      { ...h.metadata, source: "active-task" }
+    ])
+      await resumeOwnerTask(h.tasks, metadata, async () => false);
+    expect(h.store.current()?.state).toBe("needs_user");
+    await h.tasks.manage({ action: "needs_user", checkpoint: "A new question needs an answer" });
+    await resumeOwnerTask(h.tasks, h.metadata, async () => false);
+    expect(h.store.current()?.state).toBe("needs_user");
+  });
+
+  it.each([
+    "cancelled",
+    "done",
+    "failed",
+    "uncertain"
+  ] as const)("never revives %s work", async (state) => {
+    const h = await waiting();
+    h.store.put({ ...h.work, state });
+    await resumeOwnerTask(h.tasks, h.metadata, async () => false);
+    expect(h.store.current()?.state).toBe(state);
+    expect(h.schedules.size).toBe(0);
+  });
+
+  it("does not override a supervisor pause or an intervening stop", async () => {
+    const h = await waiting();
+    h.store.put({ ...h.work, lastError: "Progress needs review" });
+    await resumeOwnerTask(h.tasks, h.metadata, async () => false);
+    expect(h.store.current()?.state).toBe("needs_user");
+    h.store.put(h.work);
+    await resumeOwnerTask(h.tasks, h.metadata, async () => {
+      await h.tasks.cancel();
+      return false;
+    });
+    expect(h.store.current()?.state).toBe("cancelled");
   });
 });
