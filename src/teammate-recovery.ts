@@ -105,6 +105,9 @@ export abstract class TeammateRecoveryRuntime extends TeammateLocalRuntime {
       approvalCount: (await this.pendingApprovals()).length,
       heartbeat: await this.ctx.storage.get<TaskHeartbeat>(heartbeatKey),
       watchdogScheduled: Boolean(scheduleId && (await this.getScheduleById(scheduleId))),
+      alarmAt: await this.ctx.storage.getAlarm(),
+      schedules: this
+        .sql`SELECT id, callback, type, time, running, execution_started_at FROM cf_agents_schedules ORDER BY time LIMIT 12`,
       unresolvedEffects: this
         .sql`SELECT effect_key FROM hqbot_external_effect_receipts WHERE state = 'uncertain'`
         .length,
