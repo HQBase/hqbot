@@ -55,9 +55,15 @@ export abstract class TeammateOwnerRuntime extends TeammateRuntime {
     if (computer.ownerControl && !this.ownerHandoffs.pending())
       await this.ownerHandoffs.record("legacy-owner-control");
     const handoff = this.ownerHandoffs.pending();
+    const labels = new Map(
+      this.listPermissionActions().map((item) => [item.connector, item.label])
+    );
     return {
       computerApprovals,
-      integrationApprovals,
+      integrationApprovals: integrationApprovals.map((approval) => ({
+        ...approval,
+        connectorLabel: labels.get(approval.connector) ?? "Connected service"
+      })),
       handoff: handoff ? { id: handoff.id, state: handoff.state, ...computer } : null
     };
   }

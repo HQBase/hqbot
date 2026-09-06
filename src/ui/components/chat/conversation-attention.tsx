@@ -155,7 +155,7 @@ export function OwnerActionCards({
         <ApprovalCard
           key={`${approval.executionId}:${approval.seq}`}
           title="Allow this connected action?"
-          description={`${item.name} requested ${approval.method} from ${approval.connector}.`}
+          description={`${item.name} requested ${approval.method.replaceAll("_", " ")} from ${approval.connectorLabel ?? "a connected service"}.`}
           details={JSON.stringify(approval.args, null, 2)}
           disabled={disabled}
           pending={busy === `${item.botId}:${approval.executionId}`}
