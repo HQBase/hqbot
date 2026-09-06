@@ -90,9 +90,9 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
     this.ctx.storage.transactionSync(() => this.teamWork.finishTurn(id, botId, result, failed));
     this.changed();
   }
-  async finishTeamOwnerTurn(id: string, botId: string, failed: boolean) {
+  async finishTeamOwnerTurn(id: string, botId: string, failed: boolean, token = "start") {
     await this.wakeTeamWork();
-    this.ctx.storage.transactionSync(() => this.teamWork.ownerReturned(id, botId, failed));
+    this.ctx.storage.transactionSync(() => this.teamWork.ownerReturned(id, botId, failed, token));
     this.changed();
   }
   protected override cancelBotDeliveries(botId: string) {
@@ -128,6 +128,25 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
           "failed"
         );
       }
+      if (this.teamWork.needsOwnerRecovery(work.id)) {
+        try {
+          const peer = await getAgentByName<Env, HQBotTeammate>(
+            this.env.HQBOT_TEAMMATE,
+            work.owner_bot_id
+          );
+          if (await peer.teamOwnerIsIdle(work.id))
+            this.ctx.storage.transactionSync(() =>
+              this.teamWork.ownerReturned(
+                work.id,
+                work.owner_bot_id,
+                false,
+                this.teamWork.ownerToken(work.id)
+              )
+            );
+        } catch {
+          /* Retry an idle owner check on the next wake. */
+        }
+      }
       this.ctx.storage.transactionSync(() => this.teamWork.queueOwner(work.id));
     }
     for (const row of this.teamWork.cancellations()) {
@@ -142,6 +161,8 @@ export class WorkspaceTeamWorkAgent extends WorkspaceProjectsAgent {
     for (const row of this.teamWork.pending()) {
       const turn = this.teamWork.turn(row.id, row.bot_id);
       if (!turn) {
+        this
+          .db`INSERT OR IGNORE INTO team_cancellations (work_id, bot_id) SELECT work_id, bot_id FROM team_turns WHERE id = ${row.id}`;
         this.teamWork.finishTurn(
           row.id,
           row.bot_id,

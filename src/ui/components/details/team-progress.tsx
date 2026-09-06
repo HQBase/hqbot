@@ -4,7 +4,13 @@ import { api, errorMessage } from "../../lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { ActivityStatus, ActivityTime } from "./activity-parts";
 
-export function TeamProgress({ botId }: { botId: string }) {
+export function TeamProgress({
+  botId,
+  onLoaded
+}: {
+  botId: string;
+  onLoaded?: (hasWork: boolean) => void;
+}) {
   const [view, setView] = useState<{ work: TeamWork | null; names: Record<string, string> } | null>(
     null
   );
@@ -21,6 +27,7 @@ export function TeamProgress({ botId }: { botId: string }) {
         (result) => {
           if (!controller.signal.aborted) {
             setView(result);
+            onLoaded?.(Boolean(result.work));
             setError("");
           }
         },
@@ -37,7 +44,7 @@ export function TeamProgress({ botId }: { botId: string }) {
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [botId]);
+  }, [botId, onLoaded]);
   const work = view?.work;
   if (error)
     return (

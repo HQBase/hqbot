@@ -73,7 +73,7 @@ separate gate at the end of this list.
 
 - [x] Agent-managed memory and skill revisions, history, and library controls.
 - [x] Scoped permissions for computer actions and MCP calls.
-- [x] Projects, shared resources, direct handoffs, and group work.
+- [x] Projects, shared resources, one task owner, reviewed specialist assignments, and group work.
 - [x] Calendar routines, test runs, editing, and run history.
 - [x] Signed generic, GitHub, and Slack event adapters with replay protection.
 - [x] Device push, durable delivery, and notification preferences.

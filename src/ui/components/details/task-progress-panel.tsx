@@ -15,7 +15,15 @@ interface ProgressView {
     created_at: string;
   }[];
 }
-export function TaskProgressPanel({ botId, revision }: { botId: string; revision?: string }) {
+export function TaskProgressPanel({
+  botId,
+  revision,
+  hideEmpty = false
+}: {
+  botId: string;
+  revision?: string;
+  hideEmpty?: boolean;
+}) {
   const [refresh, setRefresh] = useState(0);
   const [view, setView] = useState<ProgressView | null>(null);
   const [error, setError] = useState("");
@@ -44,6 +52,7 @@ export function TaskProgressPanel({ botId, revision }: { botId: string; revision
     );
     return () => controller.abort();
   }, [botId, revision, refresh]);
+  if (hideEmpty && !view && !error && !loading) return null;
   return (
     <section aria-label="Task progress" className="flex flex-col gap-5 text-sm">
       <div className="flex items-center justify-between gap-2">

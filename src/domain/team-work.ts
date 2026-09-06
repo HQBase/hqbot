@@ -82,6 +82,11 @@ export interface TeamWorkRpc {
   teamWorkForBot(botId: string, workId?: string): Promise<TeamWork | null>;
   teamTurnForBot(id: string, botId: string): Promise<TeamTurn | null>;
   assertTeamWorkAllowed(id: string, botId: string): Promise<void>;
-  finishTeamOwnerTurn(workId: string, botId: string, failed: boolean): Promise<void>;
+  finishTeamOwnerTurn(
+    workId: string,
+    botId: string,
+    failed: boolean,
+    token?: string
+  ): Promise<void>;
   finishTeamTurn(id: string, botId: string, result: string, failed: boolean): Promise<void>;
 }

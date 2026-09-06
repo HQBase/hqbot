@@ -75,8 +75,8 @@ describe("CostPanel", () => {
   it("shows raw Cloudflare resources for the teammate and overall workspace", () => {
     const html = renderCostPanel(snapshot());
 
-    expect(html).toContain("Raw Cloudflare footprint");
-    expect(html).toContain("Tracked, not billing");
+    expect(html).toContain("Cloudflare resource counts");
+    expect(html).toContain("These are not billing totals.");
     expect(html).toContain("Durable Objects");
     expect(html).toContain("Agent schedules");
     expect(html).not.toContain("Images today");

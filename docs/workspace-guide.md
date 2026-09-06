@@ -4,6 +4,11 @@ Choose a conversation on the left and describe the result you need. The list con
 teammates and groups. Use **New conversation** to create a teammate, start a group, or use a template.
 Teammates continue working in Cloudflare when you close the page.
 
+Use the pinned **Chief of Staff** conversation for work that needs several teammates. It owns the
+final answer, assigns separate jobs, waits for results, and reviews their evidence. Each team task
+has completion checks, a deadline, and a shared model budget. Specialists cannot pass assignments
+onward. You can still talk to any specialist directly.
+
 Click the conversation name or the **info** button to open its sidebar on the right. On a phone,
 it opens in a sheet. Close it to return to your messages. The sidebar starts closed.
 
@@ -16,8 +21,11 @@ Conversation info keeps these controls with the selected teammate:
   review the generated draft.
 - **Routines:** create scheduled or event-based work, edit it, test it now, inspect its history,
   or pause it. Events support GitHub, Slack, and signed generic webhooks.
-- **Permissions, agent settings, progress, history, and cost:** control how the teammate works and
-  inspect its results.
+- **Permissions:** review computer access and exact rules for connected actions.
+- **Activity:** use Progress for team assignments, saved tasks, checks, and timelines. Use Actions
+  for connected-action outcomes; expand an action to inspect its input and result.
+- **Cost:** inspect estimated use and budgets. Expand resource counts for Cloudflare details.
+- **Agent settings:** change the teammate profile, model, and turn limits.
 
 The **Computer** button opens the live computer in the same right-side area. Use its back button
 to return to conversation info. The live screen appears when the teammate uses its computer.
@@ -28,7 +36,9 @@ cancellations show their reason. Older tasks can say that the reason was not rec
 
 Each teammate keeps its own files, memory, integrations, credentials, routines, computer, and browser
 logins. A group is a project conversation with selected teammates. Its info sidebar shows members
-and shared files and skills. Use **Edit group** to choose exactly which items to share.
+and shared files and skills. Use **Edit group** to choose its lead and exactly which items to share.
+Group requests go to the lead, which assigns work and returns one answer. Stopping a team task
+owner stops its remaining assignments. A specialist uses its own connections and approval rules.
 
 Unread badges and approval cards show what needs attention. Approval cards also refresh when
 background work asks for review, and after the chat reconnects. The small bell below the conversation

@@ -60,11 +60,11 @@ export function CostPanel({
           label="Computer"
           value={services.sandbox.estimatedUsd}
         />
-        <div className="border-t border-divider pt-3 text-[11px]">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <strong className="font-medium text-foreground">Raw Cloudflare footprint</strong>
-            <span className="text-muted-foreground">Tracked, not billing</span>
-          </div>
+        <details className="border-t border-divider pt-3 text-xs">
+          <summary className="mb-3 cursor-pointer font-medium">Cloudflare resource counts</summary>
+          <p className="mb-3 text-muted-foreground">
+            Tracked resources. These are not billing totals.
+          </p>
           <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 gap-y-1.5">
             <span />
             <span className="text-right text-muted-foreground">Teammate</span>
@@ -93,7 +93,7 @@ export function CostPanel({
               )}
             />
           </div>
-        </div>
+        </details>
       </div>
     </DetailsSection>
   );

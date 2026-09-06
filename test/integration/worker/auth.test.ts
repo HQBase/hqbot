@@ -4,6 +4,7 @@ import { createTestHarness } from "wrangler";
 
 import { DEEPSEEK_FALLBACK_MODEL_ID } from "../../../src/domain/models";
 import { schemaMigrations } from "../../../src/domain/schema";
+import type { TeamWork, TeamWorkRpc } from "../../../src/domain/team-work";
 
 const origin = "http://hqbot.test";
 const setupCode = "integration-setup-code-32-bytes";
@@ -54,6 +55,79 @@ afterAll(async () => {
 });
 
 describe("HQBot Worker authentication", () => {
+  it("keeps one Chief and cancels a saved team task across a Worker restart", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const snapshot = async () =>
+      (await (await request("/api/snapshot", { headers: { Cookie: session } })).json()) as {
+        bots: { id: string; coordinationRole: string }[];
+        selectedBot: { id: string };
+      };
+    const first = await snapshot();
+    const chief = first.bots.find((bot) => bot.coordinationRole === "chief");
+    expect(chief).toBeDefined();
+    expect(first.selectedBot.id).toBe(chief?.id);
+    expect((await snapshot()).bots.filter((bot) => bot.coordinationRole === "chief")).toHaveLength(
+      1
+    );
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Team queue test", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    const bindings = (await server.getWorker().getEnv()) as {
+      HQBOT_AGENT: { getByName(name: string): TeamWorkRpc };
+    };
+    const agent = bindings.HQBOT_AGENT.getByName("hqbot");
+    const work = (await agent.coordinate(
+      chief?.id ?? "",
+      {
+        action: "start",
+        goal: "Check the team cancellation path",
+        criteria: ["All specialist work stops"],
+        budgetUsd: 0.1
+      },
+      undefined,
+      "integration-start"
+    )) as TeamWork;
+    const ownerBotId = String(work.ownerBotId);
+    const assignment = {
+      action: "assign" as const,
+      key: "specialist",
+      botId: teammate.id,
+      instruction: "Wait for the cancellation test",
+      criterion: "No work after cancellation"
+    };
+    await agent.coordinate(work.ownerBotId, assignment, work.id, "assign");
+    await agent.coordinate(work.ownerBotId, assignment, work.id, "assign");
+    expect((await agent.teamWorkForBot(work.ownerBotId, work.id))?.assignments).toHaveLength(1);
+    await expect(
+      agent.coordinate(teammate.id, { ...assignment, botId: work.ownerBotId }, work.id, "recursive")
+    ).rejects.toBeDefined();
+    expect((await agent.teamWorkForBot(work.ownerBotId, work.id))?.assignments).toHaveLength(1);
+    expect((await post(`/api/bots/${work.ownerBotId}/stop`, {}, session)).status).toBe(200);
+    await server.update((options) => ({
+      ...options,
+      workers: options.workers.map((worker) => ({
+        ...worker,
+        vars: { HQBOT_TEST_RESTART: "team-stopped" }
+      }))
+    }));
+    const response = await request(`/api/bots/${ownerBotId}/team-work`, {
+      headers: { Cookie: session }
+    });
+    expect(response.status).toBe(200);
+    const saved = (await response.json()) as { work: TeamWork };
+    expect(saved.work.state).toBe("cancelled");
+    expect(saved.work.assignments[0]?.state).toBe("cancelled");
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_AGENT", { name: "hqbot" });
+    expect(
+      await storage.exec("SELECT id FROM team_turns WHERE state IN ('pending','submitted')")
+    ).toEqual([]);
+    expect((await snapshot()).bots.filter((bot) => bot.coordinationRole === "chief")).toHaveLength(
+      1
+    );
+  });
+
   it("keeps cancelled task state and activity times through a Worker restart", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const { teammate } = (await (
@@ -802,7 +876,7 @@ describe("HQBot Worker authentication", () => {
     const snapshot = await request("/api/snapshot", { headers: { Cookie: bootstrapSession } });
     expect(snapshot.status).toBe(200);
     expect(await snapshot.json()).toMatchObject({
-      bots: [],
+      bots: [{ coordinationRole: "chief", pinned: true }],
       realtime: { url: "/agents/hqbot-agent/hqbot" }
     });
 
@@ -1293,7 +1367,10 @@ describe("HQBot Worker authentication", () => {
       .toBe(404);
     expect(
       await (await request("/api/snapshot", { headers: { Cookie: session } })).json()
-    ).toMatchObject({ bots: [], selectedBot: null });
+    ).toMatchObject({
+      bots: [{ coordinationRole: "chief" }],
+      selectedBot: { coordinationRole: "chief" }
+    });
 
     const repeated = await request(`/api/bots/${teammate.id}`, {
       headers: { Cookie: session, Origin: origin },

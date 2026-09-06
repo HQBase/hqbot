@@ -10,6 +10,7 @@ interface ActiveTeam {
   turnId?: string;
   specialist: boolean;
   finished?: boolean;
+  cancelled?: boolean;
 }
 interface TeamResult {
   text: string;
@@ -24,7 +25,11 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     return Boolean(await this.ctx.storage.get(activeTeamKey)) || super.otherInboundWork();
   }
   protected override async canAct() {
-    if (!(await super.canAct())) return false;
+    if (
+      !(await super.canAct()) ||
+      (await this.ctx.storage.get<ActiveTeam>(activeTeamKey))?.cancelled
+    )
+      return false;
     const id = await this.currentTeamWorkId();
     if (!id) return true;
     try {
@@ -38,6 +43,7 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     await super.assertAgentToolAllowed(name, input);
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
     if (!active) return;
+    if (active.cancelled) throw new Error("This team task was stopped");
     if (active.finished) throw new Error("The team task is finished. Give the final answer.");
     await this.workspaceAgent.assertTeamWorkAllowed(active.workId, this.name);
     if (
@@ -69,13 +75,37 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
           const delivery = deliveryId
             ? await this.workspaceAgent.deliveryForBot(deliveryId, this.name)
             : null;
-          const result = await this.workspaceAgent.coordinate(
-            this.name,
-            input,
-            active?.workId,
-            context.toolCallId,
-            delivery?.requesterId ?? (await this.collaborationRequester())
-          );
+          if (
+            input.action === "start" &&
+            active &&
+            active.workId !== `team:${this.name}:${context.toolCallId}`
+          )
+            throw new Error("Finish or stop the current team task first");
+          if (input.action === "start")
+            await this.ctx.storage.put(activeTeamKey, {
+              workId: `team:${this.name}:${context.toolCallId}`,
+              specialist: false
+            });
+          let result: unknown;
+          try {
+            result = await this.workspaceAgent.coordinate(
+              this.name,
+              input,
+              active?.workId,
+              context.toolCallId,
+              delivery?.requesterId ?? (await this.collaborationRequester())
+            );
+          } catch (cause) {
+            if (
+              input.action === "start" &&
+              !(await this.workspaceAgent.teamWorkForBot(
+                this.name,
+                `team:${this.name}:${context.toolCallId}`
+              ))
+            )
+              await this.ctx.storage.delete(activeTeamKey);
+            throw cause;
+          }
           if (input.action === "start")
             await this.ctx.storage.put(activeTeamKey, {
               workId: (result as { id: string }).id,
@@ -130,13 +160,31 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
   async stopTeamWork(workId: string) {
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
     if (!active || active.workId !== workId) return;
+    await this.ctx.storage.put(activeTeamKey, { ...active, cancelled: true });
     const reason = "This team task was stopped or reached a limit";
     await this.tasks.cancel(reason);
     for (const submission of await this.listSubmissions({ status: ["running"] }))
       await this.cancelSubmission(submission.submissionId, reason);
     await this.integrationRuntime.rejectAll();
+    for (const approval of await this.pendingApprovals())
+      await this.rejectExecution(approval.executionId);
+    if (!(await this.waitUntilStable({ timeout: 1 })))
+      throw new Error("Waiting for the stopped turn to settle");
     await this.ctx.storage.delete(activeTeamKey);
     await this.workspaceAgent.markInteraction(this.name, reason, "idle");
+  }
+  async teamOwnerIsIdle(workId: string) {
+    const work = await this.workspaceAgent.teamWorkForBot(this.name, workId);
+    if (!work || work.ownerBotId !== this.name || !["active", "waiting"].includes(work.state))
+      return false;
+    return (
+      !(
+        this.tasks.active() ||
+        this.processes.active() ||
+        (await this.pendingApprovals()).length ||
+        (await this.integrationRuntime.pending()).length
+      ) && (await this.waitUntilStable({ timeout: 1 }))
+    );
   }
   async teamWorkStatus(id: string) {
     return {
@@ -148,16 +196,18 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     await super.assertProductTurnAllowed();
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
     if (!active || active.finished) return;
+    if (active.cancelled) throw new Error("This team task was stopped");
     try {
       await this.workspaceAgent.assertTeamWorkAllowed(active.workId, this.name);
     } catch (cause) {
-      await this.ctx.storage.delete(activeTeamKey);
+      await this.ctx.storage.put(activeTeamKey, { ...active, cancelled: true });
       throw cause;
     }
   }
   protected override async productResponse(result: ChatResponseResult) {
     const active = await this.ctx.storage.get<ActiveTeam>(activeTeamKey);
     if (!active) return super.productResponse(result);
+    if (active.cancelled) return;
     if (
       this.tasks.active() ||
       this.processes.active() ||
@@ -175,7 +225,8 @@ export abstract class TeammateCoordinationRuntime extends TeammateProductRuntime
     }
     if (!active.specialist && !active.finished) {
       await this.ctx.storage.put(activeTeamKey, { workId: active.workId, specialist: false });
-      await this.workspaceAgent.finishTeamOwnerTurn(active.workId, this.name, value.failed);
+      if (!active.turnId)
+        await this.workspaceAgent.finishTeamOwnerTurn(active.workId, this.name, value.failed);
       const work = await this.workspaceAgent.teamWorkForBot(this.name, active.workId);
       if (work && ["active", "waiting"].includes(work.state)) {
         await this.workspaceAgent.markInteraction(this.name, "Waiting for team results", "working");

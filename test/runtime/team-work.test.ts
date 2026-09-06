@@ -129,6 +129,7 @@ it("waits for all specialists and resumes one owner after a restart", () => {
   assign();
   assign("two", "other");
   work.wait(chief, "work");
+  work.ownerReturned("work", chief, false);
   work.finishTurn("assignment:work:source", "one", "Source one", false);
   work.queueOwner("work");
   expect(work.pending().map((item) => item.id)).toEqual(["assignment:work:other"]);
@@ -217,4 +218,46 @@ it("requires the group lead and current membership", () => {
   projects.save({ ...project, botIds: ["one"] });
   expect(() => work.assertAllowed("work", "two")).toThrow("access removed");
   expect(work.forBot("two", "work")).toBeNull();
+});
+
+it("does not resume an owner until its response is saved, and ignores an old callback", () => {
+  start();
+  assign();
+  work.wait(chief, "work");
+  work.finishTurn("assignment:work:source", "one", "Checked source", false);
+  work.queueOwner("work");
+  expect(work.pending()).toEqual([]);
+  work.ownerReturned("work", chief, false);
+  work.ownerReturned("work", chief, false);
+  expect(work.pending().map((item) => item.id)).toEqual(["owner:work:1"]);
+  work.submitted("owner:work:1");
+  work.finishTurn("owner:work:1", chief, "Needs more work", false);
+  expect(work.pending().map((item) => item.id)).toEqual(["owner:work:2"]);
+  work.ownerReturned("work", chief, true, "owner:work:1");
+  expect(work.get("work")?.state).toBe("active");
+});
+it("rejects a replay with changed limits or changed completion evidence", () => {
+  start();
+  expect(() =>
+    work.start(
+      chief,
+      "work",
+      {
+        action: "start",
+        goal: "Compare sources",
+        criteria: ["Both sources checked"],
+        budgetUsd: 0.2
+      },
+      1
+    )
+  ).toThrow("already in use");
+  finish();
+  expect(() =>
+    work.finish(chief, "work", {
+      action: "finish",
+      result: "Checked sources",
+      checks: [{ criterion: 0, check: "Different evidence" }]
+    })
+  ).toThrow("different saved");
+  expect(work.pending()).toEqual([]);
 });

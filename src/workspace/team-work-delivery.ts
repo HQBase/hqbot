@@ -9,6 +9,23 @@ export class TeamWorkDelivery extends WorkspaceTeamWork {
   cancelled(workId: string, botId: string) {
     this.sql`DELETE FROM team_cancellations WHERE work_id = ${workId} AND bot_id = ${botId}`;
   }
+  needsOwnerRecovery(id: string) {
+    const row = this.sql<Row>`SELECT updated_at, owner_ready FROM team_work WHERE id = ${id}`[0];
+    return (
+      row &&
+      !row.owner_ready &&
+      Date.now() - Date.parse(text(row, "updated_at")) > 30000 &&
+      !this
+        .sql`SELECT id FROM team_turns WHERE work_id = ${id} AND assignment_id IS NULL AND state IN ('pending', 'submitted')`
+        .length
+    );
+  }
+  ownerToken(id: string) {
+    return text(
+      this.sql<Row>`SELECT owner_turn_token FROM team_work WHERE id = ${id}`[0] ?? {},
+      "owner_turn_token"
+    );
+  }
   pending() {
     return this.sql<{
       id: string;
@@ -69,11 +86,13 @@ export class TeamWorkDelivery extends WorkspaceTeamWork {
         "failed"
       );
     this.touch(workId);
+    if (!row.assignment_id) this.ownerReturned(workId, botId, failed, id);
   }
   queueOwner(id: string) {
     const work = this.get(id);
     if (
       work?.state !== "waiting" ||
+      !this.sql<Row>`SELECT owner_ready FROM team_work WHERE id = ${id}`[0]?.owner_ready ||
       work.assignments.some((item) => ["queued", "submitted"].includes(item.state))
     )
       return;
@@ -90,13 +109,14 @@ export class TeamWorkDelivery extends WorkspaceTeamWork {
       return;
     }
     this
-      .sql`UPDATE team_work SET round = ${round}, state = 'active', updated_at = ${now()} WHERE id = ${id}`;
+      .sql`UPDATE team_work SET round = ${round}, state = 'active', owner_ready = 0, owner_turn_token = ${`owner:${id}:${round}`}, updated_at = ${now()} WHERE id = ${id}`;
     this
       .sql`INSERT INTO team_turns (id, work_id, bot_id, state, created_at) VALUES (${`owner:${id}:${round}`}, ${id}, ${work.ownerBotId}, 'pending', ${now()})`;
   }
-  ownerReturned(id: string, botId: string, failed: boolean) {
+  ownerReturned(id: string, botId: string, failed: boolean, token = "start") {
     const work = this.get(id);
     if (!work || work.ownerBotId !== botId || !["active", "waiting"].includes(work.state)) return;
+    if (this.ownerToken(id) !== token) return;
     if (failed)
       this.stop(
         id,
@@ -105,7 +125,7 @@ export class TeamWorkDelivery extends WorkspaceTeamWork {
       );
     else {
       // A final reply is not completion evidence. Resume the owner to save its reviews and checks.
-      this.sql`UPDATE team_work SET state = 'waiting' WHERE id = ${id}`;
+      this.sql`UPDATE team_work SET state = 'waiting', owner_ready = 1 WHERE id = ${id}`;
       this.queueOwner(id);
     }
   }

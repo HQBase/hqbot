@@ -17,7 +17,9 @@ export class WorkspaceTeamWork extends TeamWorkStore {
       if (
         existing.ownerBotId !== botId ||
         existing.goal !== input.goal ||
-        JSON.stringify(existing.criteria) !== JSON.stringify(input.criteria)
+        JSON.stringify(existing.criteria) !== JSON.stringify(input.criteria) ||
+        this.sql<Row>`SELECT start_input FROM team_work WHERE id = ${id}`[0]?.start_input !==
+          JSON.stringify({ input, requesterId })
       )
         throw new Error("Team task ID is already in use");
       return existing;
@@ -46,7 +48,7 @@ export class WorkspaceTeamWork extends TeamWorkStore {
       throw new Error("Choose a future deadline within seven days");
     const budget = Math.min(input.budgetUsd ?? maxBudget, maxBudget, bot.dailyBudgetUsd);
     this
-      .sql`INSERT INTO team_work (id, owner_bot_id, project_id, requester_id, goal, criteria, deadline_at, budget_usd, state, created_at, updated_at) VALUES (${id}, ${botId}, ${input.projectId ?? null}, ${requesterId ?? null}, ${input.goal}, ${JSON.stringify(input.criteria)}, ${deadline}, ${budget}, 'active', ${now()}, ${now()})`;
+      .sql`INSERT INTO team_work (id, owner_bot_id, project_id, requester_id, goal, criteria, deadline_at, budget_usd, state, start_input, created_at, updated_at) VALUES (${id}, ${botId}, ${input.projectId ?? null}, ${requesterId ?? null}, ${input.goal}, ${JSON.stringify(input.criteria)}, ${deadline}, ${budget}, 'active', ${JSON.stringify({ input, requesterId })}, ${now()}, ${now()})`;
     return this.get(id);
   }
   assign(botId: string, id: string, input: Extract<TeamWorkInput, { action: "assign" }>) {
@@ -129,8 +131,15 @@ export class WorkspaceTeamWork extends TeamWorkStore {
   }
   finish(botId: string, id: string, input: Extract<TeamWorkInput, { action: "finish" }>) {
     const saved = this.get(id);
-    if (saved?.ownerBotId === botId && saved.state === "completed" && saved.result === input.result)
+    if (saved?.ownerBotId === botId && saved.state === "completed") {
+      if (
+        saved.result !== input.result ||
+        this.sql<Row>`SELECT checks FROM team_work WHERE id = ${id}`[0]?.checks !==
+          JSON.stringify(input.checks)
+      )
+        throw new Error("This task already has a different saved result or completion checks");
       return saved;
+    }
     const work = this.owner(id, botId);
     if (
       work.assignments.some((item) =>

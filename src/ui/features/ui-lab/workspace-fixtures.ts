@@ -42,6 +42,7 @@ const projects = [
   {
     id: "launch",
     revision: 1,
+    leadBotId: "researcher",
     name: "Launch preparation",
     description: "Research, support, and operations working from the same plan.",
     botIds: ["researcher", "support", "operator"],
@@ -83,7 +84,70 @@ export function installWorkspaceFixtures() {
       return Response.json({ error: "Preview only. No change was saved." }, { status: 400 });
     const path = url.pathname;
     let body: unknown;
-    if (path.endsWith("/knowledge")) body = { items };
+    if (path.endsWith("/team-work"))
+      body = {
+        names: { researcher: "Researcher", support: "Support", operator: "Operator" },
+        work: {
+          id: "preview-team",
+          ownerBotId: "researcher",
+          projectId: "launch",
+          goal: "Prepare a checked launch brief",
+          criteria: ["Check the official source", "Review the support draft"],
+          deadlineAt: "2026-09-06T15:00:00Z",
+          budgetUsd: 1,
+          spentUsd: 0.084,
+          state: "waiting",
+          result: null,
+          createdAt: stamp,
+          updatedAt: stamp,
+          assignments: [
+            {
+              id: "source",
+              workId: "preview-team",
+              key: "source",
+              botId: "operator",
+              instruction: "Check the current service limits",
+              criterion: "Include an official source and the limits that affect launch",
+              state: "reviewed",
+              result: "The official service page confirms the limits used in the launch plan.",
+              review: "Checked the linked page and compared each limit with the plan.",
+              updatedAt: stamp
+            },
+            {
+              id: "draft",
+              workId: "preview-team",
+              key: "draft",
+              botId: "support",
+              instruction: "Review the customer support draft",
+              criterion: "Identify any unsupported claims",
+              state: "submitted",
+              result: null,
+              review: null,
+              updatedAt: stamp
+            }
+          ]
+        }
+      };
+    else if (path.endsWith("/task-progress")) body = null;
+    else if (path.endsWith("/actions"))
+      body = {
+        actions: [
+          {
+            id: "preview-action",
+            executionId: "preview",
+            seq: 1,
+            connector: "Cloudflare Docs",
+            method: "search_cloudflare_documentation",
+            inputHash: "preview",
+            args: { query: "service limits" },
+            result: { source: "Official service limits", checked: true },
+            state: "confirmed",
+            createdAt: stamp,
+            updatedAt: stamp
+          }
+        ]
+      };
+    else if (path.endsWith("/knowledge")) body = { items };
     else if (path.endsWith("/demonstrations")) body = { demonstrations: [] };
     else if (path === "/api/projects") body = { projects };
     else if (path.endsWith("/resources")) body = { files: [], skills: [] };
@@ -92,8 +156,7 @@ export function installWorkspaceFixtures() {
     else if (path === "/api/push/devices") body = { devices: [] };
     else if (path === "/api/models") body = { models: HQBOT_MODELS };
     else if (path.endsWith("/backups")) body = { backups: [], enabled: true };
-    else if (path.endsWith("/computer-permissions"))
-      body = { policy: { mode: "ask" }, pending: [] };
+    else if (path.endsWith("/computer-permissions")) body = { policy: "review", approvals: [] };
     else if (path.endsWith("/permission-rules")) body = { rules: [] };
     else if (path === "/api/local-devices") body = { devices: [], jobs: [] };
     else if (path === "/api/team/policy") body = { policy: { mode: "standard", origins: [] } };

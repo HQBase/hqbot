@@ -37,6 +37,8 @@ Read the [workspace guide](docs/workspace-guide.md) for the everyday interface a
 ## What it does
 
 - Keeps each teammate's chat, memory, skills, files, routines, and task history.
+- Adds a pinned Chief of Staff to assign bounded specialist jobs, review evidence, and own the final
+  answer. Team tasks have a deadline and shared model budget. Groups select one lead.
 - Gives every turn the same agent loop and the complete Linux computer tool set. The model uses
   Bash, visible Chrome, or other GUI applications when they help with the request.
 - Runs durable work with Think fibers, Agent task queues, and Agent schedules.
