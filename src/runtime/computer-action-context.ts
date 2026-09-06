@@ -7,6 +7,8 @@ export interface BrowserActionContext {
     name: string;
     tag: string;
     role: string;
+    expanded?: string;
+    hasPopup?: string;
     type: string;
     href: string;
     autocomplete: string;
@@ -27,6 +29,7 @@ export async function readBrowserActionContext(
     const name = e => clean(e.getAttribute('aria-label') || e.getAttribute('title') || e.innerText || e.getAttribute('placeholder') || e.getAttribute('name'));
     return { url: location.href, title: document.title, target: e ? {
       name: name(e), tag: e.tagName.toLowerCase(), role: clean(e.getAttribute('role')),
+      expanded: clean(e.getAttribute('aria-expanded')), hasPopup: clean(e.getAttribute('aria-haspopup')),
       type: clean(e.getAttribute('type')), href: clean(e.href), autocomplete: clean(e.getAttribute('autocomplete')),
       form: clean(e.closest('form')?.getAttribute('aria-label')) + ' ' + [...(e.closest('form')?.querySelectorAll('button,[type=submit]') || [])].map(name).join(', ')
     } : null };

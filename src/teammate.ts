@@ -1,6 +1,5 @@
 import type { ProxyToolOutput } from "@cloudflare/codemode";
 import type {
-  ChatResponseResult,
   PrepareStepContext,
   StepConfig,
   ThinkSubmissionInspection,
@@ -19,7 +18,6 @@ import type { ComputerControlPayload, ComputerLeasePayload } from "./runtime/com
 import { createKnowledgeTools } from "./runtime/knowledge-tools";
 import type { LinuxProcessPollPayload } from "./runtime/managed-linux-process";
 import { mcpOAuthCallbackResponse, type TeammateConnection } from "./runtime/mcp";
-import { resumeOwnerTask } from "./runtime/owner-task-resume";
 import { createStopProcessTool } from "./runtime/process-tools";
 import { createScheduleTool } from "./runtime/schedule-tool";
 import { clearLegacyScreenshotReplayError } from "./runtime/screenshot-replay-recovery";
@@ -27,20 +25,15 @@ import { suspendTeammateWork } from "./runtime/suspension";
 import { taskManagementInput } from "./runtime/task-management";
 import { prepareTeamStep } from "./runtime/team-step";
 import { createTeammateLinuxTool } from "./runtime/teammate-linux";
-import {
-  finishTeammateResponse,
-  prepareTeammateTurn,
-  submitChatTurn,
-  teammateResponseText
-} from "./runtime/turn";
+import { prepareTeammateTurn, submitChatTurn } from "./runtime/turn";
 import { checkpointStep, DEFAULT_TURN_STEPS, repeatedStepResult } from "./runtime/turn-supervision";
 import { GLM_PRIMARY_MODEL_ID, type TeammateChatSubmission } from "./runtime/types";
 import { migrateTeammateWork, type WorkResumePayload } from "./runtime/work";
-import { TeammateLocalRuntime } from "./teammate-local";
+import { TeammateRecoveryRuntime } from "./teammate-recovery";
 import { FIRST_MESSAGE_STOPPED_KEY } from "./teammate-runtime";
 import type { Sql } from "./workspace/sql";
 
-export class HQBotTeammate extends TeammateLocalRuntime {
+export class HQBotTeammate extends TeammateRecoveryRuntime {
   maxSteps = DEFAULT_TURN_STEPS;
   contextOverflow = {
     reactive: true,
@@ -49,7 +42,6 @@ export class HQBotTeammate extends TeammateLocalRuntime {
   };
   classifyChatError = defaultContextOverflowClassifier;
   private turnStepLimit = DEFAULT_TURN_STEPS;
-  private turnActive = false;
   chatStreamStallTimeoutMs = 120_000;
   workspaceBash = false;
   includeMcpTools = false;
@@ -141,45 +133,41 @@ export class HQBotTeammate extends TeammateLocalRuntime {
     );
   }
   async beforeTurn(ctx: TurnContext): Promise<TurnConfig> {
-    this.turnActive = true;
-    try {
-      await this.assertProductTurnAllowed();
-      await this.resumeOwnerTask();
-      const activeWork = this.tasks.active();
-      if (
-        this.activeTurnMetadata?.source === "active-task" &&
-        (!activeWork ||
-          this.activeTurnMetadata.taskId !== activeWork.taskId ||
-          this.activeTurnMetadata.generation !== activeWork.generation ||
-          activeWork.state !== "running")
-      )
-        throw new Error("This task continuation is stale");
-      const teamWorkId = await this.currentTeamWorkId();
-      const briefing = teamWorkId
-        ? await this.workspaceAgent.teamBriefing(this.name, teamWorkId)
-        : null;
-      const config = await prepareTeammateTurn({
-        modelId: briefing?.modelId ?? undefined,
-        activeWork,
-        botId: this.name,
-        connectedServices: this.integrationRuntime
-          .list()
-          .filter((connection) => connection.status === "ready")
-          .map((connection) => connection.name),
-        context: ctx,
-        maxSteps: this.maxSteps,
-        modelFor: (modelId) => this.modelFor(modelId),
-        metadata: this.activeTurnMetadata,
-        workspaceAgent: this.workspaceAgent
-      });
-      if (activeWork)
-        config.instructions = `${config.instructions}\nSaved completion criteria: ${JSON.stringify(this.taskSupervision.criteria(activeWork.taskId))}`;
-      this.turnStepLimit = config.maxSteps ?? DEFAULT_TURN_STEPS;
-      return config;
-    } catch (cause) {
-      this.turnActive = false;
-      throw cause;
-    }
+    await this.armTaskWatchdog();
+    await this.recordTaskProgress();
+    await this.assertProductTurnAllowed();
+    await this.resumeOwnerTask();
+    const activeWork = this.tasks.active();
+    if (
+      this.activeTurnMetadata?.source === "active-task" &&
+      (!activeWork ||
+        this.activeTurnMetadata.taskId !== activeWork.taskId ||
+        this.activeTurnMetadata.generation !== activeWork.generation ||
+        activeWork.state !== "running")
+    )
+      throw new Error("This task continuation is stale");
+    const teamWorkId = await this.currentTeamWorkId();
+    const briefing = teamWorkId
+      ? await this.workspaceAgent.teamBriefing(this.name, teamWorkId)
+      : null;
+    const config = await prepareTeammateTurn({
+      modelId: briefing?.modelId ?? undefined,
+      activeWork,
+      botId: this.name,
+      connectedServices: this.integrationRuntime
+        .list()
+        .filter((connection) => connection.status === "ready")
+        .map((connection) => connection.name),
+      context: ctx,
+      maxSteps: this.maxSteps,
+      modelFor: (modelId) => this.modelFor(modelId),
+      metadata: this.activeTurnMetadata,
+      workspaceAgent: this.workspaceAgent
+    });
+    if (activeWork)
+      config.instructions = `${config.instructions}\nSaved completion criteria: ${JSON.stringify(this.taskSupervision.criteria(activeWork.taskId))}`;
+    this.turnStepLimit = config.maxSteps ?? DEFAULT_TURN_STEPS;
+    return config;
   }
   async beforeStep(ctx: PrepareStepContext): Promise<StepConfig | undefined> {
     await this.assertProductTurnAllowed();
@@ -215,80 +203,12 @@ export class HQBotTeammate extends TeammateLocalRuntime {
     if (scheduleChanged) return { toolChoice: "none" } as unknown as StepConfig;
     return prepareTeamStep(ctx, await this.currentTeamWorkId(), this.name, this.workspaceAgent);
   }
-  async onChatResponse(result: ChatResponseResult): Promise<void> {
-    try {
-      const pending = [
-        ...(await this.integrationRuntime.pending()),
-        ...(await this.listComputerApprovals())
-      ];
-      const work = this.tasks.active();
-      if (
-        (pending.length || this.ownerHandoffs.pending()) &&
-        work?.state === "running" &&
-        !this.processes.active()
-      )
-        await this.tasks.manage({
-          action: "needs_user",
-          goal: work.goal,
-          checkpoint: `${work.checkpoint}\nWaiting for owner approval of the connected action.`
-        });
-      await this.tasks.run(() =>
-        this.tasks.settleTurn(
-          this.activeTurnMetadata?.taskId,
-          this.activeTurnMetadata?.generation,
-          result.status,
-          teammateResponseText(result),
-          result.error
-        )
-      );
-      const activeWork = this.tasks.active();
-      await finishTeammateResponse({
-        botId: this.name,
-        interactionStatus:
-          activeWork?.state === "running" || this.processes.active() ? "working" : "idle",
-        result,
-        workspaceAgent: this.workspaceAgent
-      });
-      if (pending.length > 0) {
-        await this.workspaceAgent.markInteraction(
-          this.name,
-          "Action needs approval",
-          "needs_approval"
-        );
-      }
-      await this.productResponse(result);
-      await this.computerRuntime.recoveryCheckpoint().catch(() => undefined);
-    } finally {
-      this.turnActive = false;
-    }
-  }
   protected onSubmissionStatus(submission: ThinkSubmissionInspection): Promise<void> {
     return this.tasks.run(() => this.tasks.settleSubmission(submission));
   }
   @callable()
   async reconcileScheduledTasks(): Promise<void> {
     await this.internal_reconcileScheduledTasks();
-  }
-  private resumeOwnerTask() {
-    return resumeOwnerTask(
-      this.tasks,
-      this.activeTurnMetadata,
-      async () =>
-        !(await this.canAct()) ||
-        Boolean(this.ownerHandoffs.pending()) ||
-        (await this.integrationRuntime.pending()).length > 0 ||
-        (await this.listComputerApprovals()).length > 0
-    );
-  }
-  async recoverRuntime(): Promise<void> {
-    await this.computerRuntime.reconcileOwnerControl();
-    await this.processes.reconcile();
-    if (!this.turnActive) {
-      await this.resumeOwnerTask();
-      if (!this.turnActive) await this.tasks.reconcile();
-    }
-    await this.ownerHandoffs.recover();
-    await this.integrationRuntime.recover();
   }
   @callable()
   submitChat(input: TeammateChatSubmission) {

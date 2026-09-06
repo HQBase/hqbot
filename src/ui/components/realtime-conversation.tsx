@@ -125,7 +125,7 @@ export function RealtimeConversation({
       ? controller.selectedTask?.workState === "waiting" && !controller.selectedTask.wakeAt
         ? "Bash is running"
         : ["scheduled", "running"].includes(controller.selectedTask?.workState ?? "")
-          ? "Bash finished — resuming agent"
+          ? "Continuing saved task…"
           : null
       : null;
   const showThinking =

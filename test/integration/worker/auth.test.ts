@@ -108,7 +108,7 @@ describe("HQBot Worker authentication", () => {
     ).json()) as { teammate: { id: string } };
     const path = `/api/bots/${teammate.id}`;
     await request(`${path}/attention`, { headers: { Cookie: session } });
-    const storage = await server
+    let storage = await server
       .getWorker()
       .getDurableObjectStorage("HQBOT_TEAMMATE", { name: teammate.id });
     const stamp = new Date().toISOString();
@@ -144,16 +144,37 @@ describe("HQBot Worker authentication", () => {
     expect(await storage.exec("SELECT state FROM hqbot_active_work")).toEqual([
       { state: "needs_user" }
     ]);
-    await storage.exec("UPDATE hqbot_owner_handoffs SET state = 'completed' WHERE id = 'login'");
     await peer.recoverRuntime();
+    const watchdogs = () =>
+      storage.exec(
+        "SELECT id FROM cf_agents_schedules WHERE callback = 'recoverRuntime' AND type = 'interval'"
+      );
+    expect(await watchdogs()).toHaveLength(1);
+    await server.update((options) => ({
+      ...options,
+      workers: options.workers.map((worker) => ({
+        ...worker,
+        vars: { HQBOT_TEST_RESTART: "watchdog-wait" }
+      }))
+    }));
+    storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: teammate.id });
+    const restarted = (await server.getWorker().getEnv()) as typeof env;
+    const restoredPeer = restarted.HQBOT_TEAMMATE.getByName(teammate.id);
+    await restoredPeer.recoverRuntime();
+    expect(await watchdogs()).toHaveLength(1);
+    await storage.exec("UPDATE hqbot_owner_handoffs SET state = 'completed' WHERE id = 'login'");
+    await restoredPeer.recoverRuntime();
     expect(await storage.exec("SELECT state FROM hqbot_active_work")).toEqual([
       { state: "scheduled" }
     ]);
     expect((await post(`${path}/stop`, {}, session)).status).toBe(200);
-    await peer.recoverRuntime();
+    await restoredPeer.recoverRuntime();
     expect(await storage.exec("SELECT state FROM hqbot_active_work")).toEqual([
       { state: "cancelled" }
     ]);
+    expect(await watchdogs()).toHaveLength(0);
   });
 
   it("persists owner-controlled team settings and rejects unpriced or unauthenticated changes", async () => {

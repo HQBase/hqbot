@@ -294,3 +294,13 @@ next turn. The task keeps its completion criteria and checkpoint. Recovery can r
 waiting state only when the latest saved owner-result message matches the task and generation,
 and no approval or owner handoff remains open. Stopped tasks, unknown action outcomes, and waits
 for a new owner reply do not resume from an older decision.
+
+Active saved tasks have a durable recovery check every minute. The check uses the actual turn
+engine state, not a UI working flag. An idle task with unfinished work receives one saved next
+turn. Streaming progress refreshes a task heartbeat. After five minutes without progress, a
+stalled turn can be cancelled and recovered at most three times. Recovery fences the old task
+generation before cancellation. An unresolved external effect or a turn that cannot stop requires
+review and cannot be replayed automatically. Pending approvals and owner handoffs remain paused.
+
+Opening a verified collapsed select or listbox control is routine navigation. Selecting a value
+or submitting an access change still passes through the action permission check.

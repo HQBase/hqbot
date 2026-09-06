@@ -176,3 +176,33 @@ it("reconciles only newly allowed pending actions after the owner changes policy
   await permissions.reconcile();
   expect(owner.approve).toHaveBeenCalledExactlyOnceWith("pause");
 });
+
+it("opens a verified collapsed access dropdown without approval, but checks selection and submit", async () => {
+  const { safety, host, page } = fixture();
+  Object.assign(page.target, {
+    name: "Agent mailbox access",
+    role: "combobox",
+    expanded: "false",
+    hasPopup: "listbox"
+  });
+  host.classify.mockResolvedValue({
+    decision: "review",
+    title: "Change access",
+    reason: "This grants access."
+  });
+  expect(
+    (await safety.prepare("open", "browser_click", { ref: "e4" }, "autonomous")).view.decision
+  ).toBe("allow");
+  expect(host.classify).not.toHaveBeenCalled();
+  expect(
+    (await safety.prepare("strict", "browser_click", { ref: "e4" }, "review")).view.decision
+  ).toBe("review");
+  Object.assign(page.target, { name: "Handle mail", role: "option", expanded: "", hasPopup: "" });
+  expect(
+    (await safety.prepare("select", "browser_click", { ref: "e5" }, "autonomous")).view.decision
+  ).toBe("review");
+  Object.assign(page.target, { name: "Create mailbox agent", role: "button", type: "submit" });
+  expect(
+    (await safety.prepare("submit", "browser_click", { ref: "e6" }, "autonomous")).view.decision
+  ).toBe("review");
+});

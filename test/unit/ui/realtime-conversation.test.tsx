@@ -740,7 +740,7 @@ describe("RealtimeConversation", () => {
     await view.rerender(content());
 
     expect(view.container.querySelector('[role="status"]')?.textContent).toContain(
-      "Bash finished — resuming agent"
+      "Continuing saved task…"
     );
     await view.unmount();
   });

@@ -158,7 +158,12 @@ export class ComputerSafety {
         ["start", "give_to_owner", "take_back"].includes(String(input.action))) ||
       (name === "browser_tabs" && ["list", "select"].includes(String(input.operation))) ||
       (name === "desktop_mouse" && ["move", "scroll"].includes(String(input.action))) ||
-      name === "copy_file_to_computer";
+      name === "copy_file_to_computer" ||
+      (name === "browser_click" &&
+        (context?.target?.tag === "select" ||
+          (context?.target?.role === "combobox" &&
+            context.target.expanded === "false" &&
+            context.target.hasPopup === "listbox")));
     if (
       (routine &&
         (mode !== "review" ||
