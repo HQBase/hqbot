@@ -92,7 +92,7 @@ function ToolStep({ part }: { part: AgentPart }) {
         ? "Screenshot captured"
         : artifacts.length > 0
           ? `${artifacts.length} files created`
-          : summarize(part.output)
+          : (teamStep(part)?.summary ?? summarize(part.output))
       : "Working…";
 
   return (
@@ -167,7 +167,32 @@ function activityState(part: AgentPart): "active" | "complete" | "failed" {
 }
 
 function toolLabel(part: AgentPart): string {
-  return part.title ?? part.toolName ?? part.type.replace(/^tool-/u, "").replaceAll("-", " ");
+  return (
+    teamStep(part)?.label ??
+    part.title ??
+    (part.toolName ?? part.type.replace(/^tool-/u, "")).replaceAll(/[-_]/gu, " ")
+  );
+}
+
+function teamStep(part: AgentPart): { label: string; summary: string } | undefined {
+  if ((part.toolName ?? part.type.replace(/^tool-/u, "")) !== "coordinate") return;
+  const action = (part.input as { action?: string } | null)?.action;
+  const steps: Record<string, [string, string]> = {
+    settings: ["Check team settings", "Management limits and allowed models checked."],
+    team: ["Find teammates", "Available teammates checked."],
+    start: ["Start team task", "Goal, completion checks and limits saved."],
+    assign: ["Delegate work", "Assignment saved for the selected teammate."],
+    wait: ["Wait for teammates", "Work will resume when a result or report arrives."],
+    report: ["Report progress", "Progress and next step saved for the manager."],
+    check_in: ["Check in", "A progress report was requested."],
+    redirect: ["Send guidance", "Guidance saved for the teammate’s next safe step."],
+    review: ["Review a result", "The review decision and evidence were saved."],
+    finish: ["Submit final checks", "The result and completion checks were saved."],
+    status: ["Check team progress", "Latest assignments and reports checked."],
+    hire: ["Create a teammate", "The teammate is ready within the saved hiring limits."]
+  };
+  const step = action ? steps[action] : undefined;
+  return step ? { label: step[0], summary: step[1] } : undefined;
 }
 
 export function toolOutputFailed(output: unknown): boolean {
@@ -222,10 +247,5 @@ function isInlineScreenshot(value: unknown): value is Record<string, unknown> & 
 function summarize(value: unknown): string {
   if (typeof value === "string") return value;
   if (value === undefined) return "Waiting for output";
-  try {
-    const text = JSON.stringify(value);
-    return text.length > 150 ? `${text.slice(0, 147)}…` : text;
-  } catch {
-    return "Output ready";
-  }
+  return "Result available in details.";
 }

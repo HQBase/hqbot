@@ -72,6 +72,8 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   Opening workspace search puts keyboard focus in the search field.
   Collapsed assignment cards shorten long instructions and reports; expansion shows the full text.
   Internal service-result messages show a compact notice, with exact results in Activity.
+  Team activity steps use plain action labels. Internal IDs and structured output stay in the
+  expandable details so the main conversation remains easy to scan.
 - Routines support intervals and calendar rules with an IANA time zone, editing, manual tests,
   pause/resume, and run history. Signed inbound events can start selected routines. Signature
   verification, timestamp checks where supported, replay protection, and bounded queues precede

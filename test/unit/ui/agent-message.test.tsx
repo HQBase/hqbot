@@ -267,7 +267,7 @@ describe("AgentMessage", () => {
     expect(view.container.querySelectorAll('[aria-label="Agent activity"]')).toHaveLength(1);
     expect(view.container.textContent).toContain("2 steps");
     expect(view.container.textContent).toContain("Thought process");
-    expect(view.container.textContent).toContain("browser_snapshot");
+    expect(view.container.textContent).toContain("browser snapshot");
     expect(view.container.textContent).toContain("The inbox is ready.");
     await view.unmount();
   });
@@ -316,9 +316,9 @@ describe("AgentMessage", () => {
       ...(view.container.querySelector("article > div.min-w-0 > div.flex")?.children ?? [])
     ];
     expect(view.container.querySelectorAll('[aria-label="Agent activity"]')).toHaveLength(2);
-    expect(sections[0]?.textContent).toContain("browser_snapshot");
+    expect(sections[0]?.textContent).toContain("browser snapshot");
     expect(sections[1]?.textContent).toContain("I found the message");
-    expect(sections[2]?.textContent).toContain("browser_click");
+    expect(sections[2]?.textContent).toContain("browser click");
     await view.unmount();
   });
 });
