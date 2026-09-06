@@ -2,6 +2,7 @@ import { Badge } from "../ui/badge";
 
 const labels: Record<string, string> = {
   active: "Working",
+  blocked: "Blocked",
   queued: "Queued",
   submitted: "Working",
   returned: "Needs review",
@@ -27,7 +28,9 @@ const labels: Record<string, string> = {
 };
 export function ActivityStatus({ state }: { state: string }) {
   return (
-    <Badge variant={["failed", "uncertain"].includes(state) ? "destructive" : "secondary"}>
+    <Badge
+      variant={["failed", "uncertain", "blocked"].includes(state) ? "destructive" : "secondary"}
+    >
       {labels[state] ?? state.replaceAll("_", " ")}
     </Badge>
   );

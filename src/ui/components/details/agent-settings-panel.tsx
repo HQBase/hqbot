@@ -10,6 +10,7 @@ import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
 import { DetailsSection } from "./details-section";
 import { ModelPanel } from "./model-panel";
+import { TeamManagementPanel } from "./team-management-panel";
 
 export function AgentSettingsPanel({
   bot,
@@ -138,6 +139,8 @@ export function AgentSettingsPanel({
         onModelChange={onModelChange}
       />
 
+      <div className="my-5 border-t border-divider" />
+      {loadCatalog && <TeamManagementPanel key={bot.id} botId={bot.id} />}
       <div className="my-5 border-t border-divider" />
       {confirmDelete ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">

@@ -17,7 +17,7 @@ export function ActivityPanel({ botId, revision }: { botId: string; revision?: s
         </TabsTrigger>
       </TabsList>
       <TabsContent value="progress">
-        <TeamProgress botId={botId} onLoaded={setHasTeamWork} />
+        <TeamProgress key={botId} botId={botId} onLoaded={setHasTeamWork} />
         <TaskProgressPanel hideEmpty={hasTeamWork} botId={botId} revision={revision} />
       </TabsContent>
       <TabsContent value="actions">

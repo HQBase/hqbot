@@ -6,8 +6,23 @@ Teammates continue working in Cloudflare when you close the page.
 
 Use the pinned **Chief of Staff** conversation for work that needs several teammates. It owns the
 final answer, assigns separate jobs, waits for results, and reviews their evidence. Each team task
-has completion checks, a deadline, and a shared model budget. Specialists cannot pass assignments
-onward. You can still talk to any specialist directly.
+has completion checks, a deadline, and a shared model budget. You can allow other teammates to
+manage work. A manager can pass smaller parts to specialists, up to three assignment levels.
+Every manager reviews its direct reports. Stop the main task to stop every branch and its pending
+approvals. You can still talk to any specialist directly.
+
+Open **Agent settings → Team management** to choose who can manage or create teammates, the models
+they can use, and their limits. Creating teammates is off by default. New employees keep separate
+memory, files, connections, and permissions. You can also allow a manager to create other managers;
+those new managers cannot hire unless you enable it. Group leads can manage their own groups.
+
+Use **Activity → Progress** to see who reports to whom, the assigned model, saved progress, and
+reviewed results. Expand an active assignment to **Check in** or **Change guidance**. The request
+is saved and read at the next safe model step. A tool call or pending approval finishes first.
+Managers also receive milestone and blocker reports automatically. They wait without repeated
+model calls. Work branches share the main task's limit; passing one branch down does not use an
+extra branch. The daily team model budget covers all tasks that manager owns and resets at
+midnight UTC. Existing workspace, teammate, and task budgets still apply.
 
 Click the conversation name or the **info** button to open its sidebar on the right. On a phone,
 it opens in a sheet. Close it to return to your messages. The sidebar starts closed.
@@ -25,7 +40,7 @@ Conversation info keeps these controls with the selected teammate:
 - **Activity:** use Progress for team assignments, saved tasks, checks, and timelines. Use Actions
   for connected-action outcomes; expand an action to inspect its input and result.
 - **Cost:** inspect estimated use and budgets. Expand resource counts for Cloudflare details.
-- **Agent settings:** change the teammate profile, model, and turn limits.
+- **Agent settings:** change the teammate profile, model, turn limits, and team management policy.
 
 The **Computer** button opens the live computer in the same right-side area. Use its back button
 to return to conversation info. The live screen appears when the teammate uses its computer.

@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
-import type { TeamWork } from "../../../domain/team-work";
+import type { TeamAssignment, TeamWork } from "../../../domain/team-work";
 import { api, errorMessage } from "../../lib/api";
+import { MarkdownText } from "../chat/markdown-text";
+import { Alert, AlertDescription } from "../ui/alert";
+import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { ActivityStatus, ActivityTime } from "./activity-parts";
+import { TeamAssignmentCard } from "./team-assignment-card";
 
 export function TeamProgress({
   botId,
@@ -14,28 +18,33 @@ export function TeamProgress({
   const [view, setView] = useState<{ work: TeamWork | null; names: Record<string, string> } | null>(
     null
   );
+  const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision refreshes after a saved request.
   useEffect(() => {
     const controller = new AbortController();
-    setView(null);
     setError("");
-    const load = () =>
-      api<{ work: TeamWork | null; names: Record<string, string> }>(
-        `/api/bots/${botId}/team-work`,
-        { signal: controller.signal }
-      ).then(
-        (result) => {
-          if (!controller.signal.aborted) {
-            setView(result);
-            onLoaded?.(Boolean(result.work));
-            setError("");
-          }
-        },
-        (cause) => {
-          if (!controller.signal.aborted)
-            setError(errorMessage(cause, "Team progress could not load"));
+    let loading = false;
+    const load = async () => {
+      if (loading) return;
+      loading = true;
+      try {
+        const result = await api<{ work: TeamWork | null; names: Record<string, string> }>(
+          `/api/bots/${botId}/team-work`,
+          { signal: controller.signal }
+        );
+        if (!controller.signal.aborted) {
+          setView(result);
+          onLoaded?.(Boolean(result.work));
+          setError("");
         }
-      );
+      } catch (cause) {
+        if (!controller.signal.aborted)
+          setError(errorMessage(cause, "Team progress could not load"));
+      } finally {
+        loading = false;
+      }
+    };
     void load();
     const timer = window.setInterval(() => {
       if (!document.hidden) void load();
@@ -44,17 +53,28 @@ export function TeamProgress({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [botId, onLoaded]);
+  }, [botId, onLoaded, revision]);
   const work = view?.work;
-  if (error)
-    return (
-      <p role="alert" className="py-3 text-sm text-destructive">
+  const warning = error ? (
+    <Alert variant="destructive">
+      <AlertDescription>
         {error}
-      </p>
-    );
-  if (!work || !view) return null;
+        {work ? " Showing the last saved progress." : ""}
+        <Button
+          className="mt-2 self-start"
+          size="sm"
+          variant="outline"
+          onClick={() => setRevision((value) => value + 1)}
+        >
+          Try again
+        </Button>
+      </AlertDescription>
+    </Alert>
+  ) : null;
+  if (!work || !view) return warning;
   return (
     <section aria-label="Team task" className="mb-6 flex flex-col gap-3 text-sm">
+      {warning}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
@@ -85,44 +105,39 @@ export function TeamProgress({
               ))}
             </ul>
           </div>
-          {work.result && (
-            <p className="whitespace-pre-wrap break-words border-t pt-4 leading-relaxed">
-              {work.result}
-            </p>
-          )}
+          {work.result && <MarkdownText text={work.result} />}
         </CardContent>
       </Card>
       {work.assignments.length > 0 && <h3 className="mt-1 font-medium">Assignments</h3>}
-      {work.assignments.map((item) => (
-        <details key={item.id} className="rounded-xl border border-divider bg-card p-3">
-          <summary className="cursor-pointer">
-            <span className="inline-flex flex-wrap items-center gap-2">
-              <strong className="font-medium">{view.names[item.botId] ?? "Specialist"}</strong>
-              <ActivityStatus state={item.state} />
-            </span>
-            <span className="mt-2 block text-sm leading-relaxed">{item.instruction}</span>
-          </summary>
-          <div className="mt-4 flex flex-col gap-4 border-t pt-4 leading-relaxed">
-            <div>
-              <h4 className="mb-1 text-xs font-medium text-muted-foreground">Required evidence</h4>
-              <p className="break-words">{item.criterion}</p>
-            </div>
-            {item.result && (
-              <div>
-                <h4 className="mb-1 text-xs font-medium text-muted-foreground">Returned result</h4>
-                <p className="whitespace-pre-wrap break-words">{item.result}</p>
-              </div>
-            )}
-            {item.review && (
-              <div>
-                <h4 className="mb-1 text-xs font-medium text-muted-foreground">Owner review</h4>
-                <p className="whitespace-pre-wrap break-words">{item.review}</p>
-              </div>
-            )}
-            <ActivityTime value={item.updatedAt} />
-          </div>
-        </details>
+      {orderedAssignments(work.assignments).map((item) => (
+        <div key={item.id} style={{ marginLeft: `${Math.max(0, (item.depth ?? 1) - 1) * 8}px` }}>
+          <TeamAssignmentCard
+            item={item}
+            work={work}
+            names={view.names}
+            botId={botId}
+            onUpdated={() => setRevision((value) => value + 1)}
+          />
+        </div>
       ))}
     </section>
   );
+}
+
+function orderedAssignments(items: TeamAssignment[]) {
+  const ordered: TeamAssignment[] = [];
+  const visit = (parentId: string | null) => {
+    for (const item of items.filter((item) => (item.parentId ?? null) === parentId)) {
+      ordered.push(item);
+      visit(item.id);
+    }
+  };
+  for (const item of items.filter(
+    (item) => item.parentId && !items.some((parent) => parent.id === item.parentId)
+  )) {
+    ordered.push(item);
+    visit(item.id);
+  }
+  visit(null);
+  return ordered;
 }

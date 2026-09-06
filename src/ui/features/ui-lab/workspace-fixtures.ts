@@ -103,6 +103,10 @@ export function installWorkspaceFixtures() {
           assignments: [
             {
               id: "source",
+              parentId: "draft",
+              managerBotId: "support",
+              depth: 2,
+              modelId: HQBOT_MODELS[0].id,
               workId: "preview-team",
               key: "source",
               botId: "operator",
@@ -115,6 +119,16 @@ export function installWorkspaceFixtures() {
             },
             {
               id: "draft",
+              managerBotId: "researcher",
+              depth: 1,
+              modelId: HQBOT_MODELS[0].id,
+              waiting: true,
+              progress: {
+                summary: "The source check is complete. Reviewing the support draft.",
+                nextStep: "Remove unsupported claims and return the checked draft.",
+                blocked: false,
+                updatedAt: stamp
+              },
               workId: "preview-team",
               key: "draft",
               botId: "support",
@@ -126,6 +140,20 @@ export function installWorkspaceFixtures() {
               updatedAt: stamp
             }
           ]
+        }
+      };
+    else if (path.endsWith("/team-management"))
+      body = {
+        models: HQBOT_MODELS.filter((model) => model.rates),
+        policy: {
+          canManage: true,
+          canCreate: false,
+          canCreateManagers: false,
+          allowedModelIds: [HQBOT_MODELS[0].id],
+          defaultModelId: HQBOT_MODELS[0].id,
+          maxEmployees: 8,
+          maxConcurrent: 6,
+          dailyBudgetUsd: 2
         }
       };
     else if (path.endsWith("/task-progress")) body = null;

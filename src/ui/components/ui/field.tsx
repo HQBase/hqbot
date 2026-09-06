@@ -10,15 +10,38 @@ export function FieldGroup({
   return <div className={cn("flex w-full flex-col gap-5", className)} {...props} />;
 }
 
-export function Field({ className, ...props }: React.ComponentProps<"div">): React.ReactElement {
+export function Field({
+  className,
+  orientation = "vertical",
+  ...props
+}: React.ComponentProps<"div"> & { orientation?: "vertical" | "horizontal" }): React.ReactElement {
   return (
     <div
-      className={cn("flex w-full flex-col gap-2", className)}
+      className={cn(
+        "flex w-full gap-2",
+        orientation === "horizontal" ? "flex-row items-start gap-3" : "flex-col",
+        className
+      )}
       data-slot="field"
       role="group"
       {...props}
     />
   );
+}
+
+export function FieldSet({ className, ...props }: React.ComponentProps<"fieldset">) {
+  return (
+    <fieldset
+      className={cn("flex min-w-0 flex-col gap-4 disabled:opacity-60", className)}
+      {...props}
+    />
+  );
+}
+export function FieldLegend({ className, ...props }: React.ComponentProps<"legend">) {
+  return <legend className={cn("mb-2 text-sm font-medium", className)} {...props} />;
+}
+export function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
+  return <div className={cn("flex min-w-0 flex-1 flex-col gap-1.5", className)} {...props} />;
 }
 
 export function FieldLabel({
