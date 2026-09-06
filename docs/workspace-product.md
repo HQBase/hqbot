@@ -36,7 +36,9 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   assignments, reviews their returned evidence, and produces the final answer. Specialists cannot
   pass the same assignment onward. The runtime rejects completion while assignments remain open
   or results have not been reviewed. Delivery retries use stable IDs. Stopping the owner stops its
-  team task. Direct conversations with specialists remain available.
+  team task and rejects pending specialist approvals. Action history records those rejections,
+  including after recovery. It must not label an approved or completed action as rejected.
+  Direct conversations with specialists remain available.
 - Projects explicitly select teammates and shared files or skills. Each group selects a lead;
   a new group request goes to that lead by default. Computer sessions, memory, integrations, and
   logins stay with each teammate. Chief of Staff can see the active roster and send bounded work

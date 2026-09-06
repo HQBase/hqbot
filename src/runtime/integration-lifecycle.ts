@@ -1,4 +1,5 @@
 import type { PendingAction } from "@cloudflare/codemode";
+import type { ActionHistory } from "./action-history";
 
 interface IntegrationLifecycleRuntime {
   pending(): Promise<PendingAction[]>;
@@ -7,12 +8,17 @@ interface IntegrationLifecycleRuntime {
 
 export async function rejectPendingIntegrationActions(
   runtime: IntegrationLifecycleRuntime,
-  connector?: string
+  connector?: string,
+  history?: ActionHistory
 ): Promise<number> {
   const pending = await runtime.pending();
   let rejected = 0;
   for (const action of pending.filter((item) => !connector || item.connector === connector)) {
-    if (await runtime.reject({ executionId: action.executionId, seq: action.seq })) rejected += 1;
+    const saved = await history?.pending(action);
+    if (await runtime.reject({ executionId: action.executionId, seq: action.seq })) {
+      if (saved) history?.decide(action.executionId, action.seq, saved.inputHash, "denied");
+      rejected += 1;
+    }
   }
   return rejected;
 }

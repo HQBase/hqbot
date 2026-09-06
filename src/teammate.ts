@@ -319,7 +319,7 @@ export class HQBotTeammate extends TeammateLocalRuntime {
 
   @callable()
   listActionHistory() {
-    return this.integrationRuntime.history();
+    return this.integrationRuntime.refreshHistory();
   }
 
   @callable()

@@ -1,4 +1,4 @@
-import type { PendingAction } from "@cloudflare/codemode";
+import type { ExecutionState, PendingAction } from "@cloudflare/codemode";
 import type { ActionRecord, IntegrationApproval } from "../domain/actions";
 import { type Row, type Sql, text } from "../workspace/sql";
 import { canonicalizeJson, sha256Hex } from "./external-effects";
@@ -60,6 +60,19 @@ export class ActionHistory {
         updatedAt: text(row, "updated_at")
       })
     );
+  }
+
+  reconcileRejections(executions: Pick<ExecutionState, "id" | "status" | "log">[]): void {
+    for (const action of this.list().filter((item) => item.state === "pending")) {
+      const execution = executions.find((item) => item.id === action.executionId);
+      const call = execution?.log.find((item) => item.seq === action.seq);
+      if (
+        execution?.status === "rejected" &&
+        call &&
+        (call.state === "reverted" || call.state === "pending")
+      )
+        this.decide(action.executionId, action.seq, action.inputHash, "denied");
+    }
   }
 
   enqueue(id: string, message: string): void {

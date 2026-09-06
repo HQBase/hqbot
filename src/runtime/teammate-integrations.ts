@@ -102,7 +102,11 @@ export class TeammateIntegrations {
   async disconnect(id: string): Promise<void> {
     if (!this.options.serverExists(id)) throw new Error("Connection not found");
     const runtime = this.runtime();
-    const rejected = await rejectPendingIntegrationActions(runtime, mcpConnectorName(id));
+    const rejected = await rejectPendingIntegrationActions(
+      runtime,
+      mcpConnectorName(id),
+      this.options.history
+    );
     await this.options.removeServer(id);
     if (rejected > 0) {
       await this.options.markInteraction(
@@ -158,6 +162,11 @@ export class TeammateIntegrations {
     return this.options.history.list();
   }
 
+  async refreshHistory() {
+    this.options.history.reconcileRejections(await this.runtime().executions(100));
+    return this.history();
+  }
+
   async approve(executionId: string, seq: number, inputHash: string): Promise<ProxyToolOutput> {
     if (!(await this.options.isActive()))
       throw new Error("Restore this teammate before you approve an action");
@@ -209,6 +218,7 @@ export class TeammateIntegrations {
     await this.pending();
     const runtime = this.runtime();
     const executions = await runtime.executions(100);
+    this.options.history.reconcileRejections(executions);
     for (const action of this.options.history
       .list()
       .filter((item) => item.state === "approved" || item.state === "applied")) {
@@ -284,7 +294,7 @@ export class TeammateIntegrations {
   }
 
   rejectAll(): Promise<number> {
-    return rejectPendingIntegrationActions(this.runtime());
+    return rejectPendingIntegrationActions(this.runtime(), undefined, this.options.history);
   }
 
   private runtime() {

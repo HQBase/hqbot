@@ -38,7 +38,8 @@ Each teammate keeps its own files, memory, integrations, credentials, routines, 
 logins. A group is a project conversation with selected teammates. Its info sidebar shows members
 and shared files and skills. Use **Edit group** to choose its lead and exactly which items to share.
 Group requests go to the lead, which assigns work and returns one answer. Stopping a team task
-owner stops its remaining assignments. A specialist uses its own connections and approval rules.
+owner stops its remaining assignments and clears their pending approvals. Actions records those
+calls as denied. A specialist uses its own connections and approval rules.
 
 Unread badges and approval cards show what needs attention. Approval cards also refresh when
 background work asks for review, and after the chat reconnects. The small bell below the conversation
