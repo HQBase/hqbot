@@ -809,6 +809,7 @@ describe("RealtimeConversation", () => {
   });
 
   it("shows and resolves a connected-service approval", async () => {
+    chat.isToolContinuation = true;
     const fetcher = vi.fn(async (_path: string, init?: RequestInit) =>
       Response.json(
         init?.method === "POST"
@@ -856,6 +857,8 @@ describe("RealtimeConversation", () => {
     );
 
     expect(view.container.textContent).toContain("Allow this connected action?");
+    expect(view.container.textContent).toContain("Needs you");
+    expect(view.container.textContent).not.toContain("Thinking…");
     expect(view.container.textContent).toContain("Open an issue");
     await interact(() =>
       [...view.container.querySelectorAll("button")]

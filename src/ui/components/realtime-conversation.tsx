@@ -245,15 +245,17 @@ export function RealtimeConversation({
         bot={bot}
         showBack={showBack}
         status={
-          chat.isRecovering
-            ? "Recovering"
-            : bot.status === "needs_approval"
-              ? "Needs approval"
-              : teammateActive
-                ? "Working"
-                : connectionError
-                  ? "Offline"
-                  : "Live"
+          attentionCount > 0
+            ? "Needs you"
+            : chat.isRecovering
+              ? "Recovering"
+              : bot.status === "needs_approval"
+                ? "Needs approval"
+                : teammateActive
+                  ? "Working"
+                  : connectionError
+                    ? "Offline"
+                    : "Live"
         }
         working={teammateActive}
         onBack={() => controller.setMobileChatOpen(false)}
@@ -317,7 +319,7 @@ export function RealtimeConversation({
               />
             ) : null
           )}
-          {showThinking ? (
+          {showThinking && attentionCount === 0 ? (
             <ThinkingIndicator
               label={backgroundLabel ?? undefined}
               name={bot.name}
