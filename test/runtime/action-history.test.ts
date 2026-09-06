@@ -7,6 +7,7 @@ import type { Sql, SqlValue } from "../../src/workspace/sql";
 
 const databases: DatabaseSync[] = [];
 afterEach(() => {
+  vi.useRealTimers();
   for (const database of databases.splice(0)) database.close();
 });
 function fixture() {
@@ -27,6 +28,19 @@ const action = {
   method: "read",
   args: { id: "record" }
 };
+it("preserves the outcome time during recovery and updates it only when evidence changes", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-06T13:00:00Z"));
+  const { history, sql } = fixture();
+  await history.pending(action);
+  history.outcome("one", 0, "applied", { checked: true });
+  const original = history.list()[0];
+  vi.setSystemTime(new Date("2026-09-06T14:00:00Z"));
+  new ActionHistory(sql).outcome("one", 0, "applied", { checked: true });
+  expect(history.list()[0]).toEqual(original);
+  history.outcome("one", 0, "confirmed", { checked: true });
+  expect(history.list()[0].updatedAt).toBe("2026-09-06T14:00:00.000Z");
+});
 it("binds an owner decision to immutable input and rejects duplicate decisions", async () => {
   const { history } = fixture();
   const pending = await history.pending(action as never);

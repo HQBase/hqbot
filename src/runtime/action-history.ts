@@ -40,8 +40,10 @@ export class ActionHistory {
   }
 
   outcome(executionId: string, seq: number, state: string, result: unknown): void {
-    this.sql`UPDATE hqbot_action_history SET state = ${state}, result = ${canonicalizeJson(result)},
-      updated_at = ${new Date().toISOString()} WHERE execution_id = ${executionId} AND seq = ${seq}`;
+    const savedResult = canonicalizeJson(result);
+    this.sql`UPDATE hqbot_action_history SET state = ${state}, result = ${savedResult},
+      updated_at = ${new Date().toISOString()} WHERE execution_id = ${executionId} AND seq = ${seq}
+      AND (state != ${state} OR result IS NOT ${savedResult})`;
   }
 
   list(): ActionRecord[] {

@@ -46,6 +46,7 @@ stopping work or losing a draft. Existing page links remain usable during the tr
   saved continuation and cannot substitute an earlier reply.
   Large service results are marked as shortened. An agent can read the saved result in bounded
   pages by action ID, without repeating the external request or reading another teammate's data.
+  Recovery preserves the recorded outcome time when the action state and result have not changed.
   Direct conversations with specialists remain available.
 - Team management is an owner-controlled setting for each teammate. It specifies whether that
   teammate may manage, create employees, or create managers, its allowed and default models, its
