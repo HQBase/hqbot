@@ -26,10 +26,14 @@ function continuationHarness(submitError?: Error, configure = vi.fn()) {
     ? vi.fn(async () => {
         throw submitError;
       })
-    : vi.fn(async (_work: ActiveWork, submissionId: string) => ({
-        accepted: true,
-        submissionId
-      }));
+    : vi.fn(async (work: ActiveWork, submissionId: string) => {
+        await tasks.submissionChanged({
+          submissionId,
+          status: "pending",
+          metadata: { taskId: work.taskId, generation: work.generation }
+        } as never);
+        return { accepted: true, submissionId };
+      });
   const store = {
     active: () => current,
     current: () => current,
@@ -154,3 +158,22 @@ describe("task coordinator", () => {
     expect(continued).toMatchObject({ state: "scheduled", scheduleId: "resume-1" });
   });
 });
+
+it("does not deadlock when Think emits pending status inside a queued continuation", async () => {
+  const runtime = continuationHarness();
+  await runtime.tasks.run(() => runtime.tasks.continueFrom(runtime.current(), "Next step"));
+  expect(runtime.submitResume).toHaveBeenCalledOnce();
+  expect(runtime.current()).toMatchObject({
+    state: "running",
+    generation: 2,
+    submissionId: "task:task-1:turn:2"
+  });
+}, 1000);
+
+it("does not queue running or cancelled submission callbacks behind their own operation", async () => {
+  const runtime = continuationHarness();
+  await runtime.tasks.run(async () => {
+    await runtime.tasks.submissionChanged({ status: "running", submissionId: "queued" } as never);
+    await runtime.tasks.submissionChanged({ status: "aborted", submissionId: "old-turn" } as never);
+  });
+}, 1000);

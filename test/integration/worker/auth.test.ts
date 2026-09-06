@@ -177,6 +177,62 @@ describe("HQBot Worker authentication", () => {
     expect(await watchdogs()).toHaveLength(0);
   });
 
+  it("creates the next turn when Think emits a status callback inside task settlement", async () => {
+    const session = cookie(await post("/api/auth/bootstrap", owner));
+    const { teammate } = (await (
+      await post("/api/bots", { brief: "Submission callback test", conversation: true }, session)
+    ).json()) as { teammate: { id: string } };
+    const path = `/api/bots/${teammate.id}`;
+    await request(`${path}/task-progress`, { headers: { Cookie: session } });
+    const storage = await server
+      .getWorker()
+      .getDurableObjectStorage("HQBOT_TEAMMATE", { name: teammate.id });
+    const stamp = new Date().toISOString();
+    await storage.exec(
+      "INSERT INTO hqbot_active_work (slot,task_id,goal,checkpoint,state,generation,wake_at,schedule_id,submission_id,last_error,created_at,updated_at) VALUES (1,'callback-test','Finish report','Next step','running',1,NULL,NULL,NULL,NULL,?,?)",
+      stamp,
+      stamp
+    );
+    const env = (await server.getWorker().getEnv()) as {
+      HQBOT_TEAMMATE: {
+        getByName(id: string): {
+          addMessages(messages: unknown[]): Promise<void>;
+          onChatResponse(result: unknown): Promise<void>;
+        };
+      };
+    };
+    const peer = env.HQBOT_TEAMMATE.getByName(teammate.id);
+    await peer.addMessages([
+      {
+        id: "owner-result",
+        role: "user",
+        parts: [{ type: "text", text: "Continue the report" }],
+        metadata: {
+          turnMetadata: { source: "computer-decision", taskId: "callback-test", generation: 1 }
+        }
+      }
+    ]);
+    await peer.onChatResponse({
+      status: "completed",
+      message: {
+        id: "finished-turn",
+        role: "assistant",
+        parts: [{ type: "text", text: "The first step is complete." }]
+      }
+    });
+    const rows = await storage.exec("SELECT generation,submission_id FROM hqbot_active_work");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ submission_id: "task:callback-test:turn:2" });
+    // The test model can fail before this read; that terminal transition advances the generation.
+    expect([2, 3]).toContain(rows[0]?.generation);
+    expect(
+      await storage.exec(
+        "SELECT submission_id FROM cf_think_submissions WHERE submission_id = 'task:callback-test:turn:2'"
+      )
+    ).toEqual([{ submission_id: "task:callback-test:turn:2" }]);
+    expect((await post(`${path}/stop`, {}, session)).status).toBe(200);
+  });
+
   it("persists owner-controlled team settings and rejects unpriced or unauthenticated changes", async () => {
     const session = cookie(await post("/api/auth/bootstrap", owner));
     const snapshot = (await (

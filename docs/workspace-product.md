@@ -304,3 +304,7 @@ review and cannot be replayed automatically. Pending approvals and owner handoff
 
 Opening a verified collapsed select or listbox control is routine navigation. Selecting a value
 or submitting an access change still passes through the action permission check.
+
+Submission status callbacks for pending, running, and obsolete turns return without waiting on
+HQBot's task queue. Think can emit these callbacks while a queued task operation is creating or
+cancelling a turn. Waiting on that same queue would deadlock the continuation.

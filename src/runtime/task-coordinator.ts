@@ -39,9 +39,7 @@ export interface TaskCoordinatorOptions {
 export class TaskCoordinator {
   private tail: Promise<void> = Promise.resolve();
   private recovery: TaskRecovery | null = null;
-
   constructor(private readonly options: TaskCoordinatorOptions) {}
-
   run<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.tail.then(operation, operation);
     this.tail = result.then(
@@ -50,7 +48,6 @@ export class TaskCoordinator {
     );
     return result;
   }
-
   active(): ActiveWork | null {
     return this.options.store.active();
   }
@@ -227,6 +224,19 @@ export class TaskCoordinator {
     } else await this.finish(current, "cancelled", error ?? "The task stopped");
   }
 
+  submissionChanged(submission: ThinkSubmissionInspection): Promise<void> {
+    // Think awaits this callback inside submit/cancel. Never queue nonterminal or stale events
+    // behind the task operation that is awaiting Think itself.
+    const work = this.current();
+    if (
+      submission.status === "pending" ||
+      submission.status === "running" ||
+      work?.state !== "running" ||
+      work.submissionId !== submission.submissionId
+    )
+      return Promise.resolve();
+    return this.run(() => this.settleSubmission(submission));
+  }
   async settleSubmission(submission: ThinkSubmissionInspection): Promise<void> {
     if (submission.status === "pending" || submission.status === "running") return;
     const current = this.current();

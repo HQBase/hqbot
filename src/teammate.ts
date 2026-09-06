@@ -204,7 +204,7 @@ export class HQBotTeammate extends TeammateRecoveryRuntime {
     return prepareTeamStep(ctx, await this.currentTeamWorkId(), this.name, this.workspaceAgent);
   }
   protected onSubmissionStatus(submission: ThinkSubmissionInspection): Promise<void> {
-    return this.tasks.run(() => this.tasks.settleSubmission(submission));
+    return this.tasks.submissionChanged(submission);
   }
   @callable()
   async reconcileScheduledTasks(): Promise<void> {
